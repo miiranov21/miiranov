@@ -33,6 +33,7 @@
   color-scheme:dark}
 
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
 .wrap{max-width:1080px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
 h1,h2,h3{font-family:var(--f-display);font-weight:700;margin:0;text-wrap:balance;letter-spacing:-.01em}
@@ -204,6 +205,35 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .cal-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .cal-stats{display:flex;flex-wrap:wrap;gap:6px}
 
+/* Competition */
+.vs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.player{border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0;position:relative}
+.player.lead{border-color:var(--kcal);box-shadow:0 0 0 1px var(--kcal) inset}
+.player .ph{display:flex;align-items:center;gap:12px}
+.player .pn{font-family:var(--f-display);font-size:16px;font-weight:700;overflow-wrap:anywhere}
+.player .pu{font-size:12px;color:var(--ink-3)}
+.crown{position:absolute;top:-12px;right:12px;background:var(--kcal);color:#fff;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+.pts{display:flex;align-items:baseline;gap:6px}
+.pts b{font-family:var(--f-num);font-size:26px;line-height:1}
+.pts span{font-size:12.5px;color:var(--ink-3)}
+.player .pbar i{background:var(--kcal)}
+.pstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.pstats div{background:var(--surface-2);border-radius:10px;padding:6px 4px;text-align:center;min-width:0}
+.pstats b{display:block;font-family:var(--f-num);font-size:14px}
+.pstats span{font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+.pquit{display:flex;flex-wrap:wrap;gap:6px}
+.h2h{overflow-x:auto}
+.h2h table{border-collapse:separate;border-spacing:4px;width:100%;min-width:440px;font-size:12px}
+.h2h th{font-weight:600;color:var(--ink-3);text-align:center}
+.h2h td:first-child{font-weight:700;white-space:nowrap;padding-right:6px;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.h2h td.c{text-align:center;border-radius:7px;padding:5px 2px;font-family:var(--f-num);background:var(--surface-2);color:var(--ink-2)}
+.h2h td.c.win{background:var(--kcal-soft);color:var(--kcal);font-weight:700}
+.h2h td.c.fut{opacity:.4}
+.join{display:flex;flex-direction:column;gap:8px;border:1px dashed var(--line);border-radius:14px;padding:14px;font-size:13.5px;color:var(--ink-2)}
+.join ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.nick{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.nick input{flex:1 1 160px;max-width:260px}
+
 /* Week charts */
 .charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .chart h3{font-family:var(--f-body);font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:6px;display:flex;justify-content:space-between}
@@ -272,6 +302,17 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   <div class="cta" id="profileCta" hidden><p>Укажи вес, рост и возраст, и трекер посчитает твою норму КБЖУ и воды.</p><button class="btn primary" type="button" id="ctaBtn">Рассчитать норму</button></div>
 
   <section class="summary" id="summary" aria-label="Сводка дня"></section>
+
+  <section class="panel" aria-labelledby="h-vs" id="vsPanel">
+    <div class="panel-head">
+      <h2 id="h-vs"><span class="dot" style="background:var(--kcal)"></span>Соревнование недели</h2>
+      <span class="meta" id="vsMeta"></span>
+    </div>
+    <div class="vs" id="vs"></div>
+    <div class="h2h" id="h2h"></div>
+    <div class="nick"><label for="nick" style="font-size:12.5px;color:var(--ink-3);font-weight:600">Твоё имя в соревновании</label><input type="text" id="nick" maxlength="24" placeholder="Например, Миша"><button class="btn sm" type="button" id="nickSave">Сохранить</button></div>
+    <div class="join" id="join" hidden></div>
+  </section>
 
   <div class="grid">
     <section class="panel" aria-labelledby="h-kcal">
@@ -467,6 +508,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   const timers = {};             // debounce timers per doc
   const chains = {};             // one write at a time per doc
   let store = null;              // {save(id,obj)}
+  let board = null;              // shared collection "board" or null
+  let pid = null;                // this person's id on the board
+  let boardDocs = [];            // [{id, ...summary}]
+  let loaded = false;            // own data finished loading
+  let boardState = "off";        // off | loading | ready | readonly
   let resolveStore; const storeReady = new Promise(r => { resolveStore = r; });
 
   function clone(o){ return JSON.parse(JSON.stringify(o)); }
@@ -537,8 +583,19 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       }
     } catch (e) { db = null; }
 
+    if (db){
+      board = db.collection("board");
+      pid = id;
+      if (!pid){ try { pid = localStorage.getItem("moy-den-pid"); if (!pid){ pid = "p" + uid() + uid(); localStorage.setItem("moy-den-pid", pid); } } catch (e) { pid = null; } }
+      boardState = "loading";
+      board.onSnapshot(snap => {
+        boardDocs = snap.docs.filter(d => d.exists).map(d => Object.assign({ id: d.id }, d.data()));
+        if (boardState === "loading") boardState = "ready";
+        renderBoard();
+      }, () => { boardState = "off"; renderBoard(); });
+    }
     if (!db || !id){
-      store = localStore; localStore.load(); resolveStore(); render();
+      store = localStore; localStore.load(); resolveStore(); loaded = true; render();
       note.textContent = "Данные сохраняются только в этом браузере. Войди в claude.ai, чтобы они хранились в аккаунте и были видны на всех устройствах.";
       note.hidden = false;
       return;
@@ -555,7 +612,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }, 10000);
     col.onSnapshot(snap => {
       applyDocs(snap.docs.filter(d => d.exists).map(d => [d.id, d.data()]));
-      if (!snap.metadata.fromCache){ clearTimeout(loadTimer); note.hidden = true; }
+      if (!snap.metadata.fromCache){ clearTimeout(loadTimer); note.hidden = true; loaded = true; }
       $("sub").textContent = "Сохраняется в твоём аккаунте · видно только тебе";
       render();
     }, err => {
@@ -563,6 +620,108 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       note.textContent = "Связь с хранилищем прервалась. Обнови страницу, чтобы продолжить сохранять данные.";
       note.hidden = false;
     });
+  }
+
+  // ---------- competition ----------
+  let lastSummary = "", summaryT = null, summaryBusy = Promise.resolve();
+  function buildSummary(){
+    const today = todayKey(), days = {};
+    for (let i = 0; i < 35; i++){
+      const k = shift(today, -i), t = totals(k);
+      if (!t.hasData) continue;
+      const d = day(k);
+      days[k] = { s: Math.round(t.score * 100), w: d.water, p: d.pages, h: t.habitsDone, ht: t.habitsTotal, k: t.kcalOk ? 1 : 0 };
+    }
+    return {
+      nick: (S.settings.nick || "").slice(0, 24),
+      days,
+      streak: streak(),
+      books: S.books.list.filter(b => b.done).length,
+      quit: (S.settings.bad || []).map(b => { const st = badStats(b); return { n: b.name, d: st.current, b: st.best }; })
+    };
+  }
+  function scheduleSummary(){
+    if (!board || !pid || !loaded || boardState === "readonly") return;
+    clearTimeout(summaryT);
+    summaryT = setTimeout(() => {
+      const sum = buildSummary(), json = JSON.stringify(sum);
+      if (json === lastSummary) return;
+      lastSummary = json;
+      sum.updated = new Date().toISOString();
+      summaryBusy = summaryBusy.then(() => board.doc(pid).set(sum)).catch(e => {
+        if (e && e.code === "invalid_argument"){ boardState = "readonly"; renderBoard(); }
+        else lastSummary = "";
+      });
+    }, 1500);
+  }
+  function weekKeys(){
+    const t = parseKey(todayKey()), mon = new Date(t); mon.setDate(t.getDate() - ((t.getDay() + 6) % 7));
+    const out = []; for (let i = 0; i < 7; i++){ const d = new Date(mon); d.setDate(mon.getDate() + i); out.push(keyOf(d)); }
+    return out;
+  }
+  function renderBoard(){
+    const panel = $("vsPanel");
+    if (document.activeElement !== $("nick")) $("nick").value = S.settings.nick || "";
+    if (boardState === "off"){
+      $("vs").innerHTML = `<div class="empty">Соревнование работает, когда ты вошёл в claude.ai и открыл трекер по ссылке.</div>`;
+      $("h2h").innerHTML = ""; $("join").hidden = true; $("vsMeta").textContent = ""; return;
+    }
+    const today = todayKey(), wk = weekKeys();
+    // me: always from live local data; others: from the board
+    const meDoc = Object.assign({ id: pid }, buildSummary());
+    const others = boardDocs.filter(d => d.id !== pid && d.updated && (Date.now() - Date.parse(d.updated)) < 1000 * 86400 * 45);
+    const players = [Object.assign(meDoc, { me: true }), ...others];
+    players.forEach(pl => {
+      pl.week = wk.reduce((s, k) => s + ((pl.days && pl.days[k] && pl.days[k].s) || 0), 0);
+      pl.today = (pl.days && pl.days[today]) || { s: 0, w: 0, p: 0, h: 0, ht: 0 };
+      pl.label = pl.nick || (pl.me ? "Ты" : "Участник");
+    });
+    const maxWeek = Math.max(...players.map(p => p.week));
+    const leader = players.length > 1 && maxWeek > 0 && players.filter(p => p.week === maxWeek).length === 1 ? players.find(p => p.week === maxWeek) : null;
+    $("vsMeta").textContent = "очки = сумма % выполнения дней с понедельника";
+    $("vs").innerHTML = players.map(pl => `
+      <div class="player ${leader === pl ? "lead" : ""}">
+        ${leader === pl ? '<span class="crown">👑 лидер недели</span>' : ""}
+        <div class="ph"><div class="ring">${ring(pl.today.s / 100, "var(--accent)")}<span class="pct">${pl.today.s}%</span></div>
+          <div style="min-width:0"><div class="pn">${esc(pl.label)}${pl.me && pl.nick ? " (ты)" : ""}</div><div class="pu">${pl.me ? "сегодня" : (pl.updated ? "обновлено " + ago(pl.updated) : "")}</div></div></div>
+        <div class="pts"><b>${pl.week}</b><span>очков за неделю из 700</span></div>
+        <div class="pbar"><i style="width:${Math.min(100, pl.week / 7)}%"></i></div>
+        <div class="pstats">
+          <div><b>🔥${pl.streak || 0}</b><span>серия</span></div>
+          <div><b>${((pl.today.w || 0) / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}</b><span>л воды</span></div>
+          <div><b>${pl.today.p || 0}</b><span>стр.</span></div>
+          <div><b>${pl.today.h || 0}/${pl.today.ht || 0}</b><span>привыч.</span></div>
+        </div>
+        ${(pl.quit || []).length ? `<div class="pquit">${pl.quit.map(q => `<span class="chip ok">Без «${esc(q.n)}»: <span class="num">${q.d}</span> ${plural(q.d, "день", "дня", "дней")}</span>`).join("")}</div>` : ""}
+      </div>`).join("");
+    if (players.length > 1){
+      $("h2h").innerHTML = `<table><thead><tr><th></th>${wk.map(k => { const d = parseKey(k); return `<th>${WD[d.getDay()]} ${d.getDate()}</th>`; }).join("")}<th>Итого</th></tr></thead><tbody>` +
+        players.map(pl => `<tr><td>${esc(pl.label)}</td>${wk.map(k => {
+          if (k > today) return `<td class="c fut">·</td>`;
+          const v = (pl.days && pl.days[k] && pl.days[k].s) || 0;
+          const best = Math.max(...players.map(o => (o.days && o.days[k] && o.days[k].s) || 0));
+          const win = v > 0 && v === best && players.filter(o => ((o.days && o.days[k] && o.days[k].s) || 0) === best).length === 1;
+          return `<td class="c ${win ? "win" : ""}">${v}</td>`;
+        }).join("")}<td class="c ${leader === pl ? "win" : ""}">${pl.week}</td></tr>`).join("") + `</tbody></table>`;
+    } else $("h2h").innerHTML = "";
+    const j = $("join");
+    if (boardState === "readonly"){
+      j.hidden = false;
+      j.innerHTML = `<b>Твой прогресс не попадает в соревнование.</b> У тебя доступ только на просмотр. Попроси владельца трекера пригласить тебя по email с правом «Редактор».`;
+    } else if (players.length < 2){
+      j.hidden = false;
+      j.innerHTML = `<b>Пока в соревновании только ты.</b> Как пригласить девушку:
+        <ol><li>Нажми «Поделиться» (Share) в верхней части этой страницы.</li>
+        <li>Пригласи её по email и выбери право «Редактор» (Editor). Публичную ссылку не включай.</li>
+        <li>Она входит в claude.ai, открывает трекер и пишет своё имя в поле ниже. Её карточка появится здесь.</li></ol>
+        Свои калории, еду и заметки каждый видит только сам. В соревнование попадают только итоги дня: процент, вода, страницы, привычки и дни без вредных привычек.`;
+    } else j.hidden = true;
+  }
+  function ago(iso){
+    const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
+    if (m < 2) return "только что"; if (m < 60) return m + " мин назад";
+    const h = Math.round(m / 60); if (h < 24) return h + " " + plural(h, "час", "часа", "часов") + " назад";
+    const d = Math.round(h / 24); return d + " " + plural(d, "день", "дня", "дней") + " назад";
   }
 
   // ---------- norm (Миффлин — Сан Жеор) ----------
@@ -742,6 +901,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("habits").classList.toggle("editing", editingHabits);
 
     renderQuit();
+    renderBoard();
+    scheduleSummary();
 
     // note (don't clobber while typing)
     const ta = $("dayNote");
@@ -943,6 +1104,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
   });
 
+  function saveNick(){
+    const v = $("nick").value.trim().slice(0, 24);
+    if (v === (S.settings.nick || "")) return;
+    const st = clone(S.settings); st.nick = v; S.settings = st; persist("settings", st, 0); render(); toast("Имя сохранено");
+  }
+  $("nickSave").onclick = saveNick;
+  $("nick").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); saveNick(); } });
+
   let editingHabits = false;
   $("editHabits").onclick = () => {
     editingHabits = !editingHabits;
@@ -1072,6 +1241,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     S.settings = {
       profile: norm ? pr : (S.settings.profile || null),
       bad: S.settings.bad || [],
+      nick: S.settings.nick || "",
       goals: { kcal: num("gKcal", 800, 6000, g.kcal), water: num("gWater", 500, 6000, g.water), pages: num("gPages", 1, 500, g.pages), glass: num("gGlass", 100, 1000, g.glass), protein: opt("gP", 500), fat: opt("gF", 400), carbs: opt("gC", 1000) },
       habits: draftHabits.map(h => ({ id: h.id, name: h.name.trim() })).filter(h => h.name)
     };

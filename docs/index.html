@@ -191,7 +191,22 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .addhabit input{flex:1 1 180px}
 
 /* Bad habits */
-.quit{display:grid;grid-template-columns:minmax(0,560px);gap:18px;align-items:start}
+.calwrap{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:860px){.calwrap{grid-template-columns:minmax(0,1fr)}}
+.cday.lv0{background:var(--surface-2);color:var(--ink-2)}
+.cday.lv1{background:color-mix(in srgb,var(--habit) 25%,var(--surface-2));color:var(--ink)}
+.cday.lv2{background:color-mix(in srgb,var(--habit) 50%,var(--surface-2));color:var(--ink)}
+.cday.lv3{background:color-mix(in srgb,var(--habit) 75%,var(--surface-2));color:#fff}
+.cday.lv4{background:var(--habit);color:#fff}
+.cday.sel{outline:3px solid var(--accent);outline-offset:1px}
+.cday .sl{position:absolute;top:3px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--warn)}
+.cday{position:relative}
+.calday{border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.calday h3{font-family:var(--f-body);font-size:15px;font-weight:700;margin:0}
+.calday .ci{display:flex;align-items:center;gap:8px;font-size:14px}
+.calday .ci .mk{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font-size:12px;color:#fff;flex:none}
+.calday .ci .mk.y{background:var(--habit)}.calday .ci .mk.n{background:var(--surface-2);color:var(--ink-3);border:1px solid var(--line)}.calday .ci .mk.x{background:var(--warn)}
+.calday .ci.n{color:var(--ink-3)}
 .qtile.on{background:var(--habit-soft);border-color:transparent}
 .qtile.on .box{background:var(--habit);border-color:var(--habit);color:#fff}
 .qtile.slipped{background:var(--kcal-soft);border-color:var(--warn)}
@@ -717,7 +732,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <button class="btn primary" type="submit">+ Добавить</button>
       </form>
       <p class="mhint" id="quitHint">Зелёная плитка — день без срыва. Нажми на плитку, если сорвался, и ещё раз, чтобы отменить. Стрелками вверху можно отметить прошлые дни.</p>
-      <div class="quit">
+    </section>
+
+    <section class="panel span2" id="p-cal" aria-labelledby="h-cal">
+      <div class="panel-head">
+        <h2 id="h-cal"><span class="dot" style="background:var(--habit)"></span>Календарь привычек</h2>
+        <span class="meta">полезные и вредные вместе</span>
+      </div>
+      <div class="calwrap">
         <div class="cal" aria-labelledby="calTitle">
           <div class="cal-head">
             <select id="calHabit" aria-label="Чей прогресс показать"></select>
@@ -727,6 +749,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
           <div class="cal-legend" id="calLegend"></div>
           <div class="cal-stats" id="calStats"></div>
         </div>
+        <div class="calday" id="calDay"></div>
       </div>
     </section>
 
@@ -1868,8 +1891,16 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   let calSel = null;
   try { calSel = localStorage.getItem("moy-den-cal") || null; } catch (e) {}
   let calMonth = todayKey().slice(0, 7);
+  calSel = "all";   // the shared view is the default; a single habit can be picked in the list
+  let calPick = null;
+  function dayHabitItems(k){
+    const d = S.days[k] || {};
+    const good = S.settings.habits.map(h => ({ name: h.name, kind: "g", ok: !!(d.habits && d.habits[h.id]) }));
+    const bad = (S.settings.bad || []).filter(b => k >= b.start).map(b => ({ name: "Без: " + b.name, kind: "b", ok: !(d.slips && d.slips[b.id]) }));
+    return good.concat(bad);
+  }
   function calOptions(){
-    return [...(S.settings.bad || []).map(b => ({ key: "b:" + b.id, name: "Без: " + b.name })), ...S.settings.habits.map(h => ({ key: "g:" + h.id, name: h.name }))];
+    return [{ key: "all", name: "📅 Все привычки вместе" }, ...(S.settings.bad || []).map(b => ({ key: "b:" + b.id, name: "Без: " + b.name })), ...S.settings.habits.map(h => ({ key: "g:" + h.id, name: h.name }))];
   }
   function renderCal(){
     const opts = calOptions();
@@ -1883,14 +1914,29 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const lead = (first.getDay() + 6) % 7;
     let html = ["пн","вт","ср","чт","пт","сб","вс"].map(w => `<div class="wd">${w}</div>`).join("");
     for (let i = 0; i < lead; i++) html += `<div class="cday blank"></div>`;
+    const isAll = calSel === "all";
     const isBad = calSel && calSel[0] === "b";
     const id = calSel ? calSel.slice(2) : null;
     const b = isBad ? S.settings.bad.find(x => x.id === id) : null;
-    let okN = 0, badN = 0;
+    let okN = 0, badN = 0, allSum = 0, allDays = 0;
     for (let dn = 1; dn <= daysIn; dn++){
       const k = y + "-" + pad(m) + "-" + pad(dn);
       let cls = "", label = dn + " " + MONTHS[m - 1], clickable = false;
       if (!calSel || k > today) cls = "off";
+      else if (isAll){
+        const items = dayHabitItems(k);
+        if (!items.length) cls = "off";
+        else {
+          clickable = true;
+          const done = items.filter(i => i.ok).length, pct = done / items.length;
+          const anySlip = items.some(i => i.kind === "b" && !i.ok);
+          cls = "lv" + (pct >= 1 ? 4 : pct >= .75 ? 3 : pct >= .5 ? 2 : pct > 0 ? 1 : 0) + (anySlip ? " hasslip" : "");
+          if (pct >= 1) okN++;
+          allSum += pct; allDays++;
+          label += `: выполнено ${done} из ${items.length}`;
+          if (k === calPick) cls += " sel";
+        }
+      }
       else if (isBad){
         if (!b || k < b.start) cls = "off";
         else {
@@ -1906,10 +1952,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         if (done){ cls = "ok"; okN++; label += ": сделано"; } else { cls = "miss"; label += ": не отмечено"; }
       }
       if (k === today) cls += " today";
-      html += `<button type="button" class="cday ${cls}" ${clickable ? `data-calday="${k}"` : "disabled"} aria-label="${label}">${dn}</button>`;
+      html += `<button type="button" class="cday ${cls}" ${clickable ? `data-calday="${k}"` : "disabled"} aria-label="${label}">${dn}${cls.includes("hasslip") ? '<i class="sl" aria-hidden="true"></i>' : ""}</button>`;
     }
     $("calGrid").innerHTML = html;
-    if (isBad){
+    renderCalDay();
+    if (isAll){
+      $("calLegend").innerHTML = `<span><i style="background:var(--surface-2);border:1px solid var(--line)"></i>0%</span><span><i style="background:color-mix(in srgb,var(--habit) 50%,var(--surface-2))"></i>половина</span><span><i style="background:var(--habit)"></i>всё выполнено</span><span><i style="background:var(--warn);border-radius:50%"></i>был срыв</span>`;
+      $("calStats").innerHTML = allDays ? `<span class="chip ok">Идеальных дней: <span class="num">${okN}</span></span><span class="chip">В среднем: <span class="num">${Math.round(allSum / allDays * 100)}%</span></span>` : "";
+    } else if (isBad){
       $("calLegend").innerHTML = `<span><i style="background:var(--habit)"></i>без срыва</span><span><i style="background:var(--warn)"></i>срыв</span><span>нажми на день, чтобы отметить или снять срыв</span>`;
       const st = b ? badStats(b) : null;
       $("calStats").innerHTML = st ? `<span class="chip ok">Чистых дней в месяце: <span class="num">${okN}</span></span><span class="chip">Срывов: <span class="num">${badN}</span></span><span class="chip fire">Рекорд: <span class="num">${st.best}</span> ${plural(st.best, "день", "дня", "дней")}</span>` : "";
@@ -1918,6 +1968,21 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const passed = calMonth === today.slice(0, 7) ? +today.slice(8) : daysIn;
       $("calStats").innerHTML = `<span class="chip ok">Сделано: <span class="num">${okN}</span> из ${passed}</span><span class="chip fire">Серия: <span class="num">${habitStreak(id)}</span></span>`;
     } else { $("calLegend").innerHTML = ""; $("calStats").innerHTML = ""; }
+  }
+
+  function renderCalDay(){
+    const box = $("calDay");
+    if (calSel !== "all"){ box.hidden = true; return; }
+    box.hidden = false;
+    const k = calPick || todayKey();
+    const items = dayHabitItems(k);
+    const d = parseKey(k);
+    const title = (k === todayKey() ? "Сегодня, " : "") + d.getDate() + " " + MONTHS[d.getMonth()] + ", " + WDF[d.getDay()];
+    if (!items.length){ box.innerHTML = `<h3>${title}</h3><div class="empty">Добавь привычки в разделах «Привычки» и «Избавление от вредных привычек».</div>`; return; }
+    const done = items.filter(i => i.ok).length;
+    box.innerHTML = `<h3>${title}</h3><div class="mhint">Выполнено ${done} из ${items.length}</div>` +
+      items.map(i => `<div class="ci ${i.ok ? "" : "n"}"><span class="mk ${i.ok ? "y" : i.kind === "b" ? "x" : "n"}">${i.ok ? "✓" : i.kind === "b" ? "✕" : ""}</span><span>${esc(i.name)}${!i.ok && i.kind === "b" ? " — срыв" : ""}</span></div>`).join("") +
+      `<button class="btn sm" type="button" data-calopen="${k}" style="align-self:flex-start">Открыть этот день и отметить</button>`;
   }
 
   function barChart(title, color, vals, goal, unit, labels){
@@ -2051,7 +2116,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   $("today").onclick = () => { cur = todayKey(); render(); };
 
   document.addEventListener("click", e => {
-    const el = e.target.closest("[data-water],[data-pages],[data-delmeal],[data-recent],[data-habit],[data-curbook],[data-delbook],[data-glass],[data-habdel],[data-slip],[data-calsel],[data-baddel],[data-calday],[data-qtile]");
+    const el = e.target.closest("[data-water],[data-pages],[data-delmeal],[data-recent],[data-habit],[data-curbook],[data-delbook],[data-glass],[data-habdel],[data-slip],[data-calsel],[data-baddel],[data-calday],[data-qtile],[data-calopen]");
     if (!el) return;
     const ds = el.dataset;
     if (ds.habdel || ds.baddel){
@@ -2066,9 +2131,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       S.settings = st; persist("settings", st, 0); render(); return;
     }
     if (ds.slip){ toggleSlip(ds.slip, todayKey()); return; }
-    if (ds.qtile){ calSel = "b:" + ds.qtile; toggleSlip(ds.qtile, cur); return; }
+    if (ds.calopen){ cur = ds.calopen; render(); $("p-hab").scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    if (ds.qtile){ toggleSlip(ds.qtile, cur); return; }
     if (ds.calsel){ calSel = ds.calsel; try { localStorage.setItem("moy-den-cal", calSel); } catch (er) {} calMonth = todayKey().slice(0, 7); render(); $("calHabit").scrollIntoView({ behavior: "smooth", block: "nearest" }); return; }
     if (ds.calday){
+      if (calSel === "all"){ calPick = ds.calday; renderCal(); return; }
       const k = ds.calday, id = calSel.slice(2);
       if (calSel[0] === "b") toggleSlip(id, k);
       else { const d = clone(day(k)); if (d.habits[id]) delete d.habits[id]; else d.habits[id] = true; commitDay(k, d, 0); }

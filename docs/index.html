@@ -381,6 +381,34 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .finh{font-family:var(--f-body);font-size:15px;font-weight:700;margin:0;display:flex;gap:8px;align-items:baseline}
 .finh span{font-size:12.5px;font-weight:500;color:var(--ink-3)}
 .finh-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.splitprev{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px}
+.splitprev div{display:flex;justify-content:space-between;gap:8px;background:var(--surface-2);border-radius:10px;padding:7px 10px;font-size:13px;min-width:0}
+.splitprev small{color:var(--ink-3)}
+.finin{border-color:var(--fin);background:var(--fin-soft)}
+.finin .splitprev div{background:var(--surface)}
+.finform2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto;gap:8px;align-items:end}
+#expForm{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.4fr) auto}
+@media (max-width:620px){.finform2,#expForm{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.finform2 .btn{grid-column:1/-1}}
+.envs{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.env{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.env .et{display:flex;justify-content:space-between;gap:6px;font-size:13px;font-weight:700}
+.env .et small{color:var(--ink-3);font-weight:600}
+.env b{font-family:var(--f-num);font-size:17px;overflow-wrap:anywhere}
+.env small{font-size:11.5px;color:var(--ink-3)}
+.env .pbar i{background:var(--fin)}
+.env.neg{border-color:var(--warn)}.env.neg b{color:var(--warn)}
+.allocedit{display:flex;flex-direction:column;gap:8px;border:1px dashed var(--line);border-radius:12px;padding:10px}
+.arow{display:flex;gap:6px;align-items:center}
+.arow input[data-af="name"]{flex:1;min-width:0}
+.invsum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.invsum div{background:var(--surface-2);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.invsum span{font-size:11.5px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.invsum b{font-size:15px;overflow-wrap:anywhere}
+.pos{color:var(--fin)}.neg{color:var(--warn)}
+.assets{display:flex;flex-direction:column;gap:8px}
+.asset{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.asset .at{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+@media (max-width:520px){.invsum{grid-template-columns:minmax(0,1fr)}}
 .finlessons{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
 .finlessons button{display:flex;align-items:center;gap:10px;text-align:left;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:10px 12px;font-size:13.5px;font-weight:600;min-width:0}
 .finlessons button.done{background:var(--fin-soft);border-color:transparent}
@@ -801,35 +829,55 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 
     <section class="panel span2" id="p-fin" aria-labelledby="h-fin">
       <div class="panel-head">
-        <h2 id="h-fin"><span class="dot" style="background:var(--fin)"></span>Финансовая грамотность</h2>
+        <h2 id="h-fin"><span class="dot" style="background:var(--fin)"></span>Финансы</h2>
         <span class="meta">🔒 только на этом телефоне</span>
       </div>
       <p class="finnote">Всё, что ты вносишь здесь, хранится только на этом телефоне: не отправляется в облако, не попадает в блок «Пара» и не видно партнёру. Имя, банк и номера карт не нужны.</p>
       <div class="fintip" id="finTip"></div>
 
-      <div class="finsec">
-        <h3 class="finh">📚 Уроки <span id="finLessonsMeta"></span></h3>
-        <div class="finlessons" id="finLessons"></div>
+      <div class="finsec finin">
+        <h3 class="finh">💵 Пришли деньги</h3>
+        <form class="finform2" id="incForm" autocomplete="off">
+          <div class="field"><label for="incAmt">Сумма</label><input type="number" id="incAmt" min="0.01" step="0.01" inputmode="decimal" required placeholder="например 80000"></div>
+          <div class="field"><label for="incNote">Откуда</label><input type="text" id="incNote" maxlength="30" list="incList" placeholder="Зарплата"><datalist id="incList"><option value="Зарплата"><option value="Аванс"><option value="Подработка"><option value="Подарок"><option value="Кешбэк"></datalist></div>
+          <button class="btn fin" type="submit">Распределить</button>
+        </form>
+        <div class="splitprev" id="incPrev"></div>
       </div>
 
       <div class="finsec">
-        <div class="finh-row"><h3 class="finh">🧾 Мой месяц</h3>
+        <div class="finh-row"><h3 class="finh">✉️ Конверты</h3><button class="btn sm ghost" type="button" id="allocEdit">⚙ Проценты</button></div>
+        <div class="allocedit" id="allocBox" hidden></div>
+        <div class="envs" id="envs"></div>
+      </div>
+
+      <div class="finsec">
+        <h3 class="finh">🧾 Потратил</h3>
+        <form class="finform2" id="expForm" autocomplete="off">
+          <div class="field"><label for="expAmt">Сумма</label><input type="number" id="expAmt" min="0.01" step="0.01" inputmode="decimal" required placeholder="0"></div>
+          <div class="field"><label for="expEnv">Из конверта</label><select id="expEnv"></select></div>
+          <div class="field"><label for="expNote">На что</label><input type="text" id="expNote" maxlength="40" placeholder="Продукты, такси, кафе…"></div>
+          <button class="btn fin" type="submit">Записать</button>
+        </form>
+      </div>
+
+      <div class="finsec">
+        <h3 class="finh">📈 Инвестиции <span id="invMeta"></span></h3>
+        <div class="invsum" id="invSum"></div>
+        <div class="assets" id="assets"></div>
+        <form class="finform2" id="invForm" autocomplete="off">
+          <div class="field"><label for="invAmt">Вложил</label><input type="number" id="invAmt" min="0.01" step="0.01" inputmode="decimal" required placeholder="сумма"></div>
+          <div class="field"><label for="invAsset">Во что</label><input type="text" id="invAsset" maxlength="30" list="assetList" required placeholder="Фонд, акции, золото, вклад…"><datalist id="assetList"></datalist></div>
+          <button class="btn fin" type="submit">Вложить</button>
+        </form>
+        <p class="mhint">Деньги на вложения берутся из конверта «Инвестиции». Текущую стоимость активов обновляй сам, когда смотришь своё приложение брокера или банка: так будет видна прибыль.</p>
+      </div>
+
+      <div class="finsec">
+        <div class="finh-row"><h3 class="finh">🗓 История</h3>
           <div class="cal-nav"><button type="button" id="finPrev" aria-label="Предыдущий месяц">‹</button><span class="m" id="finMonth"></span><button type="button" id="finNext" aria-label="Следующий месяц">›</button></div></div>
         <div class="finsum" id="finSum"></div>
-        <form class="finform" id="finForm" autocomplete="off">
-          <div class="seg" role="radiogroup" aria-label="Тип"><label><input type="radio" name="ftype" value="exp" checked>Расход</label><label><input type="radio" name="ftype" value="inc">Доход</label></div>
-          <div class="field"><label for="fAmt">Сумма</label><input type="number" id="fAmt" min="0.01" step="0.01" inputmode="decimal" required placeholder="0"></div>
-          <div class="field"><label for="fCat">Категория</label><select id="fCat"></select></div>
-          <div class="field"><label for="fNote">Заметка</label><input type="text" id="fNote" maxlength="40" placeholder="необязательно"></div>
-          <button class="btn fin" type="submit">Добавить</button>
-        </form>
-        <div class="fincats" id="finCats"></div>
-        <details><summary id="finTxSum">Все записи месяца</summary><div class="fintx" id="finTx"></div></details>
-      </div>
-
-      <div class="finsec">
-        <h3 class="finh">🐷 Копилка</h3>
-        <div class="fingoal" id="finGoal"></div>
+        <div class="fintx" id="finTx"></div>
       </div>
       <div class="row"><label class="mhint" for="finCur">Валюта</label><select id="finCur" style="width:auto"><option>₽</option><option>₼</option><option>₸</option><option>$</option><option>€</option><option>₴</option><option>so'm</option></select></div>
     </section>
@@ -1876,7 +1924,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const body = $("lsBody"), foot = $("lsFoot");
     foot.className = "ls-foot";
     $("lsProg").style.width = Math.min(100, L.i / L.q.length * 100) + "%";
-    if (L.i >= L.q.length) return L.kind === "test" ? finishTest() : L.kind === "fin" ? finishFin() : finishLesson();
+    if (L.i >= L.q.length) return L.kind === "test" ? finishTest() : finishLesson();
     $("lsCount").textContent = (L.i + 1) + " / " + L.q.length;
     const q = L.q[L.i]; L.state = "ask"; L.pick = null; L.built = [];
     body.scrollTop = 0;
@@ -2542,7 +2590,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     ["💪 Здоровье", ["Стакан воды утром", "Зарядка 10 минут", "10 000 шагов", "Сон до 23:00", "Растяжка 5 минут", "Овощи в каждый приём пищи", "Без сладкого после 18:00"]],
     ["🧠 Развитие", ["Читать 20 минут", "Учить язык 15 минут", "Подкаст или лекция вместо ленты", "Записать 3 мысли в дневник", "Выучить 5 новых слов"]],
     ["🧘 Спокойствие", ["Медитация 10 минут", "Прогулка на свежем воздухе", "Без телефона за час до сна", "3 вещи, за которые благодарен", "Без соцсетей до обеда"]],
-    ["💰 Деньги", ["Записывать все расходы", "Откладывать 10% дохода", "Без импульсивных покупок", "Урок финансовой грамотности"]],
+    ["💰 Деньги", ["Записывать все расходы", "Откладывать 10% дохода", "Без импульсивных покупок", "Отложить на инвестиции"]],
     ["❤️ Близкие и дом", ["Позвонить родным", "Комплимент партнёру", "10 минут уборки", "Ужин без телефонов"]]
   ];
   function renderIdeas(){
@@ -2560,102 +2608,170 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 
   // ---------- finance (stays on this device only) ----------
   const FIN_KEY = "moy-den-fin";
-  const FIN_CATS = { exp: ["🍎 Еда", "🚌 Транспорт", "🏠 Жильё и счета", "📱 Связь и подписки", "🎉 Развлечения", "👕 Одежда", "💊 Здоровье", "🎁 Подарки", "📚 Учёба", "💳 Долги", "📦 Другое"],
-                     inc: ["💼 Зарплата", "🧰 Подработка", "🎁 Подарок", "📈 Проценты", "📦 Другое"] };
-  let FIN = { tx: [], goal: null, done: {}, cur: "₽" };
-  try { const raw = localStorage.getItem(FIN_KEY); if (raw) FIN = Object.assign(FIN, JSON.parse(raw)); } catch (e) {}
+  const DEFAULT_ALLOC = [
+    { id: "need", icon: "🏠", name: "Обязательные", pct: 50, hint: "жильё, еда, транспорт, связь" },
+    { id: "want", icon: "🎉", name: "Желания", pct: 20, hint: "кафе, развлечения, покупки" },
+    { id: "safe", icon: "🛟", name: "Подушка", pct: 10, hint: "запас на 3–6 месяцев" },
+    { id: "inv",  icon: "📈", name: "Инвестиции", pct: 15, hint: "деньги на вложения" },
+    { id: "goal", icon: "🎯", name: "Цели", pct: 5, hint: "отпуск, подарки, крупные покупки" }
+  ];
+  let FIN = { v: 2, cur: "₽", alloc: clone(DEFAULT_ALLOC), tx: [], assets: [] };
+  try {
+    const raw = localStorage.getItem(FIN_KEY);
+    if (raw){
+      const old = JSON.parse(raw);
+      if (old.v === 2) FIN = Object.assign(FIN, old);
+      else {
+        // earlier format: plain incomes and categorised expenses
+        FIN.cur = old.cur || FIN.cur;
+        (old.tx || []).forEach(t => {
+          if (t.t === "inc") FIN.tx.push({ id: t.id, t: "inc", a: t.a, n: t.n || t.c || "", d: t.d, tm: t.tm || "", split: splitOf(t.a, FIN.alloc) });
+          else FIN.tx.push({ id: t.id, t: "exp", a: t.a, env: /Развлеч|Одежда|Подарк/.test(t.c || "") ? "want" : "need", n: [t.c, t.n].filter(Boolean).join(" · "), d: t.d, tm: t.tm || "" });
+        });
+      }
+    }
+  } catch (e) {}
+  function splitOf(a, alloc){
+    const out = {}; let left = Math.round(a * 100);
+    alloc.forEach((e, i) => { const part = i === alloc.length - 1 ? left : Math.round(a * 100 * e.pct / 100); out[e.id] = part / 100; left -= part; });
+    return out;
+  }
   function saveFin(){ try { localStorage.setItem(FIN_KEY, JSON.stringify(FIN)); } catch (e) { toast("Не удалось сохранить на телефоне"); } }
-  let finMonth = todayKey().slice(0, 7);
   const money = v => (Math.round(v * 100) / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 }) + " " + FIN.cur;
-  function finCatOptions(){
-    const t = (document.querySelector('input[name="ftype"]:checked') || {}).value || "exp";
-    const keep = $("fCat").value;
-    $("fCat").innerHTML = FIN_CATS[t].map(c => `<option ${c === keep ? "selected" : ""}>${c}</option>`).join("");
+  const envById = id => FIN.alloc.find(e => e.id === id) || { id, icon: "📦", name: "Удалённый конверт", pct: 0 };
+  function envBalance(id){
+    return FIN.tx.reduce((s, t) => s + (t.t === "inc" ? ((t.split || {})[id] || 0) : (t.env === id ? -t.a : 0)), 0);
+  }
+  let finMonth = todayKey().slice(0, 7), allocOpen = false, allocDraft = null;
+  function renderIncPrev(){
+    const a = parseFloat(String($("incAmt").value).replace(",", "."));
+    const sp = a > 0 ? splitOf(a, FIN.alloc) : null;
+    $("incPrev").innerHTML = FIN.alloc.map(e => `<div><span>${e.icon} ${esc(e.name)} <small>${e.pct}%</small></span><b class="num">${sp ? money(sp[e.id]) : "—"}</b></div>`).join("");
   }
   function renderFin(){
     const tips = window.MD_FIN_TIPS || [];
     const dayN = Math.floor(parseKey(todayKey()).getTime() / 86400000);
     $("finTip").textContent = tips.length ? "💡 " + tips[dayN % tips.length] : "";
-    const L0 = window.MD_FIN || [];
-    const doneN = L0.filter(l => FIN.done[l.id]).length;
-    $("finLessonsMeta").textContent = `пройдено ${doneN} из ${L0.length}`;
-    $("finLessons").innerHTML = L0.map(l => `<button type="button" class="${FIN.done[l.id] ? "done" : ""}" data-finl="${l.id}"><span class="fi" aria-hidden="true">${l.icon}</span><span class="ft">${esc(l.title)}</span>${FIN.done[l.id] ? '<span class="fd">✓</span>' : ""}</button>`).join("");
+    if (document.activeElement !== $("incAmt")) renderIncPrev();
+    // envelopes
+    const mk = finMonth;
+    $("envs").innerHTML = FIN.alloc.map(e => {
+      const bal = envBalance(e.id);
+      const inM = FIN.tx.filter(t => t.d.startsWith(mk) && t.t === "inc").reduce((s, t) => s + ((t.split || {})[e.id] || 0), 0);
+      const outM = FIN.tx.filter(t => t.d.startsWith(mk) && t.t !== "inc" && t.env === e.id).reduce((s, t) => s + t.a, 0);
+      const pct = inM > 0 ? Math.min(100, outM / inM * 100) : 0;
+      return `<div class="env ${bal < 0 ? "neg" : ""}"><div class="et"><span>${e.icon} ${esc(e.name)}</span><small>${e.pct}%</small></div>
+        <b class="num">${money(bal)}</b>
+        <div class="pbar" aria-hidden="true"><i style="width:${pct}%"></i></div>
+        <small>в этом месяце: +${money(inM)} · −${money(outM)}</small></div>`;
+    }).join("");
+    // allocation editor
+    $("allocBox").hidden = !allocOpen;
+    if (allocOpen){
+      const sum = allocDraft.reduce((s, e) => s + (+e.pct || 0), 0);
+      $("allocBox").innerHTML = `<div class="mhint">Как делить каждый доход. Сумма должна быть 100%. Новые проценты применятся к следующим доходам, прошлые не изменятся.</div>` +
+        allocDraft.map((e, i) => `<div class="arow"><input type="text" value="${esc(e.icon)}" data-ai="${i}" data-af="icon" maxlength="2" aria-label="Значок" style="width:46px;text-align:center"><input type="text" value="${esc(e.name)}" data-ai="${i}" data-af="name" maxlength="24" aria-label="Название конверта"><input type="number" value="${e.pct}" data-ai="${i}" data-af="pct" min="0" max="100" inputmode="numeric" aria-label="Процент" style="width:72px"><span>%</span>${allocDraft.length > 1 ? `<button class="x" type="button" data-adel="${i}" aria-label="Убрать конверт">×</button>` : ""}</div>`).join("") +
+        `<div class="row"><span class="num" style="font-weight:700;color:${sum === 100 ? "var(--fin)" : "var(--warn)"}">Итого: ${sum}%</span><button class="btn sm" type="button" data-aadd="1">+ Конверт</button><button class="btn sm ghost" type="button" data-areset="1">По умолчанию</button><button class="btn sm fin" type="button" data-asave="1" ${sum === 100 ? "" : "disabled"}>Сохранить</button></div>`;
+    }
+    $("allocEdit").textContent = allocOpen ? "Закрыть" : "⚙ Проценты";
+    // expense envelope list
+    const keep = $("expEnv").value;
+    $("expEnv").innerHTML = FIN.alloc.filter(e => e.id !== "inv").map(e => `<option value="${e.id}" ${e.id === keep ? "selected" : ""}>${e.icon} ${esc(e.name)} · ${money(envBalance(e.id))}</option>`).join("");
+    // investments
+    const invBal = envBalance("inv");
+    const totalIn = FIN.assets.reduce((s, a) => s + a.invested, 0), totalVal = FIN.assets.reduce((s, a) => s + a.value, 0);
+    const pl = totalVal - totalIn, plPct = totalIn > 0 ? pl / totalIn * 100 : 0;
+    $("invMeta").textContent = FIN.alloc.some(e => e.id === "inv") ? "в конверте: " + money(invBal) : "";
+    $("invSum").innerHTML = FIN.assets.length ? `<div><span>Вложено</span><b class="num">${money(totalIn)}</b></div><div><span>Стоит сейчас</span><b class="num">${money(totalVal)}</b></div><div><span>Результат</span><b class="num ${pl >= 0 ? "pos" : "neg"}">${pl >= 0 ? "+" : ""}${money(pl)} · ${pl >= 0 ? "+" : ""}${plPct.toFixed(1).replace(".", ",")}%</b></div>` : "";
+    $("assets").innerHTML = FIN.assets.length ? FIN.assets.map(a => {
+      const d = a.value - a.invested, dp = a.invested > 0 ? d / a.invested * 100 : 0;
+      return `<div class="asset"><div class="at"><b>${esc(a.name)}</b><span class="num ${d >= 0 ? "pos" : "neg"}">${d >= 0 ? "+" : ""}${money(d)} (${d >= 0 ? "+" : ""}${dp.toFixed(1).replace(".", ",")}%)</span></div>
+        <div class="row"><span class="mhint">вложено ${money(a.invested)} · стоит</span><input type="number" min="0" step="0.01" inputmode="decimal" value="${Math.round(a.value * 100) / 100}" data-aval="${a.id}" aria-label="Текущая стоимость ${esc(a.name)}" style="width:120px"><button class="btn sm" type="button" data-asell="${a.id}">Продал</button></div></div>`;
+    }).join("") : `<div class="empty">Пока нет вложений. Когда вложишь деньги, впиши сумму и название актива ниже.</div>`;
+    $("assetList").innerHTML = FIN.assets.map(a => `<option value="${esc(a.name)}">`).join("");
+    // history
     const [y, m] = finMonth.split("-").map(Number);
     $("finMonth").textContent = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"][m - 1] + " " + y;
     $("finNext").disabled = finMonth >= todayKey().slice(0, 7);
     const tx = FIN.tx.filter(t => t.d.startsWith(finMonth));
-    const inc = tx.filter(t => t.t === "inc").reduce((a, t) => a + t.a, 0), exp = tx.filter(t => t.t === "exp").reduce((a, t) => a + t.a, 0);
-    const rest = inc - exp;
-    $("finSum").innerHTML = `<div><span>Доходы</span><b class="pos">${money(inc)}</b></div><div><span>Расходы</span><b class="neg">${money(exp)}</b></div><div><span>Остаток</span><b class="${rest >= 0 ? "pos" : "neg"}">${money(rest)}</b></div>`;
-    const byCat = {};
-    tx.filter(t => t.t === "exp").forEach(t => { byCat[t.c] = (byCat[t.c] || 0) + t.a; });
-    const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
-    const savePct = inc > 0 ? Math.round(rest / inc * 100) : null;
-    $("finCats").innerHTML = cats.length
-      ? `<span class="mhint">Куда ушли деньги${savePct !== null ? ` · отложено ${savePct}% дохода${savePct >= 20 ? " — отлично, это по правилу 50/30/20" : ""}` : ""}</span>` +
-        cats.map(([c, v]) => `<div class="fcat"><div class="fl"><span>${esc(c)}</span><span class="num">${money(v)} · ${Math.round(v / exp * 100)}%</span></div><div class="pbar"><i style="width:${v / cats[0][1] * 100}%"></i></div></div>`).join("")
-      : `<div class="empty">Записей за этот месяц пока нет. Добавь первый расход или доход: категории посчитаются сами.</div>`;
-    $("finTxSum").textContent = `Все записи месяца (${tx.length})`;
-    $("finTx").innerHTML = tx.slice().sort((a, b) => (b.d + b.tm).localeCompare(a.d + a.tm)).map(t => `<div class="item"><span class="mt num">${+t.d.slice(8)}.${t.d.slice(5, 7)}</span><span class="name">${esc(t.c)}${t.n ? " · " + esc(t.n) : ""}</span><span class="num" style="color:${t.t === "inc" ? "var(--fin)" : "var(--ink)"}">${t.t === "inc" ? "+" : "−"}${money(t.a)}</span><button class="x" type="button" data-fdel="${t.id}" aria-label="Удалить запись">×</button></div>`).join("") || `<div class="empty">Пусто</div>`;
-    const g = FIN.goal;
-    $("finGoal").innerHTML = g
-      ? `<div class="finh-row"><b>${esc(g.name)}</b><span class="num">${money(g.saved)} из ${money(g.target)}</span></div>
-         <div class="pbar"><i style="width:${Math.min(100, g.saved / g.target * 100)}%"></i></div>
-         <div class="mhint">${g.saved >= g.target ? "🎉 Цель достигнута!" : "Осталось " + money(g.target - g.saved)}</div>
-         <div class="row"><input type="number" id="fgAdd" min="0.01" step="0.01" inputmode="decimal" placeholder="сумма" style="width:120px"><button class="btn sm fin" type="button" data-fg="add">Отложить</button><button class="btn sm" type="button" data-fg="take">Снять</button><button class="btn sm ghost" type="button" data-fg="reset">Новая цель</button></div>`
-      : `<div class="mhint">Поставь цель, на которую копишь: подушка безопасности, отпуск, подарок.</div>
-         <div class="row"><input type="text" id="fgName" maxlength="40" placeholder="На что копишь" style="flex:1 1 160px"><input type="number" id="fgTarget" min="1" inputmode="decimal" placeholder="Сколько нужно" style="width:140px"><button class="btn sm fin" type="button" data-fg="new">Создать</button></div>`;
+    const inc = tx.filter(t => t.t === "inc").reduce((s, t) => s + t.a, 0);
+    const exp = tx.filter(t => t.t === "exp").reduce((s, t) => s + t.a, 0);
+    const inv = tx.filter(t => t.t === "inv").reduce((s, t) => s + t.a, 0);
+    $("finSum").innerHTML = `<div><span>Пришло</span><b class="pos">${money(inc)}</b></div><div><span>Потрачено</span><b class="neg">${money(exp)}</b></div><div><span>Вложено</span><b>${money(inv)}</b></div>`;
+    $("finTx").innerHTML = tx.length ? tx.slice().sort((a, b) => (b.d + b.tm).localeCompare(a.d + a.tm)).map(t => {
+      const what = t.t === "inc" ? "💵 " + (t.n || "Доход") : t.t === "inv" ? "📈 " + esc(t.n || "Вложение") : envById(t.env).icon + " " + esc(envById(t.env).name) + (t.n ? " · " + esc(t.n) : "");
+      return `<div class="item"><span class="mt num">${+t.d.slice(8)}.${t.d.slice(5, 7)}</span><span class="name">${t.t === "inc" ? esc(what) : what}</span><span class="num" style="color:${t.t === "inc" ? "var(--fin)" : "var(--ink)"}">${t.t === "inc" ? "+" : "−"}${money(t.a)}</span><button class="x" type="button" data-fdel="${t.id}" aria-label="Удалить запись">×</button></div>`;
+    }).join("") : `<div class="empty">В этом месяце записей нет.</div>`;
     $("finCur").value = FIN.cur;
   }
-  function startFinLesson(id){
-    const les = (window.MD_FIN || []).find(l => l.id === id); if (!les) return;
-    const q = [{ type: "rule", g: { title: les.icon + " " + les.title, text: les.text, examples: les.points } }]
-      .concat(les.quiz.map(x => ({ type: "mc", kind: "Проверь себя", prompt: x.q, options: shuffle(x.a), answer: x.a[x.c] })));
-    L = { kind: "fin", finId: id, unit: null, q, i: 0, right: 0, asked: 0, start: Date.now(), retried: new Set(), state: "ask", pick: null, built: [] };
-    $("lesson").hidden = false; document.body.style.overflow = "hidden";
-    showQ();
-  }
-  function finishFin(){
-    FIN.done[L.finId] = todayKey(); saveFin();
-    const acc = L.asked ? Math.round(L.right / L.asked * 100) : 100;
-    $("lsProg").style.width = "100%"; $("lsCount").textContent = "";
-    $("lsBody").innerHTML = `<div class="ls-done" style="display:flex;flex-direction:column;gap:14px;flex:1"><div class="big">${acc >= 80 ? "🎉" : "💪"}</div><h2 class="ls-q" id="lsTitle">Урок пройден!</h2><div class="ls-sub">Точность: ${acc}%. Этот урок виден только тебе.</div></div>`;
-    $("lsFoot").className = "ls-foot"; $("lsFoot").innerHTML = `<button class="btn primary" type="button" data-ls="close">Готово</button>`;
-    L.finished = true; renderFin();
-  }
-  document.querySelectorAll('input[name="ftype"]').forEach(el => el.addEventListener("change", finCatOptions));
-  finCatOptions();
-  $("finForm").addEventListener("submit", e => {
+  function txDate(){ return finMonth === todayKey().slice(0, 7) ? todayKey() : finMonth + "-01"; }
+  function nowTm(){ const t = new Date(); return pad(t.getHours()) + ":" + pad(t.getMinutes()); }
+  const num = id => parseFloat(String($(id).value).replace(",", "."));
+  $("incAmt").addEventListener("input", renderIncPrev);
+  $("incForm").addEventListener("submit", e => {
     e.preventDefault();
-    const a = parseFloat(String($("fAmt").value).replace(",", "."));
-    if (!(a > 0)){ toast("Впиши сумму"); return; }
-    const t = (document.querySelector('input[name="ftype"]:checked') || {}).value || "exp";
-    const now = new Date();
-    const d = finMonth === todayKey().slice(0, 7) ? todayKey() : finMonth + "-01";
-    FIN.tx.push({ id: uid(), t, a: Math.round(a * 100) / 100, c: $("fCat").value, n: $("fNote").value.trim().slice(0, 40), d, tm: pad(now.getHours()) + ":" + pad(now.getMinutes()) });
-    saveFin(); $("fAmt").value = ""; $("fNote").value = ""; renderFin(); toast(t === "inc" ? "Доход записан" : "Расход записан");
+    const a = num("incAmt"); if (!(a > 0)){ toast("Впиши сумму"); return; }
+    const sp = splitOf(a, FIN.alloc);
+    FIN.tx.push({ id: uid(), t: "inc", a: Math.round(a * 100) / 100, n: $("incNote").value.trim().slice(0, 30), d: txDate(), tm: nowTm(), split: sp });
+    saveFin(); $("incAmt").value = ""; $("incNote").value = ""; renderFin();
+    toast("Распределено: " + FIN.alloc.map(x => x.icon + " " + money(sp[x.id])).join(" · "));
   });
-  $("finTx").addEventListener("click", e => { const b = e.target.closest("[data-fdel]"); if (!b) return; FIN.tx = FIN.tx.filter(t => t.id !== b.dataset.fdel); saveFin(); renderFin(); });
-  $("finLessons").addEventListener("click", e => { const b = e.target.closest("[data-finl]"); if (b) startFinLesson(b.dataset.finl); });
+  $("expForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const a = num("expAmt"); if (!(a > 0)){ toast("Впиши сумму"); return; }
+    const env = $("expEnv").value;
+    FIN.tx.push({ id: uid(), t: "exp", a: Math.round(a * 100) / 100, env, n: $("expNote").value.trim().slice(0, 40), d: txDate(), tm: nowTm() });
+    saveFin(); $("expAmt").value = ""; $("expNote").value = ""; renderFin();
+    const bal = envBalance(env);
+    toast(bal < 0 ? `Записано. В конверте «${envById(env).name}» перерасход ${money(-bal)}` : `Записано. В конверте «${envById(env).name}» осталось ${money(bal)}`);
+  });
+  $("invForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const a = num("invAmt"), name = $("invAsset").value.trim();
+    if (!(a > 0) || !name){ toast("Впиши сумму и во что вложил"); return; }
+    let as = FIN.assets.find(x => x.name.toLowerCase() === name.toLowerCase());
+    if (!as){ as = { id: uid(), name: name.slice(0, 30), invested: 0, value: 0 }; FIN.assets.push(as); }
+    as.invested = Math.round((as.invested + a) * 100) / 100; as.value = Math.round((as.value + a) * 100) / 100;
+    FIN.tx.push({ id: uid(), t: "inv", a: Math.round(a * 100) / 100, env: "inv", asset: as.id, n: as.name, d: txDate(), tm: nowTm() });
+    saveFin(); $("invAmt").value = ""; $("invAsset").value = ""; renderFin(); toast("Вложено в «" + as.name + "»");
+  });
+  $("assets").addEventListener("change", e => {
+    const id = e.target.dataset.aval; if (!id) return;
+    const v = parseFloat(String(e.target.value).replace(",", ".")); const as = FIN.assets.find(x => x.id === id);
+    if (as && v >= 0){ as.value = Math.round(v * 100) / 100; saveFin(); renderFin(); toast("Стоимость обновлена"); }
+  });
+  $("assets").addEventListener("click", e => {
+    const b = e.target.closest("[data-asell]"); if (!b) return;
+    if (b.dataset.confirm !== "1"){ b.dataset.confirm = "1"; b.textContent = "Продал целиком?"; return; }
+    const as = FIN.assets.find(x => x.id === b.dataset.asell); if (!as) return;
+    // money from the sale goes back to the investments envelope
+    FIN.tx.push({ id: uid(), t: "inc", a: as.value, n: "Продажа: " + as.name, d: txDate(), tm: nowTm(), split: { inv: as.value } });
+    FIN.assets = FIN.assets.filter(x => x.id !== as.id);
+    saveFin(); renderFin(); toast("Деньги от продажи вернулись в конверт «Инвестиции»");
+  });
+  $("finTx").addEventListener("click", e => {
+    const b = e.target.closest("[data-fdel]"); if (!b) return;
+    if (b.dataset.confirm !== "1"){ b.dataset.confirm = "1"; b.textContent = "?"; b.style.color = "var(--warn)"; return; }
+    const t = FIN.tx.find(x => x.id === b.dataset.fdel); if (!t) return;
+    if (t.t === "inv"){ const as = FIN.assets.find(x => x.id === t.asset); if (as){ as.invested = Math.max(0, as.invested - t.a); as.value = Math.max(0, as.value - t.a); if (as.invested <= 0 && as.value <= 0) FIN.assets = FIN.assets.filter(x => x !== as); } }
+    FIN.tx = FIN.tx.filter(x => x !== t); saveFin(); renderFin();
+  });
+  $("allocEdit").onclick = () => { allocOpen = !allocOpen; allocDraft = clone(FIN.alloc); renderFin(); };
+  $("allocBox").addEventListener("input", e => {
+    const i = e.target.dataset.ai; if (i === undefined) return;
+    const f = e.target.dataset.af; allocDraft[+i][f] = f === "pct" ? Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) : e.target.value;
+    if (f === "pct"){ const sum = allocDraft.reduce((s, x) => s + (+x.pct || 0), 0); const t = $("allocBox").querySelector(".row .num"); if (t){ t.textContent = "Итого: " + sum + "%"; t.style.color = sum === 100 ? "var(--fin)" : "var(--warn)"; } $("allocBox").querySelector("[data-asave]").disabled = sum !== 100; }
+  });
+  $("allocBox").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.adel !== undefined){ allocDraft.splice(+b.dataset.adel, 1); renderFin(); }
+    else if (b.dataset.aadd){ allocDraft.push({ id: "e" + uid(), icon: "📦", name: "Новый конверт", pct: 0 }); renderFin(); }
+    else if (b.dataset.areset){ allocDraft = clone(DEFAULT_ALLOC); renderFin(); }
+    else if (b.dataset.asave){ FIN.alloc = allocDraft.map(x => Object.assign({}, x, { name: String(x.name).trim() || "Конверт", icon: String(x.icon).trim() || "📦" })); saveFin(); allocOpen = false; renderFin(); toast("Проценты сохранены"); }
+  });
   $("finPrev").onclick = () => { const [y, m] = finMonth.split("-").map(Number); const d = new Date(y, m - 2, 1); finMonth = d.getFullYear() + "-" + pad(d.getMonth() + 1); renderFin(); };
   $("finNext").onclick = () => { const [y, m] = finMonth.split("-").map(Number); const d = new Date(y, m, 1); const k = d.getFullYear() + "-" + pad(d.getMonth() + 1); if (k <= todayKey().slice(0, 7)){ finMonth = k; renderFin(); } };
   $("finCur").addEventListener("change", e => { FIN.cur = e.target.value; saveFin(); renderFin(); });
-  $("finGoal").addEventListener("click", e => {
-    const b = e.target.closest("[data-fg]"); if (!b) return;
-    const a = b.dataset.fg;
-    if (a === "new"){
-      const name = $("fgName").value.trim(), target = parseFloat(String($("fgTarget").value).replace(",", "."));
-      if (!name || !(target > 0)){ toast("Впиши цель и сумму"); return; }
-      FIN.goal = { name, target, saved: 0 };
-    } else if (a === "add" || a === "take"){
-      const v = parseFloat(String($("fgAdd").value).replace(",", ".")); if (!(v > 0)){ toast("Впиши сумму"); return; }
-      FIN.goal.saved = Math.max(0, Math.round((FIN.goal.saved + (a === "add" ? v : -v)) * 100) / 100);
-    } else if (a === "reset"){
-      if (b.dataset.confirm !== "1"){ b.dataset.confirm = "1"; b.textContent = "Точно сбросить?"; return; }
-      FIN.goal = null;
-    }
-    saveFin(); renderFin();
-  });
 
   // ---------- homemade dish ----------
   let DISH = { name: "", ing: [], weight: "", eat: 300, editId: null };

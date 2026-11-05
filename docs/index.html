@@ -118,7 +118,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
 
 /* Water */
 .glasses{display:flex;flex-wrap:wrap;gap:6px}
-.glass{width:28px;height:36px;border:2px solid var(--water);border-top-width:1px;border-radius:3px 3px 8px 8px;position:relative;overflow:hidden;background:transparent;padding:0}
+.glass{display:block;width:28px;height:36px;border:2px solid var(--water);border-top-width:1px;border-radius:3px 3px 8px 8px;position:relative;overflow:hidden;background:transparent;padding:0}
 .glass i{position:absolute;left:0;right:0;bottom:0;background:var(--water);opacity:.85;transition:height .25s}
 .glass.extra{border-style:dashed}
 
@@ -391,11 +391,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <span class="meta num" id="waterMeta"></span>
       </div>
       <div class="glasses" id="glasses" aria-label="Стаканы воды"></div>
-      <div class="row">
-        <button class="btn water" data-water="250">+ стакан 250 мл</button>
-        <button class="btn water" data-water="500">+ бутылка 500 мл</button>
-        <button class="btn ghost" data-water="-250">− 250 мл</button>
-      </div>
       <form class="manual" id="waterForm" autocomplete="off">
         <label for="waterIn">Сколько выпил</label>
         <div class="row">
@@ -409,12 +404,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div class="panel-head" style="margin-top:6px">
         <h2 id="h-read"><span class="dot" style="background:var(--read)"></span>Чтение</h2>
         <span class="meta num" id="readMeta"></span>
-      </div>
-      <div class="row" id="readBtns">
-        <button class="btn read" data-pages="5">+5 стр.</button>
-        <button class="btn read" data-pages="10">+10 стр.</button>
-        <button class="btn read" data-pages="20">+20 стр.</button>
-        <button class="btn ghost" data-pages="-5">− 5</button>
       </div>
       <form class="manual" id="pagesForm" autocomplete="off">
         <label for="pagesCustom">Сколько прочитал</label>
@@ -1021,13 +1010,9 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     let gh = "";
     for (let i = 0; i < count; i++){
       const f = Math.max(0, Math.min(1, filled - i));
-      gh += `<button class="glass ${i >= glassesGoal ? "extra" : ""}" data-glass="${i}" aria-label="Стакан ${i + 1}"><i style="height:${f * 100}%"></i></button>`;
+      gh += `<span class="glass ${i >= glassesGoal ? "extra" : ""}" aria-hidden="true"><i style="height:${f * 100}%"></i></span>`;
     }
     $("glasses").innerHTML = gh;
-    document.querySelector('[data-water="250"]').textContent = "+ стакан " + g.glass + " мл";
-    document.querySelector('[data-water="250"]').dataset.amount = g.glass;
-    document.querySelector('[data-water="-250"]').textContent = "− " + g.glass + " мл";
-    document.querySelector('[data-water="-250"]').dataset.amount = -g.glass;
 
     // reading
     $("readMeta").textContent = d.pages + " / " + g.pages + " стр. сегодня";

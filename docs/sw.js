@@ -1,5 +1,5 @@
 // Офлайн-режим: сайт открывается без интернета, свежая версия подтягивается при каждом запуске с сетью.
-const CACHE = "moy-den-v4";
+const CACHE = "moy-den-v5";
 const ASSETS = ["./", "index.html", "config.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

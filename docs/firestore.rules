@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Пара: pairs/<код из 12 символов>/players|data/<документ>
+    // Прочитать или записать можно, только зная код пары. Список всех пар получить нельзя.
+    match /pairs/{pair}/{col}/{doc} {
+      allow read, delete: if pair.size() == 12 && col in ['players', 'data'];
+      allow create, update: if pair.size() == 12 && col in ['players', 'data']
+        && request.resource.data.keys().hasOnly(['json'])
+        && request.resource.data.json is string
+        && request.resource.data.json.size() < 900000;
+    }
+  }
+}

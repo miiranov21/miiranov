@@ -191,7 +191,14 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .addhabit input{flex:1 1 180px}
 
 /* Bad habits */
-.quit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:18px;align-items:start}
+.quit{display:grid;grid-template-columns:minmax(0,560px);gap:18px;align-items:start}
+.qtile.on{background:var(--habit-soft);border-color:transparent}
+.qtile.on .box{background:var(--habit);border-color:var(--habit);color:#fff}
+.qtile.slipped{background:var(--kcal-soft);border-color:var(--warn)}
+.qtile.slipped .box{background:var(--warn);border-color:var(--warn);color:#fff}
+.qtile.pre{opacity:.55}
+.qtile .st{white-space:normal}
+#quitList.editing .habit-del{display:block}
 .quit-list{display:flex;flex-direction:column;gap:10px;min-width:0}
 .qcard{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--surface);text-align:left;width:100%}
 .qcard.sel{border-color:var(--habit);box-shadow:0 0 0 1px var(--habit) inset}
@@ -701,20 +708,16 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <section class="panel span2" id="p-quit" aria-labelledby="h-quit">
       <div class="panel-head">
         <h2 id="h-quit"><span class="dot" style="background:var(--warn)"></span>Избавление от вредных привычек</h2>
-        <span class="meta">зелёный день — без срыва</span>
+        <span class="row"><span class="meta" id="quitMeta"></span><button class="btn sm ghost" type="button" id="editBad" aria-pressed="false">Изменить</button></span>
       </div>
+      <div class="habits" id="quitList"></div>
+      <form class="addhabit" id="badForm" autocomplete="off">
+        <input type="text" id="badName" maxlength="40" required placeholder="От чего избавляюсь: курение, соцсети, сладкое…" aria-label="Название вредной привычки">
+        <label class="mhint" for="badStart">с</label><input type="date" id="badStart" required style="flex:0 1 150px" aria-label="С какого дня">
+        <button class="btn primary" type="submit">+ Добавить</button>
+      </form>
+      <p class="mhint" id="quitHint">Зелёная плитка — день без срыва. Нажми на плитку, если сорвался, и ещё раз, чтобы отменить. Стрелками вверху можно отметить прошлые дни.</p>
       <div class="quit">
-        <div class="quit-list">
-          <div id="quitList" class="quit-list"></div>
-          <details id="badDetails">
-            <summary>+ Добавить вредную привычку</summary>
-            <form class="addbad" id="badForm" autocomplete="off" style="margin-top:10px">
-              <div class="field"><label for="badName">От чего избавляюсь</label><input type="text" id="badName" maxlength="40" required placeholder="Курение, соцсети, фастфуд…"></div>
-              <div class="field"><label for="badStart">Начал с</label><input type="date" id="badStart" required></div>
-              <button class="btn primary" type="submit">Начать</button>
-            </form>
-          </details>
-        </div>
         <div class="cal" aria-labelledby="calTitle">
           <div class="cal-head">
             <select id="calHabit" aria-label="Чей прогресс показать"></select>
@@ -1833,32 +1836,30 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     render();
   }
 
+  let editingBad = false;
   function renderQuit(){
     const bad = S.settings.bad || [];
     if (!$("badStart").value) $("badStart").value = todayKey();
     $("badStart").max = todayKey();
+    $("quitList").classList.toggle("editing", editingBad);
+    $("editBad").hidden = !bad.length;
+    $("quitHint").hidden = !bad.length;
     if (!bad.length){
-      $("quitList").innerHTML = `<div class="empty">Добавь привычку, от которой хочешь избавиться, и дату, с которой ты начал. Трекер будет считать дни без срывов, а календарь покажет каждый чистый день.</div>`;
-      $("badDetails").open = true;
+      $("quitList").innerHTML = `<div class="empty">Добавь привычку, от которой хочешь избавиться, и день, с которого начал. Трекер будет считать дни без срывов, а календарь покажет каждый чистый день.</div>`;
+      $("quitMeta").textContent = "";
     } else {
+      let clean = 0, active = 0;
       $("quitList").innerHTML = bad.map(b => {
-        const st = badStats(b), sel = calSel === "b:" + b.id;
-        const pct = (st.current - st.prev) / (st.next - st.prev) * 100;
-        const since = parseKey(b.start);
-        return `<div class="qcard ${sel ? "sel" : ""}">
-          <div class="qtop">
-            <div><div class="qname">${esc(b.name)}</div><div class="qsince">с ${since.getDate()} ${MONTHS[since.getMonth()]} ${since.getFullYear()}</div></div>
-            <div class="qdays num">${st.current}<small>${plural(st.current, "день", "дня", "дней")} без</small></div>
-          </div>
-          <div class="pbar" aria-hidden="true"><i style="width:${pct}%"></i></div>
-          <div class="qms"><span>до цели ${st.next} ${plural(st.next, "день", "дня", "дней")}: ещё ${st.next - st.current}</span><span>рекорд ${st.best} · срывов ${st.slips}</span></div>
-          <div class="qact">
-            <button class="btn sm slip ${st.slippedToday ? "on" : ""}" type="button" data-slip="${b.id}" aria-pressed="${st.slippedToday}">${st.slippedToday ? "Сегодня был срыв · отменить" : "Сорвался сегодня"}</button>
-            <button class="btn sm" type="button" data-calsel="b:${b.id}">Календарь</button>
-            <button class="btn sm ghost" type="button" data-baddel="${b.id}">Удалить</button>
-          </div>
-        </div>`;
+        const st = badStats(b);
+        const pre = cur < b.start || cur > todayKey();
+        const slip = !!(S.days[cur] && S.days[cur].slips && S.days[cur].slips[b.id]);
+        if (!pre){ active++; if (!slip) clean++; }
+        const cls = pre ? "pre" : slip ? "slipped" : "on";
+        const sub = pre ? "ещё не начал" : `${st.current} ${plural(st.current, "день", "дня", "дней")} без · до ${st.next}: ещё ${st.next - st.current}`;
+        const lab = pre ? "" : slip ? `Срыв в этот день. Нажми, чтобы отменить` : `Без срыва. Нажми, если сорвался`;
+        return `<div class="habit-wrap"><button class="habit qtile ${cls}" type="button" ${pre ? "disabled" : `data-qtile="${b.id}"`} aria-pressed="${slip}" aria-label="${esc(b.name)}: ${lab}"><span class="box">${slip ? "✕" : "✓"}</span><span class="hn">${esc(b.name)}<span class="st">${sub}</span></span></button><button class="habit-del" type="button" data-baddel="${b.id}" aria-label="Удалить ${esc(b.name)}">×</button></div>`;
       }).join("");
+      $("quitMeta").textContent = active ? `${clean} из ${active} без срыва` : "";
     }
     renderCal();
   }
@@ -2050,12 +2051,12 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   $("today").onclick = () => { cur = todayKey(); render(); };
 
   document.addEventListener("click", e => {
-    const el = e.target.closest("[data-water],[data-pages],[data-delmeal],[data-recent],[data-habit],[data-curbook],[data-delbook],[data-glass],[data-habdel],[data-slip],[data-calsel],[data-baddel],[data-calday]");
+    const el = e.target.closest("[data-water],[data-pages],[data-delmeal],[data-recent],[data-habit],[data-curbook],[data-delbook],[data-glass],[data-habdel],[data-slip],[data-calsel],[data-baddel],[data-calday],[data-qtile]");
     if (!el) return;
     const ds = el.dataset;
     if (ds.habdel || ds.baddel){
       if (el.dataset.confirm !== "1"){
-        el.dataset.confirm = "1"; const old = el.textContent; el.textContent = ds.habdel ? "?" : "Точно удалить?"; el.style.color = "var(--warn)";
+        el.dataset.confirm = "1"; const old = el.textContent; el.textContent = "?"; el.style.color = "var(--warn)";
         setTimeout(() => { if (el.isConnected){ el.dataset.confirm = ""; el.textContent = old; el.style.color = ""; } }, 3000);
         return;
       }
@@ -2065,6 +2066,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       S.settings = st; persist("settings", st, 0); render(); return;
     }
     if (ds.slip){ toggleSlip(ds.slip, todayKey()); return; }
+    if (ds.qtile){ calSel = "b:" + ds.qtile; toggleSlip(ds.qtile, cur); return; }
     if (ds.calsel){ calSel = ds.calsel; try { localStorage.setItem("moy-den-cal", calSel); } catch (er) {} calMonth = todayKey().slice(0, 7); render(); $("calHabit").scrollIntoView({ behavior: "smooth", block: "nearest" }); return; }
     if (ds.calday){
       const k = ds.calday, id = calSel.slice(2);
@@ -2160,6 +2162,12 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const st = clone(S.settings); st.habits.push({ id: "h" + uid(), name });
     S.settings = st; persist("settings", st, 0); $("habitName").value = ""; render(); toast("Привычка добавлена");
   });
+  $("editBad").onclick = () => {
+    editingBad = !editingBad;
+    $("editBad").textContent = editingBad ? "Готово" : "Изменить";
+    $("editBad").setAttribute("aria-pressed", editingBad);
+    render();
+  };
   $("badForm").addEventListener("submit", e => {
     e.preventDefault();
     const name = $("badName").value.trim(); let start = $("badStart").value || todayKey();
@@ -2169,7 +2177,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     st.bad = st.bad || []; st.bad.push({ id, name, start });
     S.settings = st; persist("settings", st, 0);
     calSel = "b:" + id; calMonth = todayKey().slice(0, 7);
-    $("badName").value = ""; $("badDetails").open = false; render(); toast("Отсчёт начат. Держись!");
+    $("badName").value = ""; render(); toast("Отсчёт начат. Держись!");
   });
   $("calHabit").addEventListener("change", e => { calSel = e.target.value; try { localStorage.setItem("moy-den-cal", calSel); } catch (er) {} render(); });
   $("calPrev").onclick = () => { const [y, m] = calMonth.split("-").map(Number); const d = new Date(y, m - 2, 1); calMonth = d.getFullYear() + "-" + pad(d.getMonth() + 1); renderCal(); };

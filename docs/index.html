@@ -265,6 +265,17 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .bnav button.on .ic{filter:none;opacity:1}
 .toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 
+.vs{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.cmp{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.cmp h3{font-family:var(--f-body);font-size:13.5px;font-weight:700;margin:0}
+.cl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:baseline}
+.cl .pbar{grid-column:1/-1}
+.cw{font-weight:600;font-size:13.5px;overflow-wrap:anywhere}
+.cv{font-size:13px;color:var(--ink-2);text-align:right}
+.cdone{grid-column:1/-1;font-size:12px;color:var(--ink-3)}
+.h2h caption{text-align:left;font-weight:700;font-size:13px;color:var(--ink-2);padding:6px 0 2px}
+.h2h table + table{margin-top:8px}
+
 /* Week charts */
 .charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .chart h3{font-family:var(--f-body);font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:6px;display:flex;justify-content:space-between}
@@ -338,12 +349,12 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 
   <section class="panel" aria-labelledby="h-vs" id="vsPanel">
     <div class="panel-head">
-      <h2 id="h-vs"><span class="dot" style="background:var(--kcal)"></span>Соревнование недели</h2>
+      <h2 id="h-vs"><span class="dot" style="background:var(--accent)"></span>Прогресс пары</h2>
       <span class="meta" id="vsMeta"></span>
     </div>
     <div class="vs" id="vs"></div>
     <div class="h2h" id="h2h"></div>
-    <div class="nick"><label for="nick" style="font-size:12.5px;color:var(--ink-3);font-weight:600">Твоё имя в соревновании</label><input type="text" id="nick" maxlength="24" placeholder="Например, Миша"><button class="btn sm" type="button" id="nickSave">Сохранить</button></div>
+    <div class="nick"><label for="nick" style="font-size:12.5px;color:var(--ink-3);font-weight:600">Твоё имя</label><input type="text" id="nick" maxlength="24" placeholder="Например, Миша"><button class="btn sm" type="button" id="nickSave">Сохранить</button></div>
     <div class="join" id="join" hidden></div>
   </section>
 
@@ -514,7 +525,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 <nav class="bnav" aria-label="Разделы">
   <div class="bnav-in" id="bnav">
     <button type="button" data-go="summary"><span class="ic" aria-hidden="true">🏠</span><span class="tx">День</span></button>
-    <button type="button" data-go="vsPanel"><span class="ic" aria-hidden="true">🏆</span><span class="tx">Битва</span></button>
+    <button type="button" data-go="vsPanel"><span class="ic" aria-hidden="true">👫</span><span class="tx">Пара</span></button>
     <button type="button" data-go="p-kcal"><span class="ic" aria-hidden="true">🍎</span><span class="tx">Еда</span></button>
     <button type="button" data-go="p-water"><span class="ic" aria-hidden="true">💧</span><span class="tx">Вода</span></button>
     <button type="button" data-go="p-hab"><span class="ic" aria-hidden="true">✅</span><span class="tx">Привычки</span></button>
@@ -746,13 +757,17 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const k = shift(today, -i), t = totals(k);
       if (!t.hasData) continue;
       const d = day(k);
-      days[k] = { s: Math.round(t.score * 100), w: d.water, p: d.pages, h: t.habitsDone, ht: t.habitsTotal, k: t.kcalOk ? 1 : 0 };
+      const g = goals();
+      days[k] = { s: Math.round(t.score * 100), w: d.water, wg: g.water, p: d.pages, pg: g.pages, h: t.habitsDone, ht: t.habitsTotal,
+        hd: S.settings.habits.filter(h => d.habits[h.id]).map(h => h.name), kc: t.kcal, kg: g.kcal, k: t.kcalOk ? 1 : 0 };
     }
+    const cb = S.books.list.find(b => b.id === S.books.current);
     return {
       nick: (S.settings.nick || "").slice(0, 24),
       days,
       streak: streak(),
       books: S.books.list.filter(b => b.done).length,
+      book: cb ? { t: cb.title, r: cb.read, n: cb.total } : null,
       quit: (S.settings.bad || []).map(b => { const st = badStats(b); return { n: b.name, d: st.current, b: st.best }; })
     };
   }
@@ -780,7 +795,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (document.activeElement !== $("nick")) $("nick").value = S.settings.nick || "";
     const j = $("join");
     if (boardState === "nocloud"){
-      $("vs").innerHTML = `<div class="empty">Облако для соревнования ещё не подключено. Трекер работает, все записи хранятся на этом телефоне.</div>`;
+      $("vs").innerHTML = `<div class="empty">Облако ещё не подключено. Трекер работает, все записи хранятся на этом телефоне.</div>`;
       $("h2h").innerHTML = ""; j.hidden = true; $("vsMeta").textContent = ""; return;
     }
     if (boardState === "nopair" || boardState === "choose"){
@@ -792,58 +807,54 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
           <div class="row">${chooseList.map(p => `<button class="btn" type="button" data-pickme="${esc(p.id)}">Я — ${esc(p.nick || "без имени")}</button>`).join("")}
           <button class="btn primary" type="button" data-pickme="new">Я новый участник</button></div>`;
       } else {
-        j.innerHTML = `<b>Соревнуйтесь вдвоём.</b> Один из вас создаёт пару и отправляет код второму. Записи каждого остаются личными, в соревновании видны только итоги дня.
+        j.innerHTML = `<b>Смотрите прогресс друг друга.</b> Один из вас создаёт пару и отправляет код второму. Тогда здесь будет видно, сколько каждый прочитал, выпил воды, сделал привычек и съел калорий. Еда и заметки остаются личными.
           <div class="row"><button class="btn primary" type="button" id="pairCreate">Создать пару</button><span style="color:var(--ink-3)">или</span>
           <input type="text" id="pairCode" placeholder="Код пары: XXXX-XXXX-XXXX" maxlength="16" autocomplete="off" autocapitalize="characters" style="max-width:220px" aria-label="Код пары">
           <button class="btn" type="button" id="pairJoin">Подключиться</button></div>`;
       }
       return;
     }
-    const today = todayKey(), wk = weekKeys();
-    // me: always from live local data; others: from the board
+    const today = todayKey(), k0 = cur;
+    const wk = []; for (let i = 6; i >= 0; i--) wk.push(shift(k0, -i));
+    // me: always from live local data; partner: from the cloud
     const meDoc = Object.assign({ id: pair.pid }, buildSummary());
     const others = boardDocs.filter(d => d.id !== pair.pid && d.updated && (Date.now() - Date.parse(d.updated)) < 1000 * 86400 * 45);
     const players = [Object.assign(meDoc, { me: true }), ...others];
     players.forEach(pl => {
-      pl.week = wk.reduce((s, k) => s + ((pl.days && pl.days[k] && pl.days[k].s) || 0), 0);
-      pl.today = (pl.days && pl.days[today]) || { s: 0, w: 0, p: 0, h: 0, ht: 0 };
-      pl.label = pl.nick || (pl.me ? "Ты" : "Участник");
+      pl.d = (pl.days && pl.days[k0]) || {};
+      pl.label = pl.nick || (pl.me ? "Я" : "Без имени");
     });
-    const maxWeek = Math.max(...players.map(p => p.week));
-    const leader = players.length > 1 && maxWeek > 0 && players.filter(p => p.week === maxWeek).length === 1 ? players.find(p => p.week === maxWeek) : null;
-    $("vsMeta").textContent = "очки = сумма % выполнения дней с понедельника";
-    $("vs").innerHTML = players.map(pl => `
-      <div class="player ${leader === pl ? "lead" : ""}">
-        ${leader === pl ? '<span class="crown">👑 лидер недели</span>' : ""}
-        <div class="ph"><div class="ring">${ring(pl.today.s / 100, "var(--accent)")}<span class="pct">${pl.today.s}%</span></div>
-          <div style="min-width:0"><div class="pn">${esc(pl.label)}${pl.me && pl.nick ? " (ты)" : ""}</div><div class="pu">${pl.me ? "сегодня" : (pl.updated ? "обновлено " + ago(pl.updated) : "")}</div></div></div>
-        <div class="pts"><b>${pl.week}</b><span>очков за неделю из 700</span></div>
-        <div class="pbar"><i style="width:${Math.min(100, pl.week / 7)}%"></i></div>
-        <div class="pstats">
-          <div><b>🔥${pl.streak || 0}</b><span>серия</span></div>
-          <div><b>${((pl.today.w || 0) / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}</b><span>л воды</span></div>
-          <div><b>${pl.today.p || 0}</b><span>стр.</span></div>
-          <div><b>${pl.today.h || 0}/${pl.today.ht || 0}</b><span>привыч.</span></div>
-        </div>
-        ${(pl.quit || []).length ? `<div class="pquit">${pl.quit.map(q => `<span class="chip ok">Без «${esc(q.n)}»: <span class="num">${q.d}</span> ${plural(q.d, "день", "дня", "дней")}</span>`).join("")}</div>` : ""}
-      </div>`).join("");
-    if (players.length > 1){
-      $("h2h").innerHTML = `<table><thead><tr><th></th>${wk.map(k => { const d = parseKey(k); return `<th>${WD[d.getDay()]} ${d.getDate()}</th>`; }).join("")}<th>Итого</th></tr></thead><tbody>` +
-        players.map(pl => `<tr><td>${esc(pl.label)}</td>${wk.map(k => {
-          if (k > today) return `<td class="c fut">·</td>`;
-          const v = (pl.days && pl.days[k] && pl.days[k].s) || 0;
-          const best = Math.max(...players.map(o => (o.days && o.days[k] && o.days[k].s) || 0));
-          const win = v > 0 && v === best && players.filter(o => ((o.days && o.days[k] && o.days[k].s) || 0) === best).length === 1;
-          return `<td class="c ${win ? "win" : ""}">${v}</td>`;
-        }).join("")}<td class="c ${leader === pl ? "win" : ""}">${pl.week}</td></tr>`).join("") + `</tbody></table>`;
-    } else $("h2h").innerHTML = "";
+    const dt = parseKey(k0);
+    $("vsMeta").textContent = k0 === today ? "сегодня" : dt.getDate() + " " + MONTHS[dt.getMonth()];
+    const L = v => ((v || 0) / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
+    const who = pl => `<span class="cw">${esc(pl.label)}${pl.me && pl.nick ? " (я)" : ""}</span>`;
+    const bar = (v, g, color) => `<div class="pbar"><i style="width:${g ? Math.min(100, v / g * 100) : 0}%;background:${color}"></i></div>`;
+    const block = (title, color, lineFn) => `<div class="cmp"><h3>${title}</h3>${players.map(pl => `<div class="cl">${lineFn(pl)}</div>`).join("")}</div>`;
+    let html = "";
+    html += block("📖 Чтение", "var(--read)", pl => `${who(pl)}<span class="cv num">${pl.d.p || 0}${pl.d.pg ? " / " + pl.d.pg : ""} стр.</span>${bar(pl.d.p || 0, pl.d.pg, "var(--read)")}`);
+    html += block("💧 Вода", "var(--water)", pl => `${who(pl)}<span class="cv num">${L(pl.d.w)}${pl.d.wg ? " / " + L(pl.d.wg) : ""} л</span>${bar(pl.d.w || 0, pl.d.wg, "var(--water)")}`);
+    html += block("✅ Привычки", "var(--habit)", pl => `${who(pl)}<span class="cv num">${pl.d.h || 0} из ${pl.d.ht || 0}</span>${bar(pl.d.h || 0, pl.d.ht, "var(--habit)")}${(pl.d.hd || []).length ? `<div class="cdone">${pl.d.hd.map(n => esc(n)).join(" · ")}</div>` : ""}`);
+    html += block("🍎 Калории", "var(--kcal)", pl => `${who(pl)}<span class="cv num">${fmt(pl.d.kc || 0)}${pl.d.kg ? " / " + fmt(pl.d.kg) : ""} ккал</span>${bar(pl.d.kc || 0, pl.d.kg, "var(--kcal)")}`);
+    if (players.some(pl => pl.book)) html += block("📚 Читает сейчас", "var(--read)", pl => `${who(pl)}<span class="cv">${pl.book ? `«${esc(pl.book.t)}» · <span class="num">${pl.book.r} / ${pl.book.n} стр.</span>` : "—"}</span>`);
+    if (players.some(pl => (pl.quit || []).length)) html += block("🚭 Без вредных привычек", "var(--habit)", pl => `${who(pl)}<span class="cv">${(pl.quit || []).length ? pl.quit.map(q => `<span class="chip ok">${esc(q.n)}: <span class="num">${q.d}</span> ${plural(q.d, "день", "дня", "дней")}</span>`).join(" ") : "—"}</span>`);
+    $("vs").innerHTML = html;
+    const wkTable = (title, val, total) => `<table><caption>${title}</caption><thead><tr><th></th>${wk.map(k => { const d = parseKey(k); return `<th>${WD[d.getDay()]} ${d.getDate()}</th>`; }).join("")}<th>Всего</th></tr></thead><tbody>` +
+      players.map(pl => `<tr><td>${esc(pl.label)}</td>${wk.map(k => k > today ? `<td class="c fut">·</td>` : `<td class="c">${val((pl.days && pl.days[k]) || {})}</td>`).join("")}<td class="c">${total(pl)}</td></tr>`).join("") + `</tbody></table>`;
+    const sum = (pl, f) => wk.reduce((a, k) => a + (((pl.days && pl.days[k]) || {})[f] || 0), 0);
+    $("h2h").innerHTML = wkTable("Страницы за 7 дней", d => d.p || 0, pl => sum(pl, "p")) +
+      wkTable("Вода за 7 дней, л", d => L(d.w), pl => L(sum(pl, "w")));
+    pl_updated(players);
     j.hidden = false;
     const codeLine = `<div class="row"><span>Код пары: <b class="num">${prettyCode(pair.code)}</b></span><button class="btn sm" type="button" id="pairCopy">Скопировать</button><button class="btn sm ghost" type="button" id="pairLeave">Отключить этот телефон</button></div>`;
     if (boardState === "error"){
       j.innerHTML = `<b>Нет связи с облаком.</b> Записи сохраняются на телефоне и отправятся, когда связь появится.` + codeLine;
     } else if (players.length < 2){
-      j.innerHTML = `<b>Пока в соревновании только ты.</b> Отправь девушке код пары. Она открывает сайт, нажимает «Подключиться» в этом блоке и вводит код. Её карточка появится здесь.` + codeLine;
+      j.innerHTML = `<b>Пока здесь только ты.</b> Отправь девушке код пары. Она открывает сайт, нажимает «Подключиться» в этом блоке и вводит код. Её карточка появится здесь.` + codeLine;
     } else j.innerHTML = codeLine;
+  }
+  function pl_updated(players){
+    const o = players.filter(p => !p.me && p.updated);
+    if (o.length) $("vsMeta").textContent += " · " + o.map(p => (p.nick || "партнёр") + ": обновлено " + ago(p.updated)).join(", ");
   }
   function ago(iso){
     const m = Math.round((Date.now() - Date.parse(iso)) / 60000);

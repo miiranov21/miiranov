@@ -26,6 +26,7 @@
   --kcal:#E8742A; --water:#1D8FE1; --read:#7A4FD6; --habit:#12A37A;
   --warn:#D9472B;
   --lang:#C2417A; --lang-soft:#F9E1EC;
+  --fin:#0F8B6C; --fin-soft:#DDF2EA;
   --kcal-soft:#FBE7DA; --water-soft:#DCEEFB; --read-soft:#ECE4FA; --habit-soft:#D9F3EA;
   --f-display:"Unbounded","Manrope",system-ui,sans-serif;
   --f-body:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -38,6 +39,7 @@
   --accent:#7F95FF;
   --kcal:#F39250; --water:#4DB0F5; --read:#A585F0; --habit:#3CC79A; --warn:#F2735A;
   --lang:#EC74A6; --lang-soft:#3E1A2B;
+  --fin:#3FCB9F; --fin-soft:#12352B;
   --kcal-soft:#3A2618; --water-soft:#132E45; --read-soft:#2B2045; --habit-soft:#123528;
   color-scheme:dark}}
 :root[data-theme="dark"]{
@@ -46,6 +48,7 @@
   --accent:#7F95FF;
   --kcal:#F39250; --water:#4DB0F5; --read:#A585F0; --habit:#3CC79A; --warn:#F2735A;
   --lang:#EC74A6; --lang-soft:#3E1A2B;
+  --fin:#3FCB9F; --fin-soft:#12352B;
   --kcal-soft:#3A2618; --water-soft:#132E45; --read-soft:#2B2045; --habit-soft:#123528;
   color-scheme:dark}
 
@@ -213,6 +216,12 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .qtile.slipped .box{background:var(--warn);border-color:var(--warn);color:#fff}
 .qtile.pre{opacity:.55}
 .qtile .st{white-space:normal}
+.ideas{display:flex;flex-direction:column;gap:12px;margin-top:10px}
+.ideas h4{margin:0 0 6px;font-size:13px;font-weight:700;color:var(--ink-2)}
+.ideas .chips{display:flex;flex-wrap:wrap;gap:6px}
+.ideas .chips button{border:1px dashed var(--habit);background:transparent;color:var(--ink);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600}
+.ideas .chips button:hover{background:var(--habit-soft)}
+.ideas .chips button[disabled]{border-style:solid;border-color:transparent;background:var(--habit-soft);color:var(--habit);cursor:default}
 .hgroup{grid-column:1/-1;font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
 .hgroup small{text-transform:none;letter-spacing:0;font-weight:500}
 .habit.badh.on{background:var(--habit-soft)}
@@ -297,13 +306,14 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .wrap{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 .panel,.summary{scroll-margin-top:12px}
 .bnav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(15,25,45,.08);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
-.bnav-in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;padding-block:6px}
+.bnav-in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;padding-block:6px}
 .bnav button{border:0;background:transparent;border-radius:12px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink-3);min-width:0}
-.bnav button .ic{font-size:20px;line-height:1.1;filter:grayscale(.6);opacity:.8}
+.bnav button .ic{display:block;width:23px;height:23px;line-height:0}
+.bnav button .ic svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .bnav button .tx{font-size:9.5px;letter-spacing:-.03em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .bnav button:hover{background:var(--surface-2)}
 .bnav button.on{color:var(--accent);background:var(--surface-2)}
-.bnav button.on .ic{filter:none;opacity:1}
+.bnav button.on .ic svg{stroke-width:2.1}
 .toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 
 .vs{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
@@ -363,6 +373,39 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .dres .big{font-family:var(--f-display);font-size:20px}
 .dsaved{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .dsaved .chip{cursor:pointer;border:1px solid var(--line)}
+
+/* Finance */
+.finnote{margin:0;font-size:12.5px;color:var(--ink-2);background:var(--fin-soft);border-radius:10px;padding:8px 12px}
+.fintip{font-size:13.5px;border-left:3px solid var(--fin);padding:4px 10px;color:var(--ink-2)}
+.finsec{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:14px;padding:14px}
+.finh{font-family:var(--f-body);font-size:15px;font-weight:700;margin:0;display:flex;gap:8px;align-items:baseline}
+.finh span{font-size:12.5px;font-weight:500;color:var(--ink-3)}
+.finh-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.finlessons{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.finlessons button{display:flex;align-items:center;gap:10px;text-align:left;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:10px 12px;font-size:13.5px;font-weight:600;min-width:0}
+.finlessons button.done{background:var(--fin-soft);border-color:transparent}
+.finlessons .fi{font-size:20px;flex:none}
+.finlessons .ft{flex:1;min-width:0;overflow-wrap:anywhere}
+.finlessons .fd{color:var(--fin);font-weight:700;flex:none}
+.finsum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.finsum div{background:var(--surface-2);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.finsum span{font-size:11.5px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.finsum b{font-family:var(--f-num);font-size:16px;overflow-wrap:anywhere}
+.finsum .pos{color:var(--fin)}.finsum .neg{color:var(--warn)}
+.finform{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.2fr) auto;gap:8px;align-items:end}
+.btn.fin{background:var(--fin);border-color:var(--fin);color:#fff}
+.seg label:has(input[value="exp"]:checked){background:var(--warn)}
+.seg label:has(input[value="inc"]:checked){background:var(--fin)}
+.fincats{display:flex;flex-direction:column;gap:8px}
+.fcat{display:flex;flex-direction:column;gap:4px}
+.fcat .fl{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.fcat .fl .num{color:var(--ink-2)}
+.fcat .pbar i{background:var(--fin)}
+.fintx .item .mt{min-width:56px}
+.fingoal{display:flex;flex-direction:column;gap:8px}
+.fingoal .pbar{height:10px}
+.fingoal .pbar i{background:var(--fin)}
+@media (max-width:760px){.finform{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.finform .seg,.finform .btn{grid-column:1/-1}}
 
 /* Report */
 .reportbtn{display:flex;align-items:center;gap:12px;width:100%;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 16px;text-align:left}
@@ -735,6 +778,10 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <select id="habitType" aria-label="Тип привычки" style="flex:0 1 150px"><option value="good">✅ Полезная</option><option value="bad">🚭 Вредная</option></select>
         <button class="btn primary" type="submit">+ Добавить</button>
       </form>
+      <details id="ideas">
+        <summary>💡 Идеи полезных привычек</summary>
+        <div class="ideas" id="ideasList"></div>
+      </details>
     </section>
 
 
@@ -750,6 +797,41 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div class="hmx" id="hmx"></div>
       <div class="cal-legend" id="calLegend"></div>
       <div class="cal-stats" id="calStats"></div>
+    </section>
+
+    <section class="panel span2" id="p-fin" aria-labelledby="h-fin">
+      <div class="panel-head">
+        <h2 id="h-fin"><span class="dot" style="background:var(--fin)"></span>Финансовая грамотность</h2>
+        <span class="meta">🔒 только на этом телефоне</span>
+      </div>
+      <p class="finnote">Всё, что ты вносишь здесь, хранится только на этом телефоне: не отправляется в облако, не попадает в блок «Пара» и не видно партнёру. Имя, банк и номера карт не нужны.</p>
+      <div class="fintip" id="finTip"></div>
+
+      <div class="finsec">
+        <h3 class="finh">📚 Уроки <span id="finLessonsMeta"></span></h3>
+        <div class="finlessons" id="finLessons"></div>
+      </div>
+
+      <div class="finsec">
+        <div class="finh-row"><h3 class="finh">🧾 Мой месяц</h3>
+          <div class="cal-nav"><button type="button" id="finPrev" aria-label="Предыдущий месяц">‹</button><span class="m" id="finMonth"></span><button type="button" id="finNext" aria-label="Следующий месяц">›</button></div></div>
+        <div class="finsum" id="finSum"></div>
+        <form class="finform" id="finForm" autocomplete="off">
+          <div class="seg" role="radiogroup" aria-label="Тип"><label><input type="radio" name="ftype" value="exp" checked>Расход</label><label><input type="radio" name="ftype" value="inc">Доход</label></div>
+          <div class="field"><label for="fAmt">Сумма</label><input type="number" id="fAmt" min="0.01" step="0.01" inputmode="decimal" required placeholder="0"></div>
+          <div class="field"><label for="fCat">Категория</label><select id="fCat"></select></div>
+          <div class="field"><label for="fNote">Заметка</label><input type="text" id="fNote" maxlength="40" placeholder="необязательно"></div>
+          <button class="btn fin" type="submit">Добавить</button>
+        </form>
+        <div class="fincats" id="finCats"></div>
+        <details><summary id="finTxSum">Все записи месяца</summary><div class="fintx" id="finTx"></div></details>
+      </div>
+
+      <div class="finsec">
+        <h3 class="finh">🐷 Копилка</h3>
+        <div class="fingoal" id="finGoal"></div>
+      </div>
+      <div class="row"><label class="mhint" for="finCur">Валюта</label><select id="finCur" style="width:auto"><option>₽</option><option>₼</option><option>₸</option><option>$</option><option>€</option><option>₴</option><option>so'm</option></select></div>
     </section>
 
 
@@ -805,12 +887,13 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 
 <nav class="bnav" aria-label="Разделы">
   <div class="bnav-in" id="bnav">
-    <button type="button" data-go="summary"><span class="ic" aria-hidden="true">🏠</span><span class="tx">День</span></button>
-    <button type="button" data-go="vsPanel"><span class="ic" aria-hidden="true">👫</span><span class="tx">Пара</span></button>
-    <button type="button" data-go="p-kcal"><span class="ic" aria-hidden="true">🍎</span><span class="tx">Еда</span></button>
-    <button type="button" data-go="p-water"><span class="ic" aria-hidden="true">💧</span><span class="tx">Вода</span></button>
-    <button type="button" data-go="p-lang"><span class="ic" aria-hidden="true">🌍</span><span class="tx">Язык</span></button>
-    <button type="button" data-go="p-hab"><span class="ic" aria-hidden="true">✅</span><span class="tx">Привычки</span></button>
+    <button type="button" data-go="summary"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg></span><span class="tx">День</span></button>
+    <button type="button" data-go="vsPanel"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17" cy="9.5" r="2.6"/><path d="M16.5 14.3c2.8.2 4.5 2.2 4.5 5.2"/></svg></span><span class="tx">Пара</span></button>
+    <button type="button" data-go="p-kcal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 7.5c-1.4-1.5-3.9-1.9-5.6-.6-2.4 1.9-2.1 6.1-.4 9.2 1.3 2.4 3 4.7 4.6 4.2.6-.2.9-.4 1.4-.4s.8.2 1.4.4c1.6.5 3.3-1.8 4.6-4.2 1.7-3.1 2-7.3-.4-9.2-1.7-1.3-4.2-.9-5.6.6z"/><path d="M12 7.5c0-2 .9-3.4 2.8-4"/></svg></span><span class="tx">Еда</span></button>
+    <button type="button" data-go="p-water"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3.5s6 6.4 6 10.7a6 6 0 0 1-12 0C6 9.9 12 3.5 12 3.5z"/><path d="M9.2 14.6a2.9 2.9 0 0 0 2.6 2.6"/></svg></span><span class="tx">Вода</span></button>
+    <button type="button" data-go="p-lang"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.3 2.5 3.5 5.3 3.5 8.5s-1.2 6-3.5 8.5c-2.3-2.5-3.5-5.3-3.5-8.5s1.2-6 3.5-8.5z"/></svg></span><span class="tx">Язык</span></button>
+    <button type="button" data-go="p-hab"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.2 12.4 2.6 2.6 5-5.4"/></svg></span><span class="tx">Привычки</span></button>
+    <button type="button" data-go="p-fin"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="6.5" width="17" height="13" rx="2.5"/><path d="M3.5 10.5h17"/><path d="M15.5 15h2"/><path d="M7 6.5 15.5 4l1 2.5"/></svg></span><span class="tx">Финансы</span></button>
   </div>
 </nav>
 
@@ -883,6 +966,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 <script src="course-en.js"></script>
 <script src="course-az.js"></script>
 <script src="foods-ru.js"></script>
+<script src="fin-lessons.js"></script>
 <script>
 (() => {
   "use strict";
@@ -1418,6 +1502,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("habits").classList.toggle("editing", editingHabits);
 
     renderCal();
+    renderIdeas();
+    renderFin();
     renderBoard();
     scheduleSummary();
 
@@ -1790,7 +1876,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const body = $("lsBody"), foot = $("lsFoot");
     foot.className = "ls-foot";
     $("lsProg").style.width = Math.min(100, L.i / L.q.length * 100) + "%";
-    if (L.i >= L.q.length) return L.kind === "test" ? finishTest() : finishLesson();
+    if (L.i >= L.q.length) return L.kind === "test" ? finishTest() : L.kind === "fin" ? finishFin() : finishLesson();
     $("lsCount").textContent = (L.i + 1) + " / " + L.q.length;
     const q = L.q[L.i]; L.state = "ask"; L.pick = null; L.built = [];
     body.scrollTop = 0;
@@ -2003,6 +2089,9 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const held = inRange.filter(k => S.days[k] && S.days[k].habits && S.days[k].habits[h.id]).length;
       $("repStats").innerHTML += `<div><span>🚭 ${esc(h.name)}</span><b>${held} из ${inRange.length} дн.</b><small>продержался · сейчас ${habitStreak(h.id)} ${plural(habitStreak(h.id), "день", "дня", "дней")} · рекорд ${bestStreak(h.id)}</small></div>`;
     });
+    // finance (this phone only)
+    const finW = (typeof FIN !== "undefined" ? FIN.tx : []).filter(t => t.t === "exp" && t.d >= keys[0] && t.d <= end).reduce((a, t) => a + t.a, 0);
+    if (typeof FIN !== "undefined" && FIN.tx.length) $("repStats").innerHTML += `<div><span>💰 Расходы за неделю</span><b>${(Math.round(finW)).toLocaleString("ru-RU")} ${FIN.cur}</b><small>видно только тебе</small></div>`;
     // partner
     const partner = (typeof pair !== "undefined" && pair) ? boardDocs.filter(x => x.id !== pair.pid) : [];
     if (partner.length){
@@ -2446,6 +2535,126 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   $("portion").addEventListener("input", e => {
     if (e.target.id !== "pGrams") return;
     const g = parseInt(e.target.value, 10); if (g > 0 && g <= 3000){ FSEL.grams = g; applyPortion(); }
+  });
+
+  // ---------- habit ideas ----------
+  const IDEAS = [
+    ["💪 Здоровье", ["Стакан воды утром", "Зарядка 10 минут", "10 000 шагов", "Сон до 23:00", "Растяжка 5 минут", "Овощи в каждый приём пищи", "Без сладкого после 18:00"]],
+    ["🧠 Развитие", ["Читать 20 минут", "Учить язык 15 минут", "Подкаст или лекция вместо ленты", "Записать 3 мысли в дневник", "Выучить 5 новых слов"]],
+    ["🧘 Спокойствие", ["Медитация 10 минут", "Прогулка на свежем воздухе", "Без телефона за час до сна", "3 вещи, за которые благодарен", "Без соцсетей до обеда"]],
+    ["💰 Деньги", ["Записывать все расходы", "Откладывать 10% дохода", "Без импульсивных покупок", "Урок финансовой грамотности"]],
+    ["❤️ Близкие и дом", ["Позвонить родным", "Комплимент партнёру", "10 минут уборки", "Ужин без телефонов"]]
+  ];
+  function renderIdeas(){
+    const have = new Set(S.settings.habits.map(h => h.name.toLowerCase()));
+    $("ideasList").innerHTML = IDEAS.map(([g, list]) => `<div><h4>${g}</h4><div class="chips">${list.map(n => have.has(n.toLowerCase())
+      ? `<button type="button" disabled>✓ ${esc(n)}</button>` : `<button type="button" data-idea="${esc(n)}">+ ${esc(n)}</button>`).join("")}</div></div>`).join("");
+  }
+  $("ideasList").addEventListener("click", e => {
+    const b = e.target.closest("[data-idea]"); if (!b) return;
+    const name = b.dataset.idea;
+    if (S.settings.habits.some(h => h.name.toLowerCase() === name.toLowerCase())) return;
+    const st = clone(S.settings); st.habits.push({ id: "h" + uid(), name, type: "good", since: todayKey() });
+    S.settings = st; persist("settings", st, 0); render(); toast("Добавлено: " + name);
+  });
+
+  // ---------- finance (stays on this device only) ----------
+  const FIN_KEY = "moy-den-fin";
+  const FIN_CATS = { exp: ["🍎 Еда", "🚌 Транспорт", "🏠 Жильё и счета", "📱 Связь и подписки", "🎉 Развлечения", "👕 Одежда", "💊 Здоровье", "🎁 Подарки", "📚 Учёба", "💳 Долги", "📦 Другое"],
+                     inc: ["💼 Зарплата", "🧰 Подработка", "🎁 Подарок", "📈 Проценты", "📦 Другое"] };
+  let FIN = { tx: [], goal: null, done: {}, cur: "₽" };
+  try { const raw = localStorage.getItem(FIN_KEY); if (raw) FIN = Object.assign(FIN, JSON.parse(raw)); } catch (e) {}
+  function saveFin(){ try { localStorage.setItem(FIN_KEY, JSON.stringify(FIN)); } catch (e) { toast("Не удалось сохранить на телефоне"); } }
+  let finMonth = todayKey().slice(0, 7);
+  const money = v => (Math.round(v * 100) / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 }) + " " + FIN.cur;
+  function finCatOptions(){
+    const t = (document.querySelector('input[name="ftype"]:checked') || {}).value || "exp";
+    const keep = $("fCat").value;
+    $("fCat").innerHTML = FIN_CATS[t].map(c => `<option ${c === keep ? "selected" : ""}>${c}</option>`).join("");
+  }
+  function renderFin(){
+    const tips = window.MD_FIN_TIPS || [];
+    const dayN = Math.floor(parseKey(todayKey()).getTime() / 86400000);
+    $("finTip").textContent = tips.length ? "💡 " + tips[dayN % tips.length] : "";
+    const L0 = window.MD_FIN || [];
+    const doneN = L0.filter(l => FIN.done[l.id]).length;
+    $("finLessonsMeta").textContent = `пройдено ${doneN} из ${L0.length}`;
+    $("finLessons").innerHTML = L0.map(l => `<button type="button" class="${FIN.done[l.id] ? "done" : ""}" data-finl="${l.id}"><span class="fi" aria-hidden="true">${l.icon}</span><span class="ft">${esc(l.title)}</span>${FIN.done[l.id] ? '<span class="fd">✓</span>' : ""}</button>`).join("");
+    const [y, m] = finMonth.split("-").map(Number);
+    $("finMonth").textContent = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"][m - 1] + " " + y;
+    $("finNext").disabled = finMonth >= todayKey().slice(0, 7);
+    const tx = FIN.tx.filter(t => t.d.startsWith(finMonth));
+    const inc = tx.filter(t => t.t === "inc").reduce((a, t) => a + t.a, 0), exp = tx.filter(t => t.t === "exp").reduce((a, t) => a + t.a, 0);
+    const rest = inc - exp;
+    $("finSum").innerHTML = `<div><span>Доходы</span><b class="pos">${money(inc)}</b></div><div><span>Расходы</span><b class="neg">${money(exp)}</b></div><div><span>Остаток</span><b class="${rest >= 0 ? "pos" : "neg"}">${money(rest)}</b></div>`;
+    const byCat = {};
+    tx.filter(t => t.t === "exp").forEach(t => { byCat[t.c] = (byCat[t.c] || 0) + t.a; });
+    const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+    const savePct = inc > 0 ? Math.round(rest / inc * 100) : null;
+    $("finCats").innerHTML = cats.length
+      ? `<span class="mhint">Куда ушли деньги${savePct !== null ? ` · отложено ${savePct}% дохода${savePct >= 20 ? " — отлично, это по правилу 50/30/20" : ""}` : ""}</span>` +
+        cats.map(([c, v]) => `<div class="fcat"><div class="fl"><span>${esc(c)}</span><span class="num">${money(v)} · ${Math.round(v / exp * 100)}%</span></div><div class="pbar"><i style="width:${v / cats[0][1] * 100}%"></i></div></div>`).join("")
+      : `<div class="empty">Записей за этот месяц пока нет. Добавь первый расход или доход: категории посчитаются сами.</div>`;
+    $("finTxSum").textContent = `Все записи месяца (${tx.length})`;
+    $("finTx").innerHTML = tx.slice().sort((a, b) => (b.d + b.tm).localeCompare(a.d + a.tm)).map(t => `<div class="item"><span class="mt num">${+t.d.slice(8)}.${t.d.slice(5, 7)}</span><span class="name">${esc(t.c)}${t.n ? " · " + esc(t.n) : ""}</span><span class="num" style="color:${t.t === "inc" ? "var(--fin)" : "var(--ink)"}">${t.t === "inc" ? "+" : "−"}${money(t.a)}</span><button class="x" type="button" data-fdel="${t.id}" aria-label="Удалить запись">×</button></div>`).join("") || `<div class="empty">Пусто</div>`;
+    const g = FIN.goal;
+    $("finGoal").innerHTML = g
+      ? `<div class="finh-row"><b>${esc(g.name)}</b><span class="num">${money(g.saved)} из ${money(g.target)}</span></div>
+         <div class="pbar"><i style="width:${Math.min(100, g.saved / g.target * 100)}%"></i></div>
+         <div class="mhint">${g.saved >= g.target ? "🎉 Цель достигнута!" : "Осталось " + money(g.target - g.saved)}</div>
+         <div class="row"><input type="number" id="fgAdd" min="0.01" step="0.01" inputmode="decimal" placeholder="сумма" style="width:120px"><button class="btn sm fin" type="button" data-fg="add">Отложить</button><button class="btn sm" type="button" data-fg="take">Снять</button><button class="btn sm ghost" type="button" data-fg="reset">Новая цель</button></div>`
+      : `<div class="mhint">Поставь цель, на которую копишь: подушка безопасности, отпуск, подарок.</div>
+         <div class="row"><input type="text" id="fgName" maxlength="40" placeholder="На что копишь" style="flex:1 1 160px"><input type="number" id="fgTarget" min="1" inputmode="decimal" placeholder="Сколько нужно" style="width:140px"><button class="btn sm fin" type="button" data-fg="new">Создать</button></div>`;
+    $("finCur").value = FIN.cur;
+  }
+  function startFinLesson(id){
+    const les = (window.MD_FIN || []).find(l => l.id === id); if (!les) return;
+    const q = [{ type: "rule", g: { title: les.icon + " " + les.title, text: les.text, examples: les.points } }]
+      .concat(les.quiz.map(x => ({ type: "mc", kind: "Проверь себя", prompt: x.q, options: shuffle(x.a), answer: x.a[x.c] })));
+    L = { kind: "fin", finId: id, unit: null, q, i: 0, right: 0, asked: 0, start: Date.now(), retried: new Set(), state: "ask", pick: null, built: [] };
+    $("lesson").hidden = false; document.body.style.overflow = "hidden";
+    showQ();
+  }
+  function finishFin(){
+    FIN.done[L.finId] = todayKey(); saveFin();
+    const acc = L.asked ? Math.round(L.right / L.asked * 100) : 100;
+    $("lsProg").style.width = "100%"; $("lsCount").textContent = "";
+    $("lsBody").innerHTML = `<div class="ls-done" style="display:flex;flex-direction:column;gap:14px;flex:1"><div class="big">${acc >= 80 ? "🎉" : "💪"}</div><h2 class="ls-q" id="lsTitle">Урок пройден!</h2><div class="ls-sub">Точность: ${acc}%. Этот урок виден только тебе.</div></div>`;
+    $("lsFoot").className = "ls-foot"; $("lsFoot").innerHTML = `<button class="btn primary" type="button" data-ls="close">Готово</button>`;
+    L.finished = true; renderFin();
+  }
+  document.querySelectorAll('input[name="ftype"]').forEach(el => el.addEventListener("change", finCatOptions));
+  finCatOptions();
+  $("finForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const a = parseFloat(String($("fAmt").value).replace(",", "."));
+    if (!(a > 0)){ toast("Впиши сумму"); return; }
+    const t = (document.querySelector('input[name="ftype"]:checked') || {}).value || "exp";
+    const now = new Date();
+    const d = finMonth === todayKey().slice(0, 7) ? todayKey() : finMonth + "-01";
+    FIN.tx.push({ id: uid(), t, a: Math.round(a * 100) / 100, c: $("fCat").value, n: $("fNote").value.trim().slice(0, 40), d, tm: pad(now.getHours()) + ":" + pad(now.getMinutes()) });
+    saveFin(); $("fAmt").value = ""; $("fNote").value = ""; renderFin(); toast(t === "inc" ? "Доход записан" : "Расход записан");
+  });
+  $("finTx").addEventListener("click", e => { const b = e.target.closest("[data-fdel]"); if (!b) return; FIN.tx = FIN.tx.filter(t => t.id !== b.dataset.fdel); saveFin(); renderFin(); });
+  $("finLessons").addEventListener("click", e => { const b = e.target.closest("[data-finl]"); if (b) startFinLesson(b.dataset.finl); });
+  $("finPrev").onclick = () => { const [y, m] = finMonth.split("-").map(Number); const d = new Date(y, m - 2, 1); finMonth = d.getFullYear() + "-" + pad(d.getMonth() + 1); renderFin(); };
+  $("finNext").onclick = () => { const [y, m] = finMonth.split("-").map(Number); const d = new Date(y, m, 1); const k = d.getFullYear() + "-" + pad(d.getMonth() + 1); if (k <= todayKey().slice(0, 7)){ finMonth = k; renderFin(); } };
+  $("finCur").addEventListener("change", e => { FIN.cur = e.target.value; saveFin(); renderFin(); });
+  $("finGoal").addEventListener("click", e => {
+    const b = e.target.closest("[data-fg]"); if (!b) return;
+    const a = b.dataset.fg;
+    if (a === "new"){
+      const name = $("fgName").value.trim(), target = parseFloat(String($("fgTarget").value).replace(",", "."));
+      if (!name || !(target > 0)){ toast("Впиши цель и сумму"); return; }
+      FIN.goal = { name, target, saved: 0 };
+    } else if (a === "add" || a === "take"){
+      const v = parseFloat(String($("fgAdd").value).replace(",", ".")); if (!(v > 0)){ toast("Впиши сумму"); return; }
+      FIN.goal.saved = Math.max(0, Math.round((FIN.goal.saved + (a === "add" ? v : -v)) * 100) / 100);
+    } else if (a === "reset"){
+      if (b.dataset.confirm !== "1"){ b.dataset.confirm = "1"; b.textContent = "Точно сбросить?"; return; }
+      FIN.goal = null;
+    }
+    saveFin(); renderFin();
   });
 
   // ---------- homemade dish ----------

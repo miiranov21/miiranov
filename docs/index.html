@@ -172,7 +172,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
 .book .r{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2)}
 .books{display:flex;flex-direction:column;gap:8px}
 details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)}
-.addbook{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.4fr) minmax(0,.8fr) auto;gap:8px;align-items:end;margin-top:10px}
+.addbook{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.4fr) minmax(0,.8fr) minmax(0,1.2fr) auto;gap:8px;align-items:end;margin-top:10px}
 
 /* Habits */
 .habits{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
@@ -309,6 +309,42 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
   .dictadd .btn{grid-column:1/-1}
 }
 
+/* Library */
+:root{--wood:#A9744A;--wood-dark:#7C5233;--shelf-bg:#F3E9DD}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--wood:#6E4A2F;--wood-dark:#4A311F;--shelf-bg:#1E1914}}
+:root[data-theme="dark"]{--wood:#6E4A2F;--wood-dark:#4A311F;--shelf-bg:#1E1914}
+.libbtn{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:var(--surface-2);border-radius:14px;padding:10px 14px;text-align:left;width:100%}
+.libbtn > span:nth-child(2){flex:1;min-width:0;display:flex;flex-direction:column}
+.libbtn small{font-size:12px;color:var(--ink-3)}
+.libbtn-spines{display:flex;align-items:flex-end;gap:2px;height:30px;border-bottom:3px solid var(--wood);padding:0 2px}
+.libbtn-spines i{display:block;width:6px;border-radius:2px 2px 0 0}
+.libbtn-spines i:nth-child(1){height:22px;background:#B5523B}.libbtn-spines i:nth-child(2){height:28px;background:#2F6E8F}
+.libbtn-spines i:nth-child(3){height:18px;background:#C99A2E}.libbtn-spines i:nth-child(4){height:25px;background:#4E7D4A}
+.lib{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+.lib-top{display:flex;align-items:center;gap:8px;padding:10px 16px}
+.lib-top h2{font-size:20px}
+.lib-body{flex:1;overflow-y:auto;padding:4px 16px 24px;display:flex;flex-direction:column;gap:18px;max-width:900px;width:100%;margin:0 auto}
+.lib-stats{display:flex;flex-wrap:wrap;gap:6px}
+.lib-sec h3{font-family:var(--f-body);font-size:14px;font-weight:700;margin:0 0 8px;display:flex;justify-content:space-between;gap:8px}
+.lib-sec h3 span{font-weight:500;color:var(--ink-3);font-size:12.5px}
+.case{background:var(--shelf-bg);border:1px solid var(--line);border-radius:12px;padding:10px 10px 0;overflow:hidden}
+.shelf{display:flex;align-items:flex-end;gap:3px;min-height:60px;padding:0 6px;border-bottom:12px solid var(--wood);box-shadow:0 6px 0 -2px var(--wood-dark);margin-bottom:22px}
+.shelf.empty-shelf{justify-content:center;align-items:center;color:var(--ink-3);font-size:13px;padding-bottom:10px;min-height:70px}
+.spine{position:relative;flex:none;border:0;border-radius:3px 3px 1px 1px;padding:8px 0;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:inset -3px 0 0 rgba(0,0,0,.18),inset 2px 0 0 rgba(255,255,255,.15);cursor:pointer}
+.spine:hover,.spine:focus-visible{transform:translateY(-6px);transition:transform .15s}
+.spine span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:11.5px;font-weight:700;line-height:1.1;max-height:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.02em}
+.spine::before,.spine::after{content:"";position:absolute;left:0;right:0;height:2px;background:rgba(255,255,255,.35)}
+.spine::before{top:10px}.spine::after{bottom:10px}
+.spine.want{opacity:.55;outline:2px dashed rgba(255,255,255,.6);outline-offset:-4px}
+.spine .bm{position:absolute;top:-2px;right:5px;width:7px;height:16px;background:#E8D27A;clip-path:polygon(0 0,100% 0,100% 100%,50% 75%,0 100%)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);border-radius:18px 18px 0 0;box-shadow:0 -10px 30px rgba(0,0,0,.18);padding:18px max(16px,env(safe-area-inset-left,0px)) calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;max-height:75%;overflow-y:auto}
+.sheet .st-t{font-family:var(--f-display);font-size:19px;font-weight:700;overflow-wrap:anywhere}
+.sheet .st-a{color:var(--ink-2)}
+.sheet .st-m{font-size:13px;color:var(--ink-3)}
+.stars{display:flex;gap:4px}
+.stars button{border:0;background:transparent;font-size:28px;line-height:1;padding:2px;color:var(--line)}
+.stars button.on{color:#E2A93B}
+
 /* Level + chart */
 .lvl{border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
 .lvl .lv-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
@@ -419,6 +455,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   .result b{font-size:13px}
   .result span{font-size:9.5px;letter-spacing:.02em}
   .addbook{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .addbook .btn{grid-column:1/-1}
   .addbook .field:first-child{grid-column:1/-1}
   .ring-card{flex-direction:column;align-items:flex-start;gap:8px}
   .datenav .d{min-width:110px;font-size:13px}
@@ -515,12 +552,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         </div>
       </form>
       <div class="books" id="books"></div>
+      <button class="libbtn" type="button" id="libOpen"><span class="libbtn-spines" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span><b>📚 Моя библиотека</b><small id="libCount"></small></span><span aria-hidden="true">›</span></button>
       <details id="bookDetails">
         <summary>+ Добавить книгу</summary>
         <form class="addbook" id="bookForm" autocomplete="off">
           <div class="field"><label for="bTitle">Название</label><input type="text" id="bTitle" required maxlength="80" placeholder="Атомные привычки"></div>
           <div class="field"><label for="bAuthor">Автор</label><input type="text" id="bAuthor" maxlength="60" placeholder="Джеймс Клир"></div>
           <div class="field"><label for="bPages">Страниц</label><input type="number" id="bPages" required min="1" max="5000" placeholder="320" inputmode="numeric"></div>
+          <div class="field"><label for="bStatus">Статус</label><select id="bStatus"><option value="reading">Читаю сейчас</option><option value="done">Уже прочитал</option><option value="want">Хочу прочитать</option></select></div>
           <button class="btn primary" type="submit">Добавить</button>
         </form>
       </details>
@@ -706,6 +745,15 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   </div>
   <div class="ls-body" id="lsBody"></div>
   <div class="ls-foot" id="lsFoot"></div>
+</div>
+
+<div class="lib" id="lib" hidden role="dialog" aria-modal="true" aria-labelledby="libTitle">
+  <div class="lib-top">
+    <button class="ls-close" type="button" id="libClose" aria-label="Закрыть библиотеку">×</button>
+    <h2 id="libTitle">Моя библиотека</h2>
+  </div>
+  <div class="lib-body" id="libBody"></div>
+  <div class="sheet" id="libSheet" hidden></div>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -1184,11 +1232,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     // reading
     $("readMeta").textContent = d.pages + " / " + g.pages + " стр. сегодня";
     const bl = S.books.list;
-    if (!bl.length){
+    const readingList = bl.filter(b => !b.done && !b.want);
+    const nDone = bl.filter(b => b.done).length, nWant = bl.filter(b => b.want).length;
+    $("libCount").textContent = `прочитано ${nDone} · хочу прочитать ${nWant}`;
+    if (!readingList.length){
       $("books").innerHTML = `<div class="empty">Добавь книгу, которую читаешь сейчас. Тогда страницы будут засчитываться в её прогресс.</div>`;
-      $("bookDetails").open = true;
+      if (!bl.length) $("bookDetails").open = true;
     } else {
-      const sorted = bl.slice().sort((a, b) => (a.done - b.done) || ((b.id === S.books.current) - (a.id === S.books.current)));
+      const sorted = readingList.slice().sort((a, b) => (a.done - b.done) || ((b.id === S.books.current) - (a.id === S.books.current)));
       $("books").innerHTML = sorted.map(b => {
         const p = Math.min(1, b.read / b.total), isCur = b.id === S.books.current;
         return `<div class="book ${isCur ? "cur" : ""}">
@@ -1790,9 +1841,9 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const books = clone(S.books); const bb = books.list.find(x => x.id === b.id);
       bb.read = Math.max(0, Math.min(bb.total, bb.read + delta));
       if (bb.read >= bb.total && !bb.done){
-        bb.done = true; toast("Книга «" + bb.title + "» прочитана! 🎉");
-        const next = books.list.find(x => !x.done); books.current = next ? next.id : null;
-      } else if (bb.read < bb.total) bb.done = false;
+        bb.done = true; bb.finished = todayKey(); toast("Книга «" + bb.title + "» прочитана и стоит на полке! 🎉");
+        const next = books.list.find(x => !x.done && !x.want); books.current = next ? next.id : null;
+      } else if (bb.read < bb.total){ bb.done = false; delete bb.finished; }
       S.books = books; persist("books", books); render();
     }
   }
@@ -2084,14 +2135,105 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     e.preventDefault();
     const title = $("bTitle").value.trim(), total = parseInt($("bPages").value, 10);
     if (!title || !(total > 0)) return;
-    const b = clone(S.books); const id = uid();
-    b.list.push({ id, title, author: $("bAuthor").value.trim(), total, read: 0, done: false });
-    if (!b.current) b.current = id;
+    const b = clone(S.books); const id = uid(); const st = $("bStatus").value;
+    const nb = { id, title, author: $("bAuthor").value.trim(), total, read: 0, done: false, added: todayKey() };
+    if (st === "done"){ nb.done = true; nb.read = total; nb.finished = todayKey(); }
+    if (st === "want") nb.want = true;
+    b.list.push(nb);
+    if (st === "reading" && (!b.current || !b.list.some(x => x.id === b.current && !x.done))) b.current = id;
+    toast(st === "done" ? "Книга поставлена на полку прочитанных" : st === "want" ? "Добавлено в «Хочу прочитать»" : "Книга добавлена");
     S.books = b; persist("books", b, 0);
-    $("bTitle").value = $("bAuthor").value = $("bPages").value = "";
+    $("bTitle").value = $("bAuthor").value = $("bPages").value = ""; $("bStatus").value = "reading";
     $("bookDetails").open = false; render();
   });
 
+
+  // ---------- library ----------
+  const SPINE_COLORS = ["#B5523B", "#2F6E8F", "#C99A2E", "#4E7D4A", "#6B4C9A", "#A23E64", "#2E7F7A", "#8A5A2B", "#3E4F8C", "#7A7A2E", "#B2643A", "#5A6B73"];
+  function hashStr(t){ let h = 0; for (const c of t) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); }
+  function spineHTML(b){
+    const color = SPINE_COLORS[hashStr(b.title + (b.author || "")) % SPINE_COLORS.length];
+    const h = Math.round(Math.max(120, Math.min(190, 110 + (b.total || 200) / 7)));
+    const w = Math.round(Math.max(24, Math.min(46, 20 + (b.total || 200) / 30)));
+    const isCur = b.id === S.books.current && !b.done && !b.want;
+    return `<button class="spine ${b.want ? "want" : ""}" type="button" data-book="${b.id}" style="height:${h}px;width:${w}px;background:${color}" aria-label="${esc(b.title)}${b.author ? ", " + esc(b.author) : ""}">${isCur ? '<i class="bm" aria-hidden="true"></i>' : ""}<span>${esc(b.title)}</span></button>`;
+  }
+  function shelfRows(books){
+    if (!books.length) return "";
+    const width = Math.min($("libBody").clientWidth || 360, 900) - 40;
+    const rows = []; let row = [], used = 0;
+    books.forEach(b => {
+      const w = Math.round(Math.max(24, Math.min(46, 20 + (b.total || 200) / 30))) + 3;
+      if (used + w > width && row.length){ rows.push(row); row = []; used = 0; }
+      row.push(b); used += w;
+    });
+    if (row.length) rows.push(row);
+    return rows.map(r => `<div class="shelf">${r.map(spineHTML).join("")}</div>`).join("");
+  }
+  function renderLib(){
+    const list = S.books.list;
+    const done = list.filter(b => b.done).sort((a, b) => (b.finished || "").localeCompare(a.finished || ""));
+    const reading = list.filter(b => !b.done && !b.want);
+    const want = list.filter(b => b.want);
+    const year = todayKey().slice(0, 4);
+    const thisYear = done.filter(b => (b.finished || "").startsWith(year));
+    const pages = done.reduce((a, b) => a + (b.total || 0), 0);
+    const byYear = {};
+    done.forEach(b => { const y = b.finished ? b.finished.slice(0, 4) : "Без даты"; (byYear[y] = byYear[y] || []).push(b); });
+    const years = Object.keys(byYear).sort((a, b) => b.localeCompare(a));
+    const sec = (title, meta, inner, emptyText) => `<section class="lib-sec"><h3>${title}<span>${meta}</span></h3><div class="case">${inner || `<div class="shelf empty-shelf">${emptyText}</div>`}</div></section>`;
+    $("libBody").innerHTML = `<div class="lib-stats">
+        <span class="chip ok">Прочитано: <span class="num">${done.length}</span> ${plural(done.length, "книга", "книги", "книг")}</span>
+        <span class="chip">В ${year} году: <span class="num">${thisYear.length}</span></span>
+        <span class="chip">Страниц прочитано: <span class="num">${fmt(pages)}</span></span>
+      </div>` +
+      sec("📖 Читаю сейчас", reading.length ? reading.length + "" : "", shelfRows(reading), "Сейчас ничего не читаешь") +
+      (years.length ? years.map(y => sec(y === "Без даты" ? "✓ Прочитано раньше" : "✓ Прочитано в " + y, byYear[y].length + " " + plural(byYear[y].length, "книга", "книги", "книг"), shelfRows(byYear[y]), "")).join("")
+                    : sec("✓ Прочитано", "", "", "Полка ждёт первую книгу. Дочитанные книги появятся здесь")) +
+      sec("🔖 Хочу прочитать", want.length ? want.length + "" : "", shelfRows(want), "Добавь книги, которые хочешь прочитать") +
+      `<p class="mhint">Нажми на корешок, чтобы открыть книгу. Добавить книгу можно в разделе «Чтение» → «+ Добавить книгу».</p>`;
+  }
+  function fmtDate(k){ if (!k) return ""; const d = parseKey(k); return d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear(); }
+  function openSheet(id){
+    const b = S.books.list.find(x => x.id === id); if (!b) return;
+    const status = b.done ? "Прочитана" + (b.finished ? " " + fmtDate(b.finished) : "") : b.want ? "Хочу прочитать" : "Читаю: " + b.read + " из " + b.total + " стр.";
+    const sh = $("libSheet");
+    sh.innerHTML = `<div class="st-t">${esc(b.title)}</div>${b.author ? `<div class="st-a">${esc(b.author)}</div>` : ""}
+      <div class="st-m">${b.total} стр. · ${status}${b.added ? " · добавлена " + fmtDate(b.added) : ""}</div>
+      ${b.done ? `<div class="stars" role="group" aria-label="Оценка">${[1,2,3,4,5].map(n => `<button type="button" class="${(b.rating || 0) >= n ? "on" : ""}" data-rate="${n}" aria-label="${n} из 5">★</button>`).join("")}</div>` : ""}
+      <div class="row">
+        ${b.done ? "" : `<button class="btn sm" type="button" data-bact="done">✓ Прочитана</button>`}
+        ${!b.done && b.want ? `<button class="btn sm" type="button" data-bact="read">Начать читать</button>` : ""}
+        ${b.done ? `<button class="btn sm" type="button" data-bact="reread">Перечитать</button>` : ""}
+        <button class="btn sm ghost" type="button" data-bact="del">Удалить</button>
+        <button class="btn sm ghost" type="button" data-bact="close" style="margin-left:auto">Закрыть</button>
+      </div>`;
+    sh.dataset.id = id; sh.hidden = false;
+  }
+  $("libOpen").onclick = () => { $("lib").hidden = false; document.body.style.overflow = "hidden"; renderLib(); };
+  $("libClose").onclick = () => { $("lib").hidden = true; $("libSheet").hidden = true; document.body.style.overflow = ""; };
+  window.addEventListener("resize", () => { if (!$("lib").hidden) renderLib(); });
+  $("libBody").addEventListener("click", e => { const sp = e.target.closest("[data-book]"); if (sp) openSheet(sp.dataset.book); });
+  $("libSheet").addEventListener("click", e => {
+    const sh = $("libSheet"), id = sh.dataset.id;
+    const rate = e.target.closest("[data-rate]"), act = e.target.closest("[data-bact]");
+    if (!rate && !act) return;
+    const books = clone(S.books), b = books.list.find(x => x.id === id); if (!b) return;
+    if (rate){ b.rating = +rate.dataset.rate; }
+    else {
+      const a = act.dataset.bact;
+      if (a === "close"){ sh.hidden = true; return; }
+      if (a === "done"){ b.done = true; b.want = false; b.read = b.total; b.finished = todayKey(); if (books.current === id){ const n = books.list.find(x => !x.done && !x.want && x.id !== id); books.current = n ? n.id : null; } toast("На полке прочитанных! 🎉"); }
+      if (a === "read"){ b.want = false; books.current = id; toast("Теперь читаешь эту книгу"); }
+      if (a === "reread"){ b.done = false; b.read = 0; delete b.finished; books.current = id; toast("Перечитываешь"); }
+      if (a === "del"){
+        if (act.dataset.confirm !== "1"){ act.dataset.confirm = "1"; act.textContent = "Точно удалить?"; act.style.color = "var(--warn)"; return; }
+        books.list = books.list.filter(x => x.id !== id); if (books.current === id) books.current = null; sh.hidden = true;
+      }
+    }
+    S.books = books; persist("books", books, 0); render(); renderLib();
+    if (!sh.hidden && books.list.some(x => x.id === id)) openSheet(id);
+  });
 
   // ---------- settings ----------
   let draftHabits = [];

@@ -287,7 +287,8 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 
 .water-bar i{background:var(--water)}
 .btn.lang{background:var(--lang-soft);border-color:transparent;color:var(--lang)}
-.langsetup{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;gap:8px;align-items:end}
+.langsetup{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.4fr) minmax(0,1fr) auto;gap:8px;align-items:end}
+.langsetup #langNameWrap[hidden]{display:none}
 .langbox{display:flex;flex-direction:column;gap:12px}
 .acts{display:flex;flex-wrap:wrap;gap:6px}
 .acts button{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:5px 11px;font-size:13px;font-weight:600;color:var(--ink-2)}
@@ -632,7 +633,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <span class="meta num" id="langMeta"></span>
       </div>
       <form class="langsetup" id="langSetup" autocomplete="off" hidden>
-        <div class="field"><label for="langName">Какой язык учишь</label><input type="text" id="langName" maxlength="30" list="langList" value="Английский" placeholder="Английский" required></div>
+        <div class="field"><label for="langCourse">Какой язык учишь</label><select id="langCourse"><option value="en">🇬🇧 Английский — курс в приложении</option><option value="az">🇦🇿 Азербайджанский — курс в приложении</option><option value="other">Другой язык — только учёт занятий</option></select></div>
+        <div class="field" id="langNameWrap" hidden><label for="langName">Название языка</label><input type="text" id="langName" maxlength="30" list="langList" placeholder="Например: Испанский"></div>
         <div class="field"><label for="langGoal">Минут в день</label><input type="number" id="langGoal" min="5" max="300" value="20" inputmode="numeric" required></div>
         <button class="btn lang" type="submit" id="langSetupBtn">Начать</button>
         <datalist id="langList"><option value="Английский"><option value="Испанский"><option value="Немецкий"><option value="Французский"><option value="Итальянский"><option value="Китайский"><option value="Корейский"><option value="Японский"><option value="Турецкий"><option value="Арабский"></datalist>
@@ -855,6 +857,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 
 <script src="config.js"></script>
 <script src="course-en.js"></script>
+<script src="course-az.js"></script>
 <script src="foods-ru.js"></script>
 <script>
 (() => {
@@ -1098,7 +1101,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       want: S.books.list.filter(b => b.want).length,
       habStreaks: S.settings.habits.map(h => ({ n: h.name, s: habitStreak(h.id) })).filter(x => x.s > 1),
       lang: S.settings.lang ? S.settings.lang.name : "",
-      dictN: (S.dict.words || []).length,
+      dictN: myWords().length,
       units: courseUnitsDone(),
       lvl: S.settings.lang ? LEVELS[currentLevel()].name + " (" + LEVELS[currentLevel()].cefr + ")" : "",
       xpT: totalXp(),
@@ -1381,10 +1384,12 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   function renderLang(d){
     const L = S.settings.lang;
+    syncCourse();
     const setup = !L || langEditing;
     $("langSetup").hidden = !setup; $("langBox").hidden = setup;
     if (setup){
-      if (L && document.activeElement !== $("langName")){ $("langName").value = L.name; $("langGoal").value = L.goal; }
+      if (L && document.activeElement !== $("langName")){ const cid = courseIdFor(L); $("langCourse").value = cid || "other"; $("langName").value = cid ? "" : L.name; $("langGoal").value = L.goal; }
+      $("langNameWrap").hidden = $("langCourse").value !== "other";
       $("langSetupBtn").textContent = L ? "Сохранить" : "Начать";
       $("langMeta").textContent = "";
       return;
@@ -1394,7 +1399,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("langMeta").textContent = L.name + " · " + min + " / " + L.goal + " мин";
     $("langBar").style.width = Math.min(100, min / L.goal * 100) + "%";
     const wkMin = [0,1,2,3,4,5,6].reduce((a, i) => { const x = S.days[shift(cur, -i)]; return a + ((x && x.lang && x.lang.min) || 0); }, 0);
-    const words = S.dict.words || [];
+    const words = myWords();
     const st = langStreak();
     $("langChips").innerHTML = `<span class="chip ${st ? "fire" : ""}">🔥 Серия: <span class="num">${st}</span> ${plural(st, "день", "дня", "дней")}</span>
       <span class="chip">За 7 дней: <span class="num">${wkMin}</span> мин</span>
@@ -1428,7 +1433,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       `<button class="btn sm ghost" type="button" data-quiz="close">Закончить</button>`;
   }
   function startQuiz(){
-    const words = (S.dict.words || []).slice();
+    const words = myWords().slice();
     // unknown words first, then a few known ones
     const unknown = words.filter(w => !w.k).sort(() => Math.random() - .5);
     const knownW = words.filter(w => w.k).sort(() => Math.random() - .5);
@@ -1442,7 +1447,17 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
 
   // ---------- course ----------
-  const COURSE = window.MD_COURSE || { units: [] };
+  const COURSES = window.MD_COURSES || {};
+  function courseIdFor(L){
+    if (!L) return "en";
+    if (L.course !== undefined) return L.course && COURSES[L.course] ? L.course : null;
+    const n = (L.name || "").toLowerCase();
+    if (n.includes("азерб")) return "az";
+    if (n.includes("англ") || n.includes("english")) return "en";
+    return null;
+  }
+  let COURSE = COURSES.en || { units: [] };
+  function syncCourse(){ const id = courseIdFor(S.settings.lang); COURSE = (id && COURSES[id]) || { id: null, name: S.settings.lang ? S.settings.lang.name : "", units: [] }; }
   const KINDS = {
     words:   { label: "Слова",       icon: "🔤", act: "Слова" },
     grammar: { label: "Грамматика",  icon: "📐", act: "Грамматика" },
@@ -1463,7 +1478,9 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   function unitFor(kind){ return COURSE.units.find(u => !partDone(u, kind)) || COURSE.units[COURSE.units.length - 1]; }
 
   function renderCourse(){
-    if (!COURSE.units.length){ $("todayLesson").innerHTML = ""; return; }
+    $("planBox").hidden = $("unitsBox").hidden = !COURSE.units.length;
+    if (!COURSE.units.length){ $("todayLesson").innerHTML = ""; $("todayLesson").hidden = true; return; }
+    $("todayLesson").hidden = false;
     const wd = parseKey(cur).getDay(), kind = plan()[wd];
     const K = KINDS[kind], isToday = cur === todayKey();
     const dayName = (isToday ? "Сегодня, " : "") + (isToday ? WDF[wd] : cap(WDF[wd]));
@@ -1471,7 +1488,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (kind === "rest"){
       what = "😴 Выходной"; sub = "По плану отдых. Если хочется, выбери любой урок в «Все темы курса».";
     } else if (kind === "review"){
-      const can = reviewUnits().length || (S.dict.words || []).length;
+      const can = reviewUnits().length || myWords().length;
       what = "🔁 Повторение";
       sub = can ? "Слова и фразы из пройденных тем и твоего словаря." : "Пока нечего повторять. Пройди урок слов или фраз, и они попадут в повторение.";
       if (can) btn = `<button class="btn primary" type="button" data-lesson="review">Начать урок</button>`;
@@ -1525,16 +1542,22 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   ];
   function levelFromScore(n){ return n <= 3 ? 0 : n <= 6 ? 1 : n <= 9 ? 2 : n <= 12 ? 3 : n <= 14 ? 4 : 5; }
   function courseLevel(){ const n = courseUnitsDone(); return n >= 7 ? 2 : n >= 3 ? 1 : 0; }
-  function currentLevel(){ const t = S.course.test; return Math.max(t ? t.level : 0, courseLevel()); }
+  function dictLang(){ return COURSE.id || ("x:" + ((S.settings.lang && S.settings.lang.name) || "").toLowerCase()); }
+  function myWords(){ const l = dictLang(); return (S.dict.words || []).filter(w => (w.lang || "en") === l); }
+  function getTest(){ return COURSE.id === "en" ? S.course.test : ((S.course.tests || {})[COURSE.id] || null); }
+  function testSkipped(){ return COURSE.id === "en" ? S.course.testSkipped : !!((S.course.skips || {})[COURSE.id]); }
+  function placement(){ return COURSE.placement || PLACEMENT; }
+  function currentLevel(){ const t = getTest(); return Math.max(t ? t.level : 0, courseLevel()); }
   function totalXp(){ return Object.values(S.days).reduce((a, d) => a + ((d.lang && d.lang.xp) || 0), 0); }
 
   function renderLevel(){
     const box = $("langLevel");
-    const t = S.course.test;
-    if (!t && !S.course.testSkipped){
+    const t = getTest();
+    if (!COURSE.units.length){ box.className = "lvl"; box.innerHTML = `<div class="lv-name">${esc(COURSE.name)}</div><div class="lv-sub">Для этого языка в приложении пока нет уроков. Записывай минуты и слова, а линия прогресса покажет, как ты продвигаешься. Курсы в приложении: английский и азербайджанский.</div>`; return; }
+    if (!t && !testSkipped()){
       box.className = "lvl test";
       box.innerHTML = `<div class="lv-name">Определи свой уровень</div>
-        <div class="lv-sub">Короткий тест из ${PLACEMENT.length} вопросов, около 5 минут. По результату курс начнётся с подходящей темы, а знакомые темы отметятся пройденными.</div>
+        <div class="lv-sub">Короткий тест из ${placement().length} вопросов, около 5 минут. По результату курс начнётся с подходящей темы, а знакомые темы отметятся пройденными.</div>
         <div class="row"><button class="btn lang" type="button" data-test="start">Пройти тест</button><button class="btn ghost" type="button" data-test="skip">Начать с нуля</button></div>`;
       return;
     }
@@ -1552,7 +1575,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div class="steps-l" aria-hidden="true">${LEVELS.map(x => `<span>${x.cefr}</span>`).join("")}</div>
       <div class="lv-sub">${L0.about}</div>
       <div class="lv-sub">${next}</div>
-      <div class="row">${t ? `<span class="mhint">Тест: ${t.score} из ${PLACEMENT.length} · ${parseKey(t.date).getDate()} ${MONTHS[parseKey(t.date).getMonth()]}</span>` : ""}<button class="btn sm ghost" type="button" data-test="start">${t ? "Пройти тест ещё раз" : "Пройти тест уровня"}</button></div>`;
+      <div class="row">${t ? `<span class="mhint">Тест: ${t.score} из ${placement().length} · ${parseKey(t.date).getDate()} ${MONTHS[parseKey(t.date).getMonth()]}</span>` : ""}<button class="btn sm ghost" type="button" data-test="start">${t ? "Пройти тест ещё раз" : "Пройти тест уровня"}</button></div>`;
   }
 
   let chartMode = "xp";
@@ -1593,26 +1616,29 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
 
   function startTest(){
-    const q = PLACEMENT.map((x, i) => ({ type: "mc", kind: "Тест уровня · вопрос " + (i + 1), prompt: x.q, options: x.a.slice(), answer: x.a[x.c] }));
+    const q = placement().map((x, i) => ({ type: "mc", kind: "Тест уровня · вопрос " + (i + 1), prompt: x.q, options: shuffle(x.a), answer: x.a[x.c] }));
     L = { kind: "test", unit: null, q, i: 0, right: 0, asked: 0, start: Date.now(), retried: new Set(), state: "ask", pick: null, built: [] };
     $("lesson").hidden = false; document.body.style.overflow = "hidden";
     showQ();
   }
   function finishTest(){
-    const score = L.right, lv = levelFromScore(score);
+    const score = L.right, total = placement().length;
+    const q4 = total / 4;   // shorter tests: four equal bands A0 / A1 / A2 / B1
+    const lv = total === 16 ? levelFromScore(score) : score <= q4 - 1 ? 0 : score <= 2 * q4 ? 1 : score <= 3 * q4 ? 2 : 3;
     const course = clone(S.course); course.done = course.done || {};
     const skipUnits = lv >= 3 ? COURSE.units.length : lv === 2 ? 6 : lv === 1 ? 3 : 0;
     COURSE.units.slice(0, skipUnits).forEach(u => { course.done[u.id] = Object.assign({ words: 1, grammar: 1, phrases: 1 }, course.done[u.id]); });
-    course.test = { level: lv, score, date: todayKey() };
+    if (COURSE.id === "en") course.test = { level: lv, score, date: todayKey() };
+    else { course.tests = Object.assign({}, course.tests, { [COURSE.id]: { level: lv, score, date: todayKey() } }); }
     S.course = course; persist("course", course, 0);
-    if (!S.settings.lang){ const st = clone(S.settings); st.lang = { name: COURSE.name, goal: 20 }; S.settings = st; persist("settings", st, 0); }
+    if (!S.settings.lang){ const st = clone(S.settings); st.lang = { name: COURSE.name, goal: 20, course: COURSE.id }; S.settings = st; persist("settings", st, 0); }
     const L0 = LEVELS[lv];
     const startU = COURSE.units[Math.min(skipUnits, COURSE.units.length - 1)];
     $("lsProg").style.width = "100%"; $("lsCount").textContent = "";
     $("lsBody").innerHTML = `<div class="ls-done" style="display:flex;flex-direction:column;gap:14px;flex:1">
       <div class="big">🎯</div><span class="ls-kind">Твой уровень</span><h2 class="ls-q" id="lsTitle">${L0.name} · ${L0.cefr}</h2>
       <div class="ls-sub">${L0.about}</div>
-      <div class="ls-stats"><span class="chip ok">Правильно: <span class="num">${score}</span> из ${PLACEMENT.length}</span></div>
+      <div class="ls-stats"><span class="chip ok">Правильно: <span class="num">${score}</span> из ${placement().length}</span></div>
       <div class="ls-sub">${lv >= 3 ? "Темы курса в приложении (до A2) отмечены пройденными. Используй повторение и словарь." : skipUnits ? `Знакомые темы отмечены пройденными. Начнёшь с темы «${esc(startU.title)}».` : "Начнёшь с первой темы «Приветствия»."}</div></div>`;
     $("lsFoot").className = "ls-foot";
     $("lsFoot").innerHTML = `<button class="btn primary" type="button" data-ls="close">Готово</button>`;
@@ -1621,9 +1647,13 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
 
   // ---- speech ----
-  const canSpeak = "speechSynthesis" in window && typeof SpeechSynthesisUtterance === "function";
+  const hasTTS = "speechSynthesis" in window && typeof SpeechSynthesisUtterance === "function";
+  function voiceFor(code){ if (!hasTTS) return null; const pref = (code || "en-US").slice(0, 2).toLowerCase(); return speechSynthesis.getVoices().find(v => v.lang && v.lang.toLowerCase().replace("_", "-").startsWith(pref)) || null; }
+  if (hasTTS) try { speechSynthesis.getVoices(); speechSynthesis.addEventListener && speechSynthesis.addEventListener("voiceschanged", () => {}); } catch (e) {}
+  // listening tasks need a voice for the course language; English falls back to the default voice
+  const canSpeakNow = () => hasTTS && (!COURSE.voiceRequired || !!voiceFor(COURSE.voice));
   function speak(text){
-    if (!canSpeak || !text) return;
+    if (!canSpeakNow() || !text) return;
     try {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text); u.lang = COURSE.voice || "en-US"; u.rate = 0.9;
@@ -1656,31 +1686,31 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       unit.words.forEach(([en, ru]) => Q.push({ type: "intro", en, ru }));
       const ws = shuffle(unit.words);
       ws.slice(0, 5).forEach(([en, ru]) => Q.push({ type: "mc", kind: "Выбери перевод", prompt: en, speak: en, options: optionsFor(ru, unit.words.map(w => w[1]).concat(allWords().map(w => w[1]))), answer: ru }));
-      ws.slice(5, 8).forEach(([en, ru]) => Q.push({ type: "mc", kind: "Как это по-английски?", prompt: ru, options: optionsFor(en, unit.words.map(w => w[0])), answer: en }));
+      ws.slice(5, 8).forEach(([en, ru]) => Q.push({ type: "mc", kind: "Как это " + (COURSE.target || "по-английски") + "?", prompt: ru, options: optionsFor(en, unit.words.map(w => w[0])), answer: en }));
       ws.slice(8, 10).forEach(([en, ru]) => Q.push({ type: "type", ru, answer: en }));
-      if (canSpeak) shuffle(unit.words).slice(0, 2).forEach(([en, ru]) => Q.push({ type: "listen", say: en, options: optionsFor(ru, unit.words.map(w => w[1])), answer: ru }));
+      if (canSpeakNow()) shuffle(unit.words).slice(0, 2).forEach(([en, ru]) => Q.push({ type: "listen", say: en, options: optionsFor(ru, unit.words.map(w => w[1])), answer: ru }));
     } else if (kind === "grammar"){
       Q.push({ type: "rule", g: unit.grammar });
       unit.grammar.examples.forEach(([en, ru]) => Q.push(tilesQ(en, ru, unit)));
-      unit.quiz.forEach(q => Q.push({ type: "mc", kind: "Выбери правильный вариант", prompt: q.q, options: q.a.slice(), answer: q.a[q.c] }));
+      unit.quiz.forEach(q => Q.push({ type: "mc", kind: "Выбери правильный вариант", prompt: q.q, options: shuffle(q.a), answer: q.a[q.c] }));
     } else if (kind === "phrases"){
       unit.phrases.forEach(([en, ru]) => Q.push({ type: "intro", en, ru, phrase: true }));
       shuffle(unit.phrases).forEach(([en, ru]) => Q.push(tilesQ(en, ru, unit)));
       shuffle(unit.phrases).slice(0, 2).forEach(([en, ru]) => Q.push({ type: "mc", kind: "Что это значит?", prompt: en, speak: en, options: optionsFor(ru, allPhrases().map(p => p[1])), answer: ru }));
     } else if (kind === "listen"){
-      shuffle(unit.words).slice(0, 6).forEach(([en, ru]) => Q.push(canSpeak
+      shuffle(unit.words).slice(0, 6).forEach(([en, ru]) => Q.push(canSpeakNow()
         ? { type: "listen", say: en, options: optionsFor(ru, unit.words.map(w => w[1])), answer: ru }
         : { type: "mc", kind: "Выбери перевод", prompt: en, options: optionsFor(ru, unit.words.map(w => w[1])), answer: ru }));
-      shuffle(unit.phrases).forEach(([en, ru]) => Q.push(canSpeak
+      shuffle(unit.phrases).forEach(([en, ru]) => Q.push(canSpeakNow()
         ? { type: "listen", say: en, options: optionsFor(ru, allPhrases().map(p => p[1])), answer: ru }
         : { type: "mc", kind: "Что это значит?", prompt: en, options: optionsFor(ru, allPhrases().map(p => p[1])), answer: ru }));
     } else if (kind === "review"){
       const units = reviewUnits();
-      const pool = units.flatMap(u => partDone(u, "words") ? u.words : []).concat((S.dict.words || []).map(w => [w.w, w.t]));
+      const pool = units.flatMap(u => partDone(u, "words") ? u.words : []).concat(myWords().map(w => [w.w, w.t]));
       const ph = units.flatMap(u => partDone(u, "phrases") ? u.phrases.map(p => ({ p, u })) : []);
       shuffle(pool).slice(0, 8).forEach(([en, ru], i) => {
         if (i % 3 === 2) Q.push({ type: "type", ru, answer: en });
-        else if (i % 2) Q.push({ type: "mc", kind: "Как это по-английски?", prompt: ru, options: optionsFor(en, pool.map(w => w[0]).concat(allWords().map(w => w[0]))), answer: en });
+        else if (i % 2) Q.push({ type: "mc", kind: "Как это " + (COURSE.target || "по-английски") + "?", prompt: ru, options: optionsFor(en, pool.map(w => w[0]).concat(allWords().map(w => w[0]))), answer: en });
         else Q.push({ type: "mc", kind: "Выбери перевод", prompt: en, speak: en, options: optionsFor(ru, pool.map(w => w[1]).concat(allWords().map(w => w[1]))), answer: ru });
       });
       shuffle(ph).slice(0, 3).forEach(({ p, u }) => Q.push(tilesQ(p[0], p[1], u)));
@@ -1701,7 +1731,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   function closeLesson(){
     $("lesson").hidden = true; document.body.style.overflow = ""; L = null;
-    if (canSpeak) try { speechSynthesis.cancel(); } catch (e) {}
+    if (canSpeakNow()) try { speechSynthesis.cancel(); } catch (e) {}
   }
   function showQ(){
     const body = $("lsBody"), foot = $("lsFoot");
@@ -1711,7 +1741,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("lsCount").textContent = (L.i + 1) + " / " + L.q.length;
     const q = L.q[L.i]; L.state = "ask"; L.pick = null; L.built = [];
     body.scrollTop = 0;
-    const sayBtn = t => canSpeak ? `<button class="say" type="button" data-say="${esc(t)}">🔊 Послушать</button>` : "";
+    const sayBtn = t => canSpeakNow() ? `<button class="say" type="button" data-say="${esc(t)}">🔊 Послушать</button>` : "";
     if (q.type === "intro"){
       body.innerHTML = `<span class="ls-kind">${q.phrase ? "Новая фраза" : "Новое слово"}</span><h2 class="ls-q" id="lsTitle">${esc(q.en)}</h2>${sayBtn(q.en)}<div class="ls-sub">${esc(q.ru)}</div>`;
       foot.innerHTML = `<button class="btn primary" type="button" data-ls="next">Дальше</button>`;
@@ -1727,11 +1757,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       foot.innerHTML = `<button class="btn primary" type="button" data-ls="check" disabled>Проверить</button>`;
       if (q.type === "listen") speak(q.say);
     } else if (q.type === "type"){
-      body.innerHTML = `<span class="ls-kind">Напиши по-английски</span><h2 class="ls-q" id="lsTitle">${esc(q.ru)}</h2><input type="text" id="lsInput" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="ответ по-английски" style="font-size:18px;padding:12px">`;
+      body.innerHTML = `<span class="ls-kind">Напиши ${esc(COURSE.target || "по-английски")}</span><h2 class="ls-q" id="lsTitle">${esc(q.ru)}</h2><input type="text" id="lsInput" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="ответ ${esc(COURSE.target || "по-английски")}" style="font-size:18px;padding:12px">${COURSE.fold ? `<span class="mhint">Буквы ə, ı, ş, ç, ğ, ö, ü можно писать как e, i, s, c, g, o, u.</span>` : ""}`;
       foot.innerHTML = `<button class="btn primary" type="button" data-ls="check">Проверить</button>`;
       setTimeout(() => { const i = $("lsInput"); if (i) i.focus(); }, 50);
     } else if (q.type === "tiles"){
-      body.innerHTML = `<span class="ls-kind">Собери фразу по-английски</span><h2 class="ls-q" id="lsTitle">${esc(q.ru)}</h2><div class="answer" id="lsAnswer"></div><div class="pool" id="lsPool">${q.pool.map((t, i) => `<button class="tile" type="button" data-tile="${i}">${esc(t)}</button>`).join("")}</div>`;
+      body.innerHTML = `<span class="ls-kind">Собери фразу ${esc(COURSE.target || "по-английски")}</span><h2 class="ls-q" id="lsTitle">${esc(q.ru)}</h2><div class="answer" id="lsAnswer"></div><div class="pool" id="lsPool">${q.pool.map((t, i) => `<button class="tile" type="button" data-tile="${i}">${esc(t)}</button>`).join("")}</div>`;
       foot.innerHTML = `<button class="btn primary" type="button" data-ls="check" disabled>Проверить</button>`;
     }
   }
@@ -1748,9 +1778,10 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       ok = norm(q.options[L.pick]) === norm(q.answer); correctText = q.answer;
       document.querySelectorAll("#lsBody .opt").forEach((b, i) => { if (norm(q.options[i]) === norm(q.answer)) b.classList.add("right"); else if (i === L.pick) b.classList.add("wrong"); b.disabled = true; });
     } else if (q.type === "type"){
-      const v = norm($("lsInput").value);
+      const fold = t => COURSE.fold ? t.replace(/ə/g, "e").replace(/ı/g, "i").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g").replace(/ö/g, "o").replace(/ü/g, "u") : t;
+      const v = fold(norm($("lsInput").value));
       if (!v) return;
-      const a = norm(q.answer);
+      const a = fold(norm(q.answer));
       ok = v === a || v === a.replace(/^to /, "") || "to " + v === a;
       correctText = q.answer; $("lsInput").disabled = true;
     } else if (q.type === "tiles"){
@@ -1780,7 +1811,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     let added = 0;
     if (L.unit && L.kind === "words"){
       const dict = clone(S.dict); dict.words = dict.words || [];
-      L.unit.words.forEach(([w, t]) => { if (!dict.words.some(x => x.w.toLowerCase() === w.toLowerCase())){ dict.words.push({ id: uid(), w, t, k: false, d: todayKey() }); added++; } });
+      L.unit.words.forEach(([w, t]) => { if (!myWords().some(x => x.w.toLowerCase() === w.toLowerCase()) && !dict.words.some(x => x.lang === dictLang() && x.w.toLowerCase() === w.toLowerCase())){ dict.words.push({ id: uid(), w, t, k: false, d: todayKey(), lang: dictLang() }); added++; } });
       if (added){ S.dict = dict; persist("dict", dict, 0); }
     }
     const k = todayKey(); const d = clone(day(k));
@@ -1791,7 +1822,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     d.lang.xp = (d.lang.xp || 0) + xp;
     [K.act, "Приложение"].forEach(a => { if (a && !d.lang.acts.includes(a)) d.lang.acts.push(a); });
     commitDay(k, d, 0);
-    if (!S.settings.lang){ const st = clone(S.settings); st.lang = { name: COURSE.name, goal: 20 }; S.settings = st; persist("settings", st, 0); }
+    if (!S.settings.lang){ const st = clone(S.settings); st.lang = { name: COURSE.name, goal: 20, course: COURSE.id }; S.settings = st; persist("settings", st, 0); }
     $("lsProg").style.width = "100%"; $("lsCount").textContent = "";
     $("lsBody").innerHTML = `<div class="ls-done" style="display:flex;flex-direction:column;gap:14px;flex:1">
       <div class="big">${acc >= 80 ? "🎉" : "💪"}</div><h2 class="ls-q" id="lsTitle">Урок пройден!</h2><div class="ls-sub">${esc(label)}</div>
@@ -2171,12 +2202,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   };
   $("langSetup").addEventListener("submit", e => {
     e.preventDefault();
-    const name = $("langName").value.trim(); const goal = parseInt($("langGoal").value, 10);
+    const cid = $("langCourse").value; const goal = parseInt($("langGoal").value, 10);
+    const name = cid === "other" ? $("langName").value.trim() : COURSES[cid].name;
     if (!name){ toast("Впиши, какой язык учишь"); return; }
-    const st = clone(S.settings); st.lang = { name: name.slice(0, 30), goal: goal >= 5 && goal <= 300 ? goal : 20 };
+    const st = clone(S.settings); st.lang = { name: name.slice(0, 30), goal: goal >= 5 && goal <= 300 ? goal : 20, course: cid === "other" ? null : cid };
     S.settings = st; persist("settings", st, 0); langEditing = false; render(); toast("Удачи с языком!");
   });
-  $("langChange").onclick = () => { langEditing = true; render(); $("langName").focus(); };
+  $("langChange").onclick = () => { langEditing = true; render(); $("langCourse").focus(); };
+  $("langCourse").addEventListener("change", () => { $("langNameWrap").hidden = $("langCourse").value !== "other"; if ($("langCourse").value === "other") $("langName").focus(); });
   $("langMinForm").addEventListener("submit", e => {
     e.preventDefault();
     const n = parseInt($("langMin").value, 10);
@@ -2202,8 +2235,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     e.preventDefault();
     const w = $("dW").value.trim(), t = $("dT").value.trim();
     if (!w || !t) return;
-    if ((S.dict.words || []).some(x => x.w.toLowerCase() === w.toLowerCase())){ toast("Это слово уже есть в словаре"); return; }
-    const dict = clone(S.dict); dict.words = dict.words || []; dict.words.push({ id: uid(), w, t, k: false, d: cur });
+    if (myWords().some(x => x.w.toLowerCase() === w.toLowerCase())){ toast("Это слово уже есть в словаре"); return; }
+    const dict = clone(S.dict); dict.words = dict.words || []; dict.words.push({ id: uid(), w, t, k: false, d: cur, lang: dictLang() });
     S.dict = dict; persist("dict", dict, 0);
     updateLang(l => { l.words = (l.words || 0) + 1; l.xp = (l.xp || 0) + 2; });
     $("dW").value = ""; $("dT").value = ""; $("dW").focus();
@@ -2216,7 +2249,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   $("quizStart").onclick = startQuiz;
   $("langBox").addEventListener("click", e => {
     const tb = e.target.closest("[data-test]");
-    if (tb){ if (tb.dataset.test === "start") startTest(); else { const c = clone(S.course); c.testSkipped = true; S.course = c; persist("course", c, 0); render(); } return; }
+    if (tb){ if (tb.dataset.test === "start") startTest(); else { const c = clone(S.course); if (COURSE.id === "en") c.testSkipped = true; else c.skips = Object.assign({}, c.skips, { [COURSE.id]: true }); S.course = c; persist("course", c, 0); render(); } return; }
     const cb = e.target.closest("[data-chart]");
     if (cb){ chartMode = cb.dataset.chart; renderLangChart(); return; }
     const b = e.target.closest("[data-lesson]"); if (!b) return;

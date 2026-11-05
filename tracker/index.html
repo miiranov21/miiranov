@@ -161,6 +161,49 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .habit .hn{flex:1;min-width:0;font-weight:600;font-size:14px;overflow-wrap:anywhere}
 .habit .st{display:block;font-family:var(--f-num);font-size:11.5px;color:var(--ink-3);font-weight:500}
 
+.habit-wrap{position:relative;min-width:0;display:flex}
+.habit-wrap .habit{flex:1}
+.habit-del{position:absolute;top:-7px;right:-7px;width:24px;height:24px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--warn);font-size:15px;line-height:1;display:none}
+.editing .habit-del{display:block}
+.addhabit{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.addhabit input{flex:1 1 180px}
+
+/* Bad habits */
+.quit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:18px;align-items:start}
+.quit-list{display:flex;flex-direction:column;gap:10px;min-width:0}
+.qcard{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--surface);text-align:left;width:100%}
+.qcard.sel{border-color:var(--habit);box-shadow:0 0 0 1px var(--habit) inset}
+.qtop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.qname{font-weight:700;overflow-wrap:anywhere}
+.qsince{font-size:12px;color:var(--ink-3)}
+.qdays{font-family:var(--f-display);font-size:26px;line-height:1;color:var(--habit);white-space:nowrap;text-align:right}
+.qdays small{display:block;font-family:var(--f-body);font-size:11.5px;color:var(--ink-3);font-weight:600;margin-top:4px}
+.qms{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-2);gap:8px;flex-wrap:wrap}
+.qcard .pbar i{background:var(--habit)}
+.qact{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.btn.slip{background:transparent;border-color:var(--warn);color:var(--warn)}
+.btn.slip.on{background:var(--warn);color:#fff}
+.addbad{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) auto;gap:8px;align-items:end}
+.cal{border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.cal-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.cal-head select{width:auto;max-width:100%;flex:1 1 160px}
+.cal-nav{display:flex;align-items:center;gap:4px}
+.cal-nav button{border:1px solid var(--line);background:var(--surface-2);width:32px;height:32px;border-radius:8px;font-size:16px;color:var(--ink-2)}
+.cal-nav button:disabled{opacity:.35;cursor:default}
+.cal-nav .m{min-width:120px;text-align:center;font-weight:700;font-size:14px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.cal-grid .wd{font-size:11px;text-align:center;color:var(--ink-3);font-weight:700;text-transform:uppercase}
+.cday{height:40px;max-width:100%;border-radius:9px;border:0;background:var(--surface-2);color:var(--ink-3);font-family:var(--f-num);font-size:12.5px;display:grid;place-items:center;padding:0}
+.cday.ok{background:var(--habit);color:#fff}
+.cday.bad{background:var(--warn);color:#fff}
+.cday.miss{background:var(--surface-2);color:var(--ink-2)}
+.cday.today{box-shadow:0 0 0 2px var(--ink) inset}
+.cday.off{opacity:.45;cursor:default}
+.cday.blank{visibility:hidden}
+.cal-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--ink-2)}
+.cal-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.cal-stats{display:flex;flex-wrap:wrap;gap:6px}
+
 /* Week charts */
 .charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .chart h3{font-family:var(--f-body);font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:6px;display:flex;justify-content:space-between}
@@ -186,6 +229,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   .summary{grid-template-columns:repeat(2,minmax(0,1fr))}
   .grid{grid-template-columns:minmax(0,1fr)}
   .charts{grid-template-columns:minmax(0,1fr)}
+  .quit{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:520px){
   .addmeal{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -200,6 +244,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   .ring-card{flex-direction:column;align-items:flex-start;gap:8px}
   .datenav .d{min-width:110px;font-size:13px}
   .goals{grid-template-columns:minmax(0,1fr)}
+  .addbad{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .addbad .field:first-child{grid-column:1/-1}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -287,9 +333,42 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <section class="panel span2" aria-labelledby="h-hab">
       <div class="panel-head">
         <h2 id="h-hab"><span class="dot" style="background:var(--habit)"></span>Привычки</h2>
-        <span class="meta" id="habMeta"></span>
+        <span class="row"><span class="meta" id="habMeta"></span><button class="btn sm ghost" type="button" id="editHabits" aria-pressed="false">Изменить</button></span>
       </div>
       <div class="habits" id="habits"></div>
+      <form class="addhabit" id="habitForm" autocomplete="off">
+        <input type="text" id="habitName" maxlength="40" placeholder="Своя привычка: например, «Английский 20 мин»" aria-label="Название новой привычки" required>
+        <button class="btn primary" type="submit">+ Добавить привычку</button>
+      </form>
+    </section>
+
+    <section class="panel span2" aria-labelledby="h-quit">
+      <div class="panel-head">
+        <h2 id="h-quit"><span class="dot" style="background:var(--warn)"></span>Избавление от вредных привычек</h2>
+        <span class="meta">зелёный день — без срыва</span>
+      </div>
+      <div class="quit">
+        <div class="quit-list">
+          <div id="quitList" class="quit-list"></div>
+          <details id="badDetails">
+            <summary>+ Добавить вредную привычку</summary>
+            <form class="addbad" id="badForm" autocomplete="off" style="margin-top:10px">
+              <div class="field"><label for="badName">От чего избавляюсь</label><input type="text" id="badName" maxlength="40" required placeholder="Курение, соцсети, фастфуд…"></div>
+              <div class="field"><label for="badStart">Начал с</label><input type="date" id="badStart" required></div>
+              <button class="btn primary" type="submit">Начать</button>
+            </form>
+          </details>
+        </div>
+        <div class="cal" aria-labelledby="calTitle">
+          <div class="cal-head">
+            <select id="calHabit" aria-label="Чей прогресс показать"></select>
+            <div class="cal-nav"><button type="button" id="calPrev" aria-label="Предыдущий месяц">‹</button><span class="m" id="calTitle"></span><button type="button" id="calNext" aria-label="Следующий месяц">›</button></div>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+          <div class="cal-legend" id="calLegend"></div>
+          <div class="cal-stats" id="calStats"></div>
+        </div>
+      </div>
     </section>
 
     <section class="panel span2" aria-labelledby="h-week">
@@ -367,6 +446,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   const DEFAULT_SETTINGS = {
     goals: { kcal: 2200, water: 2500, pages: 20, glass: 250, protein: 0, fat: 0, carbs: 0 },
     profile: null,
+    bad: [],
     habits: [
       { id: "h1", name: "Зарядка / спорт" },
       { id: "h2", name: "Медитация 10 мин" },
@@ -398,7 +478,9 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   function shift(k, n){ const d = parseKey(k); d.setDate(d.getDate() + n); return keyOf(d); }
   function docId(k){ return "d-" + k; }
   function day(k){
-    return S.days[k] || { date: k, meals: [], water: 0, pages: 0, habits: {}, note: "" };
+    const d = S.days[k] || { date: k, meals: [], water: 0, pages: 0, habits: {}, note: "" };
+    if (!d.slips) d.slips = {};
+    return d;
   }
   function goals(){ return Object.assign({}, DEFAULT_SETTINGS.goals, S.settings.goals || {}); }
   function esc(s){ return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
@@ -439,7 +521,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   function applyDocs(entries){
     for (const [id, data] of entries){
       if (dirty.has(id) || !data) continue;
-      if (id === "settings") S.settings = Object.assign(clone(DEFAULT_SETTINGS), clone(data));
+      if (id === "settings"){ S.settings = Object.assign(clone(DEFAULT_SETTINGS), clone(data)); if (!Array.isArray(S.settings.bad)) S.settings.bad = []; }
       else if (id === "books") S.books = Object.assign({ list: [], current: null }, clone(data));
       else if (id.startsWith("d-")) S.days[id.slice(2)] = Object.assign({ meals: [], water: 0, pages: 0, habits: {}, note: "" }, clone(data));
     }
@@ -522,6 +604,20 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (totals(k).score < 0.75) k = shift(k, -1);
     while (totals(k).score >= 0.75 && n < 3650){ n++; k = shift(k, -1); }
     return n;
+  }
+  const MILESTONES = [1, 3, 7, 14, 21, 30, 60, 90, 180, 365, 730];
+  function diffDays(a, b){ return Math.round((parseKey(b) - parseKey(a)) / 86400000); }
+  function badStats(b){
+    const today = todayKey();
+    const slips = Object.keys(S.days).filter(k => k >= b.start && k <= today && S.days[k].slips && S.days[k].slips[b.id]).sort();
+    let from = b.start, best = 0;
+    for (const k of slips){ best = Math.max(best, diffDays(from, k)); from = shift(k, 1); }
+    const current = Math.max(0, diffDays(from, today));
+    best = Math.max(best, current);
+    const total = Math.max(0, diffDays(b.start, today) + 1);
+    const next = MILESTONES.find(m => m > current) || current + 365;
+    const prev = [...MILESTONES].reverse().find(m => m <= current) || 0;
+    return { current, best, slips: slips.length, total, next, prev, slippedToday: slips.includes(today) };
   }
   function habitStreak(hid){
     let k = todayKey(), n = 0;
@@ -641,14 +737,103 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("habMeta").textContent = hs.length ? t.habitsDone + " из " + hs.length + " сделано" : "";
     $("habits").innerHTML = hs.length ? hs.map(h => {
       const on = !!d.habits[h.id], s = habitStreak(h.id);
-      return `<button class="habit ${on ? "on" : ""}" data-habit="${h.id}" aria-pressed="${on}"><span class="box">✓</span><span class="hn">${esc(h.name)}${s ? `<span class="st">серия ${s} ${plural(s, "день", "дня", "дней")}</span>` : ""}</span></button>`;
-    }).join("") : `<div class="empty">Привычек пока нет. Добавь их в «Цели».</div>`;
+      return `<div class="habit-wrap"><button class="habit ${on ? "on" : ""}" data-habit="${h.id}" aria-pressed="${on}"><span class="box">✓</span><span class="hn">${esc(h.name)}${s ? `<span class="st">серия ${s} ${plural(s, "день", "дня", "дней")}</span>` : ""}</span></button><button class="habit-del" type="button" data-habdel="${h.id}" aria-label="Удалить привычку ${esc(h.name)}">×</button></div>`;
+    }).join("") : `<div class="empty">Привычек пока нет. Добавь свою ниже.</div>`;
+    $("habits").classList.toggle("editing", editingHabits);
+
+    renderQuit();
 
     // note (don't clobber while typing)
     const ta = $("dayNote");
     if (document.activeElement !== ta || ta.dataset.day !== cur){ ta.value = d.note || ""; ta.dataset.day = cur; }
 
     renderWeek();
+  }
+
+  function renderQuit(){
+    const bad = S.settings.bad || [];
+    if (!$("badStart").value) $("badStart").value = todayKey();
+    $("badStart").max = todayKey();
+    if (!bad.length){
+      $("quitList").innerHTML = `<div class="empty">Добавь привычку, от которой хочешь избавиться, и дату, с которой ты начал. Трекер будет считать дни без срывов, а календарь покажет каждый чистый день.</div>`;
+      $("badDetails").open = true;
+    } else {
+      $("quitList").innerHTML = bad.map(b => {
+        const st = badStats(b), sel = calSel === "b:" + b.id;
+        const pct = (st.current - st.prev) / (st.next - st.prev) * 100;
+        const since = parseKey(b.start);
+        return `<div class="qcard ${sel ? "sel" : ""}">
+          <div class="qtop">
+            <div><div class="qname">${esc(b.name)}</div><div class="qsince">с ${since.getDate()} ${MONTHS[since.getMonth()]} ${since.getFullYear()}</div></div>
+            <div class="qdays num">${st.current}<small>${plural(st.current, "день", "дня", "дней")} без</small></div>
+          </div>
+          <div class="pbar" aria-hidden="true"><i style="width:${pct}%"></i></div>
+          <div class="qms"><span>до цели ${st.next} ${plural(st.next, "день", "дня", "дней")}: ещё ${st.next - st.current}</span><span>рекорд ${st.best} · срывов ${st.slips}</span></div>
+          <div class="qact">
+            <button class="btn sm slip ${st.slippedToday ? "on" : ""}" type="button" data-slip="${b.id}" aria-pressed="${st.slippedToday}">${st.slippedToday ? "Сегодня был срыв · отменить" : "Сорвался сегодня"}</button>
+            <button class="btn sm" type="button" data-calsel="b:${b.id}">Календарь</button>
+            <button class="btn sm ghost" type="button" data-baddel="${b.id}">Удалить</button>
+          </div>
+        </div>`;
+      }).join("");
+    }
+    renderCal();
+  }
+
+  // calendar
+  let calSel = null;
+  try { calSel = localStorage.getItem("moy-den-cal") || null; } catch (e) {}
+  let calMonth = todayKey().slice(0, 7);
+  function calOptions(){
+    return [...(S.settings.bad || []).map(b => ({ key: "b:" + b.id, name: "Без: " + b.name })), ...S.settings.habits.map(h => ({ key: "g:" + h.id, name: h.name }))];
+  }
+  function renderCal(){
+    const opts = calOptions();
+    if (!opts.find(o => o.key === calSel)) calSel = opts.length ? opts[0].key : null;
+    $("calHabit").innerHTML = opts.map(o => `<option value="${o.key}" ${o.key === calSel ? "selected" : ""}>${esc(o.name)}</option>`).join("");
+    const [y, m] = calMonth.split("-").map(Number);
+    $("calTitle").textContent = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"][m - 1] + " " + y;
+    $("calNext").disabled = calMonth >= todayKey().slice(0, 7);
+    const today = todayKey();
+    const first = new Date(y, m - 1, 1), daysIn = new Date(y, m, 0).getDate();
+    const lead = (first.getDay() + 6) % 7;
+    let html = ["пн","вт","ср","чт","пт","сб","вс"].map(w => `<div class="wd">${w}</div>`).join("");
+    for (let i = 0; i < lead; i++) html += `<div class="cday blank"></div>`;
+    const isBad = calSel && calSel[0] === "b";
+    const id = calSel ? calSel.slice(2) : null;
+    const b = isBad ? S.settings.bad.find(x => x.id === id) : null;
+    let okN = 0, badN = 0;
+    for (let dn = 1; dn <= daysIn; dn++){
+      const k = y + "-" + pad(m) + "-" + pad(dn);
+      let cls = "", label = dn + " " + MONTHS[m - 1], clickable = false;
+      if (!calSel || k > today) cls = "off";
+      else if (isBad){
+        if (!b || k < b.start) cls = "off";
+        else {
+          clickable = true;
+          const slip = !!(S.days[k] && S.days[k].slips && S.days[k].slips[id]);
+          if (slip){ cls = "bad"; badN++; label += ": срыв"; }
+          else if (k < today){ cls = "ok"; okN++; label += ": без срыва"; }
+          else { cls = "miss"; label += ": сегодня, пока без срыва"; }
+        }
+      } else {
+        clickable = true;
+        const done = !!(S.days[k] && S.days[k].habits && S.days[k].habits[id]);
+        if (done){ cls = "ok"; okN++; label += ": сделано"; } else { cls = "miss"; label += ": не отмечено"; }
+      }
+      if (k === today) cls += " today";
+      html += `<button type="button" class="cday ${cls}" ${clickable ? `data-calday="${k}"` : "disabled"} aria-label="${label}">${dn}</button>`;
+    }
+    $("calGrid").innerHTML = html;
+    if (isBad){
+      $("calLegend").innerHTML = `<span><i style="background:var(--habit)"></i>без срыва</span><span><i style="background:var(--warn)"></i>срыв</span><span>нажми на день, чтобы отметить или снять срыв</span>`;
+      const st = b ? badStats(b) : null;
+      $("calStats").innerHTML = st ? `<span class="chip ok">Чистых дней в месяце: <span class="num">${okN}</span></span><span class="chip">Срывов: <span class="num">${badN}</span></span><span class="chip fire">Рекорд: <span class="num">${st.best}</span> ${plural(st.best, "день", "дня", "дней")}</span>` : "";
+    } else if (calSel){
+      $("calLegend").innerHTML = `<span><i style="background:var(--habit)"></i>сделано</span><span>нажми на день, чтобы отметить задним числом</span>`;
+      const passed = calMonth === today.slice(0, 7) ? +today.slice(8) : daysIn;
+      $("calStats").innerHTML = `<span class="chip ok">Сделано: <span class="num">${okN}</span> из ${passed}</span><span class="chip fire">Серия: <span class="num">${habitStreak(id)}</span></span>`;
+    } else { $("calLegend").innerHTML = ""; $("calStats").innerHTML = ""; }
   }
 
   function barChart(title, color, vals, goal, unit, labels){
@@ -714,9 +899,28 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   $("today").onclick = () => { cur = todayKey(); render(); };
 
   document.addEventListener("click", e => {
-    const el = e.target.closest("[data-water],[data-pages],[data-delmeal],[data-recent],[data-habit],[data-curbook],[data-delbook],[data-glass]");
+    const el = e.target.closest("[data-water],[data-pages],[data-delmeal],[data-recent],[data-habit],[data-curbook],[data-delbook],[data-glass],[data-habdel],[data-slip],[data-calsel],[data-baddel],[data-calday]");
     if (!el) return;
     const ds = el.dataset;
+    if (ds.habdel || ds.baddel){
+      if (el.dataset.confirm !== "1"){
+        el.dataset.confirm = "1"; const old = el.textContent; el.textContent = ds.habdel ? "?" : "Точно удалить?"; el.style.color = "var(--warn)";
+        setTimeout(() => { if (el.isConnected){ el.dataset.confirm = ""; el.textContent = old; el.style.color = ""; } }, 3000);
+        return;
+      }
+      const st = clone(S.settings);
+      if (ds.habdel) st.habits = st.habits.filter(h => h.id !== ds.habdel);
+      else st.bad = (st.bad || []).filter(b => b.id !== ds.baddel);
+      S.settings = st; persist("settings", st, 0); render(); return;
+    }
+    if (ds.slip){ toggleSlip(ds.slip, todayKey()); return; }
+    if (ds.calsel){ calSel = ds.calsel; try { localStorage.setItem("moy-den-cal", calSel); } catch (er) {} calMonth = todayKey().slice(0, 7); render(); $("calHabit").scrollIntoView({ behavior: "smooth", block: "nearest" }); return; }
+    if (ds.calday){
+      const k = ds.calday, id = calSel.slice(2);
+      if (calSel[0] === "b") toggleSlip(id, k);
+      else { const d = clone(day(k)); if (d.habits[id]) delete d.habits[id]; else d.habits[id] = true; commitDay(k, d, 0); }
+      return;
+    }
     if (ds.water !== undefined) addWater(+(ds.amount || ds.water));
     else if (ds.pages !== undefined) addPages(+ds.pages);
     else if (ds.glass !== undefined){
@@ -738,6 +942,41 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       S.books = b; persist("books", b, 0); render();
     }
   });
+
+  let editingHabits = false;
+  $("editHabits").onclick = () => {
+    editingHabits = !editingHabits;
+    $("editHabits").textContent = editingHabits ? "Готово" : "Изменить";
+    $("editHabits").setAttribute("aria-pressed", editingHabits);
+    render();
+  };
+  $("habitForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const name = $("habitName").value.trim(); if (!name) return;
+    const st = clone(S.settings); st.habits.push({ id: "h" + uid(), name });
+    S.settings = st; persist("settings", st, 0); $("habitName").value = ""; render(); toast("Привычка добавлена");
+  });
+  $("badForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const name = $("badName").value.trim(); let start = $("badStart").value || todayKey();
+    if (!name) return;
+    if (start > todayKey()) start = todayKey();
+    const st = clone(S.settings); const id = "b" + uid();
+    st.bad = st.bad || []; st.bad.push({ id, name, start });
+    S.settings = st; persist("settings", st, 0);
+    calSel = "b:" + id; calMonth = todayKey().slice(0, 7);
+    $("badName").value = ""; $("badDetails").open = false; render(); toast("Отсчёт начат. Держись!");
+  });
+  $("calHabit").addEventListener("change", e => { calSel = e.target.value; try { localStorage.setItem("moy-den-cal", calSel); } catch (er) {} render(); });
+  $("calPrev").onclick = () => { const [y, m] = calMonth.split("-").map(Number); const d = new Date(y, m - 2, 1); calMonth = d.getFullYear() + "-" + pad(d.getMonth() + 1); renderCal(); };
+  $("calNext").onclick = () => { const [y, m] = calMonth.split("-").map(Number); const d = new Date(y, m, 1); const k = d.getFullYear() + "-" + pad(d.getMonth() + 1); if (k <= todayKey().slice(0, 7)){ calMonth = k; renderCal(); } };
+
+  function toggleSlip(bid, k){
+    const d = clone(day(k)); d.slips = d.slips || {};
+    if (d.slips[bid]) delete d.slips[bid]; else d.slips[bid] = true;
+    commitDay(k, d, 0);
+    if (d.slips[bid]) toast("Срыв отмечен. Начни новую серию прямо сейчас");
+  }
 
   $("pagesAdd").onclick = () => { const n = parseInt($("pagesCustom").value, 10); if (n > 0){ addPages(n); $("pagesCustom").value = ""; } };
   $("pagesCustom").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); $("pagesAdd").click(); } });
@@ -832,6 +1071,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const opt = (id, hi) => { const n = parseInt($(id).value, 10); return n >= 0 && n <= hi ? n : 0; };
     S.settings = {
       profile: norm ? pr : (S.settings.profile || null),
+      bad: S.settings.bad || [],
       goals: { kcal: num("gKcal", 800, 6000, g.kcal), water: num("gWater", 500, 6000, g.water), pages: num("gPages", 1, 500, g.pages), glass: num("gGlass", 100, 1000, g.glass), protein: opt("gP", 500), fat: opt("gF", 400), carbs: opt("gC", 1000) },
       habits: draftHabits.map(h => ({ id: h.id, name: h.name.trim() })).filter(h => h.name)
     };

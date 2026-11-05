@@ -306,8 +306,8 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .wrap{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 .panel,.summary{scroll-margin-top:12px}
 .bnav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(15,25,45,.08);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
-.bnav-in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;padding-block:6px}
-.bnav button{border:0;background:transparent;border-radius:12px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink-3);min-width:0}
+.bnav-in{max-width:760px;margin:0 auto;display:flex;gap:2px;padding-block:6px}
+.bnav button{flex:1 1 0;border:0;background:transparent;border-radius:12px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink-3);min-width:0}
 .bnav button .ic{display:block;width:23px;height:23px;line-height:0}
 .bnav button .ic svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .bnav button .tx{font-size:9.5px;letter-spacing:-.03em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
@@ -381,6 +381,11 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .finh{font-family:var(--f-body);font-size:15px;font-weight:700;margin:0;display:flex;gap:8px;align-items:baseline}
 .finh span{font-size:12.5px;font-weight:500;color:var(--ink-3)}
 .finh-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
+.preset{display:flex;flex-direction:column;gap:3px;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 10px}
+.preset:hover{border-color:var(--fin)}
+.preset small{font-size:11.5px;color:var(--ink-3)}
+.moveform{margin-top:10px;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,.8fr) auto}
 .splitprev{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px}
 .splitprev div{display:flex;justify-content:space-between;gap:8px;background:var(--surface-2);border-radius:10px;padding:7px 10px;font-size:13px;min-width:0}
 .splitprev small{color:var(--ink-3)}
@@ -446,6 +451,24 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .fingoal .pbar{height:10px}
 .fingoal .pbar i{background:var(--fin)}
 @media (max-width:760px){.finform{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.finform .seg,.finform .btn{grid-column:1/-1}}
+
+/* Section filter */
+.viewbar{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.vb-top{display:flex;flex-direction:column;gap:2px}
+.vb-chips{display:flex;flex-wrap:wrap;gap:6px}
+.vb-chips button{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:7px 12px;font-size:13.5px;font-weight:600;color:var(--ink-3)}
+.vb-chips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.viewnote{font-size:12.5px;color:var(--ink-2);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.viewnote button{border:0;background:transparent;color:var(--accent);font-weight:700;padding:0;font-size:12.5px}
+body.hide-vsPanel #vsPanel, body.hide-vsPanel [data-go="vsPanel"],
+body.hide-p-kcal #p-kcal, body.hide-p-kcal #profileCta, body.hide-p-kcal [data-go="p-kcal"], body.hide-p-kcal [data-sec="p-kcal"],
+body.hide-p-water #p-water, body.hide-p-water [data-go="p-water"], body.hide-p-water [data-sec="p-water"],
+body.hide-p-lang #p-lang, body.hide-p-lang [data-go="p-lang"],
+body.hide-p-hab #p-hab, body.hide-p-hab [data-go="p-hab"], body.hide-p-hab [data-sec="p-hab"],
+body.hide-p-cal #p-cal,
+body.hide-p-fin #p-fin, body.hide-p-fin [data-go="p-fin"],
+body.hide-report #reportOpen{display:none!important}
+body.hide-p-water #p-kcal, body.hide-p-kcal #p-water{grid-column:1/-1}
 
 /* Report */
 .reportbtn{display:flex;align-items:center;gap:12px;width:100%;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 16px;text-align:left}
@@ -661,9 +684,15 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <button id="next" aria-label="Следующий день">›</button>
         <button class="today" id="today">Сегодня</button>
       </div>
+      <button class="iconbtn" id="viewOpen" aria-expanded="false" aria-controls="viewBar">☰ Разделы</button>
       <button class="iconbtn" id="openSettings">⚙ Цели</button>
     </div>
   </header>
+  <div class="viewbar" id="viewBar" hidden>
+    <div class="vb-top"><b>Что показывать сейчас</b><span class="mhint">Скрытое никуда не пропадает: данные сохраняются, вернуть можно в любой момент.</span></div>
+    <div class="vb-chips" id="viewChips"></div>
+  </div>
+  <div class="viewnote" id="viewNote" hidden></div>
 
   <div class="note" id="syncNote" hidden></div>
 
@@ -861,6 +890,15 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <div class="finh-row"><h3 class="finh">✉️ Конверты</h3><button class="btn sm ghost" type="button" id="allocEdit">⚙ Проценты</button></div>
         <div class="allocedit" id="allocBox" hidden></div>
         <div class="envs" id="envs"></div>
+        <details id="moveBox"><summary>↔ Перевести между конвертами</summary>
+          <form class="finform2 moveform" id="moveForm" autocomplete="off">
+            <div class="field"><label for="mvFrom">Откуда</label><select id="mvFrom"></select></div>
+            <div class="field"><label for="mvTo">Куда</label><select id="mvTo"></select></div>
+            <div class="field"><label for="mvAmt">Сумма</label><input type="number" id="mvAmt" min="0.01" step="0.01" inputmode="decimal" required placeholder="0"></div>
+            <button class="btn fin" type="submit">Перевести</button>
+          </form>
+          <p class="mhint">Деньги сами между конвертами не переходят. Например, взять из подушки на кредит можно только вручную, здесь.</p>
+        </details>
       </div>
 
       <div class="finsec">
@@ -1475,16 +1513,16 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const kcalColor = t.kcal > g.kcal * 1.05 ? "var(--warn)" : "var(--kcal)";
     const st = streak();
     $("summary").innerHTML = `
-      <div class="ring-card"><div class="ring">${ring(t.kcal / g.kcal, kcalColor)}<span class="pct">${Math.round(t.kcal / g.kcal * 100)}%</span></div>
+      <div class="ring-card" data-sec="p-kcal"><div class="ring">${ring(t.kcal / g.kcal, kcalColor)}<span class="pct">${Math.round(t.kcal / g.kcal * 100)}%</span></div>
         <div><div class="lbl">Калории</div><div class="val">${fmt(t.kcal)} <small>/ ${fmt(g.kcal)}</small></div>
         <div class="hint">${left >= 0 ? "осталось " + fmt(left) + " ккал" : "перебор " + fmt(-left) + " ккал"}</div></div></div>
-      <div class="ring-card"><div class="ring">${ring(d.water / g.water, "var(--water)")}<span class="pct">${Math.round(d.water / g.water * 100)}%</span></div>
+      <div class="ring-card" data-sec="p-water"><div class="ring">${ring(d.water / g.water, "var(--water)")}<span class="pct">${Math.round(d.water / g.water * 100)}%</span></div>
         <div><div class="lbl">Вода</div><div class="val">${(d.water / 1000).toFixed(2).replace(".", ",")} <small>/ ${(g.water / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} л</small></div>
         <div class="hint">${t.waterOk ? "цель выполнена" : "ещё " + Math.ceil((g.water - d.water) / g.glass) + " " + plural(Math.ceil((g.water - d.water) / g.glass), "стакан", "стакана", "стаканов")}</div></div></div>
-      <div class="ring-card"><div class="ring">${ring(d.pages / g.pages, "var(--read)")}<span class="pct">${Math.round(d.pages / g.pages * 100)}%</span></div>
+      <div class="ring-card" data-sec="p-water"><div class="ring">${ring(d.pages / g.pages, "var(--read)")}<span class="pct">${Math.round(d.pages / g.pages * 100)}%</span></div>
         <div><div class="lbl">Чтение</div><div class="val">${d.pages} <small>/ ${g.pages} стр.</small></div>
         <div class="hint">${t.readOk ? "цель выполнена" : "ещё " + (g.pages - d.pages) + " стр."}</div></div></div>
-      <div class="ring-card"><div class="ring">${ring(t.habitsTotal ? t.habitsDone / t.habitsTotal : 0, "var(--habit)")}<span class="pct">${t.habitsDone}/${t.habitsTotal}</span></div>
+      <div class="ring-card" data-sec="p-hab"><div class="ring">${ring(t.habitsTotal ? t.habitsDone / t.habitsTotal : 0, "var(--habit)")}<span class="pct">${t.habitsDone}/${t.habitsTotal}</span></div>
         <div><div class="lbl">Привычки</div><div class="val">${t.habitsDone} <small>из ${t.habitsTotal}</small></div>
         <div class="hint">${t.habitsTotal && t.habitsDone === t.habitsTotal ? "все отмечены" : "отметь, что сделал"}</div></div></div>`;
 
@@ -2645,6 +2683,19 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       }
     }
   } catch (e) {}
+  const PRESETS = [
+    { id: "base", name: "Классика 50/30/20", about: "50% на нужное, 30% на желания, 20% на будущее. Хорошая отправная точка.",
+      alloc: [["need","🏠","Обязательные",50],["want","🎉","Желания",30],["safe","🛟","Подушка",10],["inv","📈","Инвестиции",10]] },
+    { id: "def", name: "Сбалансированная (по умолчанию)", about: "Немного меньше желаний, больше инвестиций и отдельный конверт на цели.",
+      alloc: [["need","🏠","Обязательные",50],["want","🎉","Желания",20],["safe","🛟","Подушка",10],["inv","📈","Инвестиции",15],["goal","🎯","Цели",5]] },
+    { id: "credit", name: "Есть кредит", about: "Обязательный платёж по кредиту входит в «Обязательные», а отдельный конверт копит на досрочное погашение. Подушку продолжаем пополнять, инвестиции — после закрытия дорогих долгов.",
+      alloc: [["need","🏠","Обязательные",50],["debt","💳","Кредит: досрочно",20],["want","🎉","Желания",15],["safe","🛟","Подушка",10],["inv","📈","Инвестиции",5]] },
+    { id: "nosafe", name: "Пока нет подушки", about: "Главная цель — быстро накопить запас на 3–6 месяцев расходов, потом перейти на сбалансированную схему.",
+      alloc: [["need","🏠","Обязательные",50],["safe","🛟","Подушка",25],["want","🎉","Желания",15],["inv","📈","Инвестиции",10]] },
+    { id: "fire", name: "Максимум инвестиций", about: "Для тех, у кого есть подушка и нет долгов, а расходы невелики.",
+      alloc: [["need","🏠","Обязательные",45],["want","🎉","Желания",15],["safe","🛟","Подушка",5],["inv","📈","Инвестиции",30],["goal","🎯","Цели",5]] }
+  ];
+  function presetAlloc(pr){ return pr.alloc.map(([id, icon, name, pct]) => ({ id, icon, name, pct })); }
   function splitOf(a, alloc){
     const out = {}; let left = Math.round(a * 100);
     alloc.forEach((e, i) => { const part = i === alloc.length - 1 ? left : Math.round(a * 100 * e.pct / 100); out[e.id] = part / 100; left -= part; });
@@ -2652,9 +2703,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   function saveFin(){ try { localStorage.setItem(FIN_KEY, JSON.stringify(FIN)); } catch (e) { toast("Не удалось сохранить на телефоне"); } }
   const money = v => (Math.round(v * 100) / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 }) + " " + FIN.cur;
-  const envById = id => FIN.alloc.find(e => e.id === id) || { id, icon: "📦", name: "Удалённый конверт", pct: 0 };
+  const envById = id => FIN.alloc.find(e => e.id === id) || (FIN.archived || []).find(e => e.id === id) || { id, icon: "📦", name: "Старый конверт", pct: 0 };
+  // envelopes in the current scheme plus old ones that still hold money
+  function envList(){
+    const extra = (FIN.archived || []).filter(e => !FIN.alloc.some(a => a.id === e.id) && Math.abs(envBalance(e.id)) >= 0.01).map(e => Object.assign({}, e, { pct: 0, old: true }));
+    return FIN.alloc.concat(extra);
+  }
   function envBalance(id){
-    return FIN.tx.reduce((s, t) => s + (t.t === "inc" ? ((t.split || {})[id] || 0) : (t.env === id ? -t.a : 0)), 0);
+    return FIN.tx.reduce((s, t) => s + (t.t === "inc" ? ((t.split || {})[id] || 0) : t.t === "move" ? (t.to === id ? t.a : t.from === id ? -t.a : 0) : (t.env === id ? -t.a : 0)), 0);
   }
   let finMonth = todayKey().slice(0, 7), allocOpen = false, allocDraft = null;
   function renderIncPrev(){
@@ -2669,12 +2725,12 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (document.activeElement !== $("incAmt")) renderIncPrev();
     // envelopes
     const mk = finMonth;
-    $("envs").innerHTML = FIN.alloc.map(e => {
+    $("envs").innerHTML = envList().map(e => {
       const bal = envBalance(e.id);
       const inM = FIN.tx.filter(t => t.d.startsWith(mk) && t.t === "inc").reduce((s, t) => s + ((t.split || {})[e.id] || 0), 0);
       const outM = FIN.tx.filter(t => t.d.startsWith(mk) && t.t !== "inc" && t.env === e.id).reduce((s, t) => s + t.a, 0);
       const pct = inM > 0 ? Math.min(100, outM / inM * 100) : 0;
-      return `<div class="env ${bal < 0 ? "neg" : ""}"><div class="et"><span>${e.icon} ${esc(e.name)}</span><small>${e.pct}%</small></div>
+      return `<div class="env ${bal < 0 ? "neg" : ""}"><div class="et"><span>${e.icon} ${esc(e.name)}</span><small>${e.old ? "не пополняется" : e.pct + "%"}</small></div>
         <b class="num">${money(bal)}</b>
         <div class="pbar" aria-hidden="true"><i style="width:${pct}%"></i></div>
         <small>в этом месяце: +${money(inM)} · −${money(outM)}</small></div>`;
@@ -2683,14 +2739,18 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("allocBox").hidden = !allocOpen;
     if (allocOpen){
       const sum = allocDraft.reduce((s, e) => s + (+e.pct || 0), 0);
-      $("allocBox").innerHTML = `<div class="mhint">Как делить каждый доход. Сумма должна быть 100%. Новые проценты применятся к следующим доходам, прошлые не изменятся.</div>` +
+      $("allocBox").innerHTML = `<div class="mhint">Готовые схемы:</div><div class="presets">${PRESETS.map(pr => `<button type="button" class="preset" data-preset="${pr.id}"><b>${esc(pr.name)}</b><small>${pr.alloc.map(x => x[1] + " " + x[3] + "%").join(" · ")}</small><small>${esc(pr.about)}</small></button>`).join("")}</div>` +
+        `<div class="mhint">Или настрой сам. Сумма должна быть 100%. Новые проценты применятся к следующим доходам, прошлые не изменятся.</div>` +
         allocDraft.map((e, i) => `<div class="arow"><input type="text" value="${esc(e.icon)}" data-ai="${i}" data-af="icon" maxlength="2" aria-label="Значок" style="width:46px;text-align:center"><input type="text" value="${esc(e.name)}" data-ai="${i}" data-af="name" maxlength="24" aria-label="Название конверта"><input type="number" value="${e.pct}" data-ai="${i}" data-af="pct" min="0" max="100" inputmode="numeric" aria-label="Процент" style="width:72px"><span>%</span>${allocDraft.length > 1 ? `<button class="x" type="button" data-adel="${i}" aria-label="Убрать конверт">×</button>` : ""}</div>`).join("") +
         `<div class="row"><span class="num" style="font-weight:700;color:${sum === 100 ? "var(--fin)" : "var(--warn)"}">Итого: ${sum}%</span><button class="btn sm" type="button" data-aadd="1">+ Конверт</button><button class="btn sm ghost" type="button" data-areset="1">По умолчанию</button><button class="btn sm fin" type="button" data-asave="1" ${sum === 100 ? "" : "disabled"}>Сохранить</button></div>`;
     }
     $("allocEdit").textContent = allocOpen ? "Закрыть" : "⚙ Проценты";
     // expense envelope list
     const keep = $("expEnv").value;
-    $("expEnv").innerHTML = FIN.alloc.filter(e => e.id !== "inv").map(e => `<option value="${e.id}" ${e.id === keep ? "selected" : ""}>${e.icon} ${esc(e.name)} · ${money(envBalance(e.id))}</option>`).join("");
+    $("expEnv").innerHTML = envList().filter(e => e.id !== "inv").map(e => `<option value="${e.id}" ${e.id === keep ? "selected" : ""}>${e.icon} ${esc(e.name)} · ${money(envBalance(e.id))}</option>`).join("");
+    const opt = (sel) => envList().map(e => `<option value="${e.id}" ${e.id === sel ? "selected" : ""}>${e.icon} ${esc(e.name)} · ${money(envBalance(e.id))}</option>`).join("");
+    const kf = $("mvFrom").value || (FIN.alloc.find(e => e.id === "safe") || FIN.alloc[0] || {}).id, kt = $("mvTo").value || (FIN.alloc.find(e => e.id === "debt") || FIN.alloc[1] || {}).id;
+    $("mvFrom").innerHTML = opt(kf); $("mvTo").innerHTML = opt(kt);
     // investments
     const invBal = envBalance("inv");
     const totalIn = FIN.assets.reduce((s, a) => s + a.invested, 0), totalVal = FIN.assets.reduce((s, a) => s + a.value, 0);
@@ -2713,8 +2773,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const inv = tx.filter(t => t.t === "inv").reduce((s, t) => s + t.a, 0);
     $("finSum").innerHTML = `<div><span>Пришло</span><b class="pos">${money(inc)}</b></div><div><span>Потрачено</span><b class="neg">${money(exp)}</b></div><div><span>Вложено</span><b>${money(inv)}</b></div>`;
     $("finTx").innerHTML = tx.length ? tx.slice().sort((a, b) => (b.d + b.tm).localeCompare(a.d + a.tm)).map(t => {
-      const what = t.t === "inc" ? "💵 " + (t.n || "Доход") : t.t === "inv" ? "📈 " + esc(t.n || "Вложение") : envById(t.env).icon + " " + esc(envById(t.env).name) + (t.n ? " · " + esc(t.n) : "");
-      return `<div class="item"><span class="mt num">${+t.d.slice(8)}.${t.d.slice(5, 7)}</span><span class="name">${t.t === "inc" ? esc(what) : what}</span><span class="num" style="color:${t.t === "inc" ? "var(--fin)" : "var(--ink)"}">${t.t === "inc" ? "+" : "−"}${money(t.a)}</span><button class="x" type="button" data-fdel="${t.id}" aria-label="Удалить запись">×</button></div>`;
+      const what = t.t === "move" ? "↔ " + envById(t.from).icon + " → " + envById(t.to).icon + " " + esc(envById(t.to).name) : t.t === "inc" ? "💵 " + (t.n || "Доход") : t.t === "inv" ? "📈 " + esc(t.n || "Вложение") : envById(t.env).icon + " " + esc(envById(t.env).name) + (t.n ? " · " + esc(t.n) : "");
+      return `<div class="item"><span class="mt num">${+t.d.slice(8)}.${t.d.slice(5, 7)}</span><span class="name">${t.t === "inc" ? esc(what) : what}</span><span class="num" style="color:${t.t === "inc" ? "var(--fin)" : t.t === "move" ? "var(--ink-3)" : "var(--ink)"}">${t.t === "inc" ? "+" : t.t === "move" ? "" : "−"}${money(t.a)}</span><button class="x" type="button" data-fdel="${t.id}" aria-label="Удалить запись">×</button></div>`;
     }).join("") : `<div class="empty">В этом месяце записей нет.</div>`;
     $("finCur").value = FIN.cur;
     if (!tState.busy && !(document.activeElement && document.activeElement.id === "tToken")) renderTinv();
@@ -2843,6 +2903,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const bal = envBalance(env);
     toast(bal < 0 ? `Записано. В конверте «${envById(env).name}» перерасход ${money(-bal)}` : `Записано. В конверте «${envById(env).name}» осталось ${money(bal)}`);
   });
+  $("moveForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const a = num("mvAmt"), from = $("mvFrom").value, to = $("mvTo").value;
+    if (!(a > 0)){ toast("Впиши сумму"); return; }
+    if (from === to){ toast("Выбери разные конверты"); return; }
+    FIN.tx.push({ id: uid(), t: "move", a: Math.round(a * 100) / 100, from, to, d: txDate(), tm: nowTm() });
+    saveFin(); $("mvAmt").value = ""; renderFin(); toast(`Переведено: ${envById(from).name} → ${envById(to).name}`);
+  });
   $("invForm").addEventListener("submit", e => {
     e.preventDefault();
     const a = num("invAmt"), name = $("invAsset").value.trim();
@@ -2885,7 +2953,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (b.dataset.adel !== undefined){ allocDraft.splice(+b.dataset.adel, 1); renderFin(); }
     else if (b.dataset.aadd){ allocDraft.push({ id: "e" + uid(), icon: "📦", name: "Новый конверт", pct: 0 }); renderFin(); }
     else if (b.dataset.areset){ allocDraft = clone(DEFAULT_ALLOC); renderFin(); }
-    else if (b.dataset.asave){ FIN.alloc = allocDraft.map(x => Object.assign({}, x, { name: String(x.name).trim() || "Конверт", icon: String(x.icon).trim() || "📦" })); saveFin(); allocOpen = false; renderFin(); toast("Проценты сохранены"); }
+    else if (b.dataset.preset){ const pr = PRESETS.find(x => x.id === b.dataset.preset); if (pr){ allocDraft = presetAlloc(pr); renderFin(); toast("Схема «" + pr.name + "» выбрана. Нажми «Сохранить»"); } }
+    else if (b.dataset.asave){
+      FIN.archived = FIN.archived || [];
+      FIN.alloc.forEach(old => { if (!allocDraft.some(n => n.id === old.id) && !FIN.archived.some(a => a.id === old.id)) FIN.archived.push({ id: old.id, icon: old.icon, name: old.name }); });
+      FIN.alloc = allocDraft.map(x => Object.assign({}, x, { name: String(x.name).trim() || "Конверт", icon: String(x.icon).trim() || "📦" })); saveFin(); allocOpen = false; renderFin(); toast("Проценты сохранены"); }
   });
   $("finPrev").onclick = () => { const [y, m] = finMonth.split("-").map(Number); const d = new Date(y, m - 2, 1); finMonth = d.getFullYear() + "-" + pad(d.getMonth() + 1); renderFin(); };
   $("finNext").onclick = () => { const [y, m] = finMonth.split("-").map(Number); const d = new Date(y, m, 1); const k = d.getFullYear() + "-" + pad(d.getMonth() + 1); if (k <= todayKey().slice(0, 7)){ finMonth = k; renderFin(); } };
@@ -3223,6 +3295,29 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   let navRaf = 0;
   window.addEventListener("scroll", () => { if (!navRaf) navRaf = requestAnimationFrame(() => { navRaf = 0; syncNav(); }); }, { passive: true });
   setActive("summary");
+
+  // ---------- section filter (per phone, easy to undo) ----------
+  const SECTIONS = [["vsPanel", "👫 Пара"], ["p-kcal", "🍎 Питание"], ["p-water", "💧 Вода и чтение"], ["p-lang", "🌍 Язык"], ["p-hab", "✅ Привычки"], ["p-cal", "📅 Календарь привычек"], ["p-fin", "💰 Финансы"], ["report", "📊 Отчёт за неделю"]];
+  let hiddenSecs = [];
+  try { hiddenSecs = JSON.parse(localStorage.getItem("moy-den-hidden") || "[]"); } catch (e) { hiddenSecs = []; }
+  function applyView(){
+    SECTIONS.forEach(([id]) => document.body.classList.toggle("hide-" + id, hiddenSecs.includes(id)));
+    $("viewChips").innerHTML = SECTIONS.map(([id, name]) => `<button type="button" data-sec-t="${id}" aria-pressed="${!hiddenSecs.includes(id)}">${name}</button>`).join("") +
+      (hiddenSecs.length ? `<button type="button" data-sec-all="1" aria-pressed="false">Показать всё</button>` : "");
+    const n = hiddenSecs.length;
+    $("viewNote").hidden = !n;
+    $("viewNote").innerHTML = n ? `<span>Скрыто разделов: ${n}</span><button type="button" data-sec-all="1">Показать всё</button><button type="button" data-sec-open="1">Настроить</button>` : "";
+    try { localStorage.setItem("moy-den-hidden", JSON.stringify(hiddenSecs)); } catch (e) {}
+  }
+  $("viewOpen").onclick = () => { const bar = $("viewBar"); bar.hidden = !bar.hidden; $("viewOpen").setAttribute("aria-expanded", String(!bar.hidden)); };
+  document.addEventListener("click", e => {
+    const t = e.target.closest("[data-sec-t],[data-sec-all],[data-sec-open]"); if (!t) return;
+    if (t.dataset.secOpen){ $("viewBar").hidden = false; $("viewOpen").setAttribute("aria-expanded", "true"); return; }
+    if (t.dataset.secAll) hiddenSecs = [];
+    else { const id = t.dataset.secT; hiddenSecs = hiddenSecs.includes(id) ? hiddenSecs.filter(x => x !== id) : hiddenSecs.concat(id); }
+    applyView();
+  });
+  applyView();
 
   // ---------- misc ----------
   let toastT;

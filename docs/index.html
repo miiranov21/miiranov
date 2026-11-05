@@ -259,7 +259,7 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .wrap{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 .panel,.summary{scroll-margin-top:12px}
 .bnav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(15,25,45,.08);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
-.bnav-in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:2px;padding-block:6px}
+.bnav-in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;padding-block:6px}
 .bnav button{border:0;background:transparent;border-radius:12px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink-3);min-width:0}
 .bnav button .ic{font-size:20px;line-height:1.1;filter:grayscale(.6);opacity:.8}
 .bnav button .tx{font-size:9.5px;letter-spacing:-.03em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
@@ -312,6 +312,36 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .item .mt{flex:none;min-width:44px;font-size:12.5px;color:var(--ink-3);font-weight:700}
 .addmeal > .btn{grid-column:span 2}
 @media (max-width:520px){.addmeal > .btn{grid-column:1/-1}}
+
+/* Dish builder */
+.dstep{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+.dl{font-weight:700;font-size:14px}
+.dingr .sugg{position:absolute}
+.dlist{display:flex;flex-direction:column}
+.dlist .item input{width:76px;padding:6px 8px}
+.dlist .item .ig{font-size:12px;color:var(--ink-3);white-space:nowrap;font-family:var(--f-num)}
+.dres{border-color:var(--kcal);background:var(--kcal-soft)}
+.dres .big{font-family:var(--f-display);font-size:20px}
+.dsaved{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.dsaved .chip{cursor:pointer;border:1px solid var(--line)}
+
+/* Report */
+.reportbtn{display:flex;align-items:center;gap:12px;width:100%;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 16px;text-align:left}
+.reportbtn > span:first-child{font-size:22px}
+.reportbtn > span:nth-child(2){flex:1;min-width:0;display:flex;flex-direction:column}
+.reportbtn small{color:var(--ink-3);font-size:12.5px}
+.reportbtn:hover{border-color:var(--ink-3)}
+.repnav{display:flex;align-items:center;justify-content:center;gap:10px}
+.repnav button{border:1px solid var(--line);background:var(--surface);width:38px;height:38px;border-radius:10px;font-size:18px;color:var(--ink-2)}
+.repnav button:disabled{opacity:.35}
+.repnav span{font-weight:700;min-width:170px;text-align:center}
+.repstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.repstats div{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.repstats b{font-family:var(--f-num);font-size:19px}
+.repstats span{font-size:12px;color:var(--ink-3)}
+.repstats small{font-size:11.5px;color:var(--ink-2)}
+#report .charts{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+#report .heat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px}
 
 /* Food lookup */
 .foodfield{position:relative}
@@ -513,6 +543,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   <div class="cta" id="profileCta" hidden><p>Укажи вес, рост и возраст, и трекер посчитает твою норму КБЖУ и воды.</p><button class="btn primary" type="button" id="ctaBtn">Рассчитать норму</button></div>
 
   <section class="summary" id="summary" aria-label="Сводка дня"></section>
+  <button class="reportbtn" type="button" id="reportOpen"><span aria-hidden="true">📊</span><span><b>Отчёт за неделю</b><small>калории, вода, чтение, привычки, язык</small></span><span aria-hidden="true">›</span></button>
 
   <section class="panel" aria-labelledby="h-vs" id="vsPanel">
     <div class="panel-head">
@@ -543,6 +574,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <div class="field"><label for="mC">Углеводы, г</label><input type="number" id="mC" placeholder="55" min="0" max="1000" step="0.1" inputmode="decimal"></div>
         <button class="btn primary" type="submit">Добавить</button>
       </form>
+      <button class="libbtn" type="button" id="dishOpen"><span style="font-size:24px" aria-hidden="true">🍲</span><span><b>Домашнее блюдо</b><small>посчитать КБЖУ по продуктам: мамин борщ, плов, запеканка</small></span><span aria-hidden="true">›</span></button>
       <div class="field" id="recentWrap" hidden><label>Быстро добавить ещё раз</label><div class="recent" id="recent"></div></div>
     </section>
 
@@ -688,14 +720,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       </div>
     </section>
 
-    <section class="panel span2" id="p-week" aria-labelledby="h-week">
-      <div class="panel-head">
-        <h2 id="h-week"><span class="dot" style="background:var(--accent)"></span>Последние 7 дней</h2>
-        <span class="meta">пунктир — твоя цель</span>
-      </div>
-      <div class="charts" id="charts"></div>
-      <div class="heat" id="heat"></div>
-    </section>
 
   </div>
 </div>
@@ -756,7 +780,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <button type="button" data-go="p-lang"><span class="ic" aria-hidden="true">🌍</span><span class="tx">Язык</span></button>
     <button type="button" data-go="p-hab"><span class="ic" aria-hidden="true">✅</span><span class="tx">Цели</span></button>
     <button type="button" data-go="p-quit"><span class="ic" aria-hidden="true">🚭</span><span class="tx">Отказ</span></button>
-    <button type="button" data-go="p-week"><span class="ic" aria-hidden="true">📊</span><span class="tx">Неделя</span></button>
   </div>
 </nav>
 
@@ -777,6 +800,49 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   </div>
   <div class="lib-body" id="libBody"></div>
   <div class="sheet" id="libSheet" hidden></div>
+</div>
+
+<div class="lib" id="report" hidden role="dialog" aria-modal="true" aria-labelledby="repTitle">
+  <div class="lib-top">
+    <button class="ls-close" type="button" id="repClose" aria-label="Закрыть отчёт">×</button>
+    <h2 id="repTitle">Отчёт за неделю</h2>
+  </div>
+  <div class="lib-body">
+    <div class="repnav"><button type="button" id="repPrev" aria-label="Предыдущая неделя">‹</button><span id="repRange" class="num"></span><button type="button" id="repNext" aria-label="Следующая неделя">›</button></div>
+    <div class="repstats" id="repStats"></div>
+    <div class="charts" id="charts"></div>
+    <div class="heat" id="heat"></div>
+    <p class="mhint">Пунктир на графиках — твоя цель на день.</p>
+  </div>
+</div>
+
+<div class="lib" id="dish" hidden role="dialog" aria-modal="true" aria-labelledby="dishTitle">
+  <div class="lib-top">
+    <button class="ls-close" type="button" id="dishClose" aria-label="Закрыть">×</button>
+    <h2 id="dishTitle">Домашнее блюдо</h2>
+  </div>
+  <div class="lib-body" id="dishBody">
+    <div class="dsaved" id="dishSaved"></div>
+    <div class="dstep">
+      <label class="dl" for="dName">1. Как называется блюдо</label>
+      <input type="text" id="dName" maxlength="50" placeholder="Например: Мамин борщ">
+    </div>
+    <div class="dstep">
+      <span class="dl">2. Из чего приготовлено</span>
+      <span class="mhint">Добавь продукты, которые пошли в кастрюлю, и сколько граммов каждого. Можно примерно: «картошка 500 г, мясо 400 г, масло 2 ст. л.». Вода и соль калорий не добавляют.</span>
+      <div class="foodfield dingr">
+        <input type="text" id="dIn" placeholder="Продукт: говядина, свёкла, масло…" autocomplete="off" aria-label="Добавить продукт">
+        <div class="sugg" id="dSugg" hidden></div>
+      </div>
+      <div class="dlist" id="dList"></div>
+    </div>
+    <div class="dstep">
+      <label class="dl" for="dWeight">3. Сколько весит готовое блюдо, г</label>
+      <span class="mhint">Взвесь кастрюлю с едой и вычти вес пустой кастрюли. Если не знаешь, оставь пустым: возьмём сумму продуктов. Для супов лучше указать вес, ведь вода добавляет вес, но не калории.</span>
+      <input type="number" id="dWeight" min="1" max="30000" inputmode="numeric" placeholder="например 3500">
+    </div>
+    <div class="dstep dres" id="dRes"></div>
+  </div>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -806,7 +872,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   const WDF = ["воскресенье","понедельник","вторник","среда","четверг","пятница","суббота"];
 
   // ---------- state ----------
-  const S = { settings: clone(DEFAULT_SETTINGS), books: { list: [], current: null }, dict: { words: [] }, course: { done: {}, xp: 0, plan: null }, days: {} };
+  const S = { settings: clone(DEFAULT_SETTINGS), books: { list: [], current: null }, dict: { words: [] }, course: { done: {}, xp: 0, plan: null }, recipes: { list: [] }, days: {} };
   let cur = todayKey();
   const dirty = new Set();       // doc ids with unsaved local edits
   const timers = {};             // debounce timers per doc
@@ -880,6 +946,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       if (id === "settings"){ S.settings = Object.assign(clone(DEFAULT_SETTINGS), clone(data)); if (!Array.isArray(S.settings.bad)) S.settings.bad = []; }
       else if (id === "books") S.books = Object.assign({ list: [], current: null }, clone(data));
       else if (id === "dict") S.dict = Object.assign({ words: [] }, clone(data));
+      else if (id === "recipes") S.recipes = Object.assign({ list: [] }, clone(data));
       else if (id === "course") S.course = Object.assign({ done: {}, xp: 0, plan: null }, clone(data));
       else if (id.startsWith("d-")) S.days[id.slice(2)] = Object.assign({ meals: [], water: 0, pages: 0, habits: {}, note: "" }, clone(data));
     }
@@ -929,7 +996,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const units = [...cloudDirty]; cloudDirty.clear();
     units.forEach(u => {
       const body = u === "meta"
-        ? { settings: S.settings, books: S.books, dict: S.dict, course: S.course }
+        ? { settings: S.settings, books: S.books, dict: S.dict, course: S.course, recipes: S.recipes }
         : { days: Object.fromEntries(Object.entries(S.days).filter(([k]) => k.startsWith(u))) };
       cloudBusy = cloudBusy.then(() => fsSet("pairs/" + pair.code + "/data/" + pair.pid + "_" + u, body)).catch(() => { cloudDirty.add(u); setSync("offline"); });
     });
@@ -947,6 +1014,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         if (d.obj.settings && newer(d.obj.settings, S.settings) && !dirty.has("settings")){ S.settings = Object.assign(clone(DEFAULT_SETTINGS), d.obj.settings); localStore.save("settings", S.settings); changed = true; }
         if (d.obj.books && newer(d.obj.books, S.books) && !dirty.has("books")){ S.books = Object.assign({ list: [], current: null }, d.obj.books); localStore.save("books", S.books); changed = true; }
         if (d.obj.dict && newer(d.obj.dict, S.dict) && !dirty.has("dict")){ S.dict = Object.assign({ words: [] }, d.obj.dict); localStore.save("dict", S.dict); changed = true; }
+        if (d.obj.recipes && newer(d.obj.recipes, S.recipes) && !dirty.has("recipes")){ S.recipes = Object.assign({ list: [] }, d.obj.recipes); localStore.save("recipes", S.recipes); changed = true; }
         if (d.obj.course && newer(d.obj.course, S.course) && !dirty.has("course")){ S.course = Object.assign({ done: {}, xp: 0, plan: null }, d.obj.course); localStore.save("course", S.course); changed = true; }
       } else {
         for (const [k, body] of Object.entries(d.obj.days || {})){
@@ -956,7 +1024,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
     // local records the cloud has not seen yet go up
     const seen = new Set(mine.map(d => d.id.slice(pair.pid.length + 1)));
-    if (!seen.has("meta") && (S.settings._u || S.books._u || S.dict._u || S.course._u)) cloudDirty.add("meta");
+    if (!seen.has("meta") && (S.settings._u || S.books._u || S.dict._u || S.course._u || S.recipes._u)) cloudDirty.add("meta");
     Object.keys(S.days).forEach(k => { if (!seen.has(k.slice(0, 7))) cloudDirty.add(k.slice(0, 7)); });
     if (cloudDirty.size){ clearTimeout(cloudT); cloudT = setTimeout(pushCloud, 500); }
     if (changed) render();
@@ -1289,7 +1357,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     scheduleSummary();
 
 
-    renderWeek();
+    if (!$("report").hidden) renderWeek();
   }
 
   // ---------- language ----------
@@ -1834,8 +1902,29 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       </svg></div>`;
   }
 
+  let repEnd = null;
   function renderWeek(){
-    const keys = []; for (let i = 6; i >= 0; i--) keys.push(shift(cur, -i));
+    const end = repEnd || todayKey();
+    const keys = []; for (let i = 6; i >= 0; i--) keys.push(shift(end, -i));
+    const a = parseKey(keys[0]), b = parseKey(end);
+    $("repRange").textContent = a.getDate() + " " + MONTHS[a.getMonth()].slice(0, 3) + " — " + b.getDate() + " " + MONTHS[b.getMonth()].slice(0, 3);
+    $("repNext").disabled = end >= todayKey();
+    const past = keys.filter(k => k <= todayKey());
+    const tt = past.map(k => totals(k)), dd = past.map(k => day(k));
+    const withFood = tt.filter(t => t.kcal > 0);
+    const avgK = withFood.length ? Math.round(withFood.reduce((s, t) => s + t.kcal, 0) / withFood.length) : 0;
+    const avgW = past.length ? dd.reduce((s, d) => s + (d.water || 0), 0) / past.length : 0;
+    const pagesW = dd.reduce((s, d) => s + (d.pages || 0), 0);
+    const hTot = tt.reduce((s, t) => s + t.habitsTotal, 0), hDone = tt.reduce((s, t) => s + t.habitsDone, 0);
+    const langMin = dd.reduce((s, d) => s + ((d.lang && d.lang.min) || 0), 0);
+    const g0 = goals();
+    const daysOk = (f) => past.filter(f).length;
+    $("repStats").innerHTML = `
+      <div><span>🍎 Калории в среднем</span><b>${fmt(avgK)}</b><small>норма ${fmt(g0.kcal)} · в норме ${daysOk(k => totals(k).kcalOk)} из ${past.length} дн.</small></div>
+      <div><span>💧 Вода в среднем</span><b>${(avgW / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} л</b><small>цель выполнена ${daysOk(k => totals(k).waterOk)} из ${past.length} дн.</small></div>
+      <div><span>📖 Прочитано</span><b>${pagesW} стр.</b><small>цель выполнена ${daysOk(k => totals(k).readOk)} из ${past.length} дн.</small></div>
+      <div><span>✅ Привычки</span><b>${hTot ? Math.round(hDone / hTot * 100) : 0}%</b><small>отмечено ${hDone} из ${hTot}</small></div>
+      <div><span>🌍 Язык</span><b>${langMin} мин</b><small>${S.settings.lang ? esc(S.settings.lang.name) : "язык не выбран"}</small></div>`;
     const labels = keys.map(k => { const d = parseKey(k); return WD[d.getDay()] + " " + d.getDate(); });
     const g = goals();
     $("charts").innerHTML =
@@ -1847,6 +1936,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       hs.map(h => `<tr><td>${esc(h.name)}</td>${keys.map(k => `<td class="c ${day(k).habits[h.id] ? "on" : ""}" title="${day(k).habits[h.id] ? "сделано" : "нет"}"></td>`).join("")}</tr>`).join("") +
       `</tbody></table>` : "";
   }
+
+  $("reportOpen").onclick = () => { repEnd = todayKey(); $("report").hidden = false; document.body.style.overflow = "hidden"; renderWeek(); };
+  $("repClose").onclick = () => { $("report").hidden = true; document.body.style.overflow = ""; };
+  $("repPrev").onclick = () => { repEnd = shift(repEnd || todayKey(), -7); renderWeek(); };
+  $("repNext").onclick = () => { const n = shift(repEnd || todayKey(), 7); repEnd = n > todayKey() ? todayKey() : n; renderWeek(); };
 
   // ---------- actions ----------
   function addWater(ml){
@@ -2153,15 +2247,20 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   const nz = t => String(t).toLowerCase().replace(/ё/g, "е").replace(/[^a-zа-я0-9 ]/g, " ").replace(/\s+/g, " ").trim();
   FOODS.forEach(f => { f._n = nz(f.name); f._a = nz(f.name + " " + f.alias).split(" "); });
   let FSEL = null, webSeq = 0, suggItems = [], suggAct = -1;
+  function myDishes(){
+    return (S.recipes.list || []).map(r => ({ name: r.name, k: r.k, p: r.p, f: r.f, c: r.c, unit: "порция", g: r.portion || 300, src: "mine", brand: "моё блюдо",
+      _n: nz(r.name), _a: nz(r.name + " моё блюдо домашнее").split(" ") }));
+  }
   function searchLocal(q){
     const qs = nz(q).split(" ").filter(Boolean); if (!qs.length) return [];
-    return FOODS.map(f => {
+    return myDishes().concat(FOODS).map(f => {
       let score = 0;
       for (const w of qs){
         const hit = f._a.some(a => a.startsWith(w));
         if (!hit) return null;
         score += f._n.startsWith(w) ? 3 : f._n.includes(w) ? 2 : 1;
       }
+      if (f.src === "mine") score += 2;
       return { f, score };
     }).filter(Boolean).sort((a, b) => b.score - a.score || a.f.name.length - b.f.name.length).slice(0, 7).map(x => x.f);
   }
@@ -2173,7 +2272,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const box = $("sugg");
     if (!q || q.length < 2 || (FSEL && q === FSEL.name)){ box.hidden = true; $("mName").setAttribute("aria-expanded", "false"); return; }
     suggItems = searchLocal(q); suggAct = -1;
-    box.innerHTML = (suggItems.length ? `<div class="sg-h">Справочник</div>` + suggItems.map(suggRow).join("") : `<div class="sg-note">В справочнике такого нет.</div>`) +
+    box.innerHTML = (suggItems.length ? `<div class="sg-h">Мои блюда и справочник</div>` + suggItems.map(suggRow).join("") : `<div class="sg-note">В справочнике такого нет.</div>`) +
       `<button type="button" class="sg web" data-web="1">🔎 Найти «${esc(q)}» в интернете</button>`;
     box.hidden = false; $("mName").setAttribute("aria-expanded", "true");
   }
@@ -2262,6 +2361,132 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   $("portion").addEventListener("input", e => {
     if (e.target.id !== "pGrams") return;
     const g = parseInt(e.target.value, 10); if (g > 0 && g <= 3000){ FSEL.grams = g; applyPortion(); }
+  });
+
+  // ---------- homemade dish ----------
+  let DISH = { name: "", ing: [], weight: "", eat: 300, editId: null };
+  let dSuggItems = [];
+  async function webFoods(q){
+    const ctrl = new AbortController(); const tm = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      const r = await fetch("https://world.openfoodfacts.org/cgi/search.pl?search_terms=" + encodeURIComponent(q) + "&search_simple=1&action=process&json=1&page_size=20&lc=ru&fields=product_name,product_name_ru,brands,nutriments", { signal: ctrl.signal });
+      if (!r.ok) throw new Error();
+      const j = await r.json();
+      return (j.products || []).map(pr => {
+        const n = pr.nutriments || {}; let k = n["energy-kcal_100g"]; if (k == null && n.energy_100g != null) k = n.energy_100g / 4.184;
+        const name = (pr.product_name_ru || pr.product_name || "").trim();
+        if (!name || k == null || isNaN(k)) return null;
+        return { name: name.slice(0, 60), brand: (pr.brands || "").split(",")[0].trim(), k: +k, p: +(n.proteins_100g || 0), f: +(n.fat_100g || 0), c: +(n.carbohydrates_100g || 0), unit: "", g: 0, src: "web" };
+      }).filter(Boolean).slice(0, 10);
+    } finally { clearTimeout(tm); }
+  }
+  function dishTotals(){
+    const t = DISH.ing.reduce((a, i) => { const m = i.g / 100; a.k += i.k * m; a.p += i.p * m; a.f += i.f * m; a.c += i.c * m; a.g += i.g; return a; }, { k: 0, p: 0, f: 0, c: 0, g: 0 });
+    const W = parseFloat(DISH.weight) > 0 ? parseFloat(DISH.weight) : t.g;
+    const per = W > 0 ? { k: t.k / W * 100, p: t.p / W * 100, f: t.f / W * 100, c: t.c / W * 100 } : { k: 0, p: 0, f: 0, c: 0 };
+    return { t, W, per };
+  }
+  function renderDish(){ renderDishList(); renderDishResult(); }
+  function renderDishList(){
+    const saved = S.recipes.list || [];
+    $("dishSaved").innerHTML = saved.length ? `<span class="mhint">Сохранённые блюда:</span>` + saved.map(r => `<button type="button" class="chip" data-dload="${r.id}">🍲 ${esc(r.name)}</button>`).join("") : "";
+    $("dList").innerHTML = DISH.ing.length ? DISH.ing.map((i, n) => `<div class="item"><span class="name">${esc(i.name)}</span>
+      <input type="number" min="1" max="20000" inputmode="numeric" value="${i.g}" data-dg="${n}" aria-label="Граммов: ${esc(i.name)}"><span class="ig">г · ${Math.round(i.k * i.g / 100)} ккал</span>
+      <button class="x" type="button" data-ddel="${n}" aria-label="Убрать ${esc(i.name)}">×</button></div>`).join("") : `<div class="empty">Пока пусто. Начни вводить продукт в поле выше.</div>`;
+  }
+  function renderDishEat(){
+    const { per } = dishTotals(); const eat = parseFloat(DISH.eat) > 0 ? parseFloat(DISH.eat) : 0, m = eat / 100;
+    const a = $("dEatK"), b = $("dEatM");
+    if (a) a.textContent = "= " + Math.round(per.k * m) + " ккал";
+    if (b) b.textContent = "Б " + fmt1(per.p * m) + " · Ж " + fmt1(per.f * m) + " · У " + fmt1(per.c * m);
+  }
+  function renderDishResult(){
+    const { t, W, per } = dishTotals();
+    const eat = parseFloat(DISH.eat) > 0 ? parseFloat(DISH.eat) : 0, m = eat / 100;
+    $("dRes").innerHTML = DISH.ing.length ? `
+      <span class="dl">4. Результат</span>
+      <div>Всё блюдо: <b class="num">${fmt(t.k)} ккал</b> · ${fmt(W)} г</div>
+      <div>На 100 г: <b class="num">${Math.round(per.k)} ккал</b> · Б ${fmt1(per.p)} · Ж ${fmt1(per.f)} · У ${fmt1(per.c)}</div>
+      <label class="dl" for="dEat">Сколько ты съел, г</label>
+      <div class="row"><input type="number" id="dEat" min="1" max="5000" inputmode="numeric" value="${eat || ""}" style="width:110px">
+        ${[200, 300, 400].map(g => `<button class="btn sm" type="button" data-deat="${g}">${g} г</button>`).join("")}</div>
+      <div class="big num" id="dEatK">= ${Math.round(per.k * m)} ккал</div>
+      <div class="num" id="dEatM">Б ${fmt1(per.p * m)} · Ж ${fmt1(per.f * m)} · У ${fmt1(per.c * m)}</div>
+      <div class="row"><button class="btn primary" type="button" id="dAdd">Добавить в питание</button><button class="btn" type="button" id="dSave">Сохранить блюдо</button>
+        ${DISH.editId ? `<button class="btn ghost" type="button" id="dDelete">Удалить из сохранённых</button>` : ""}<button class="btn ghost" type="button" id="dNew">Новое блюдо</button></div>
+      <span class="mhint">Сохранённое блюдо появится в подсказках, когда будешь вписывать еду. В следующий раз просто напиши его название.</span>`
+      : `<span class="mhint">Добавь продукты, и здесь появятся калории и БЖУ на 100 г и на твою порцию.</span>`;
+  }
+  function saveDish(silent){
+    const name = DISH.name.trim() || "Домашнее блюдо";
+    const { per, W } = dishTotals();
+    const rec = { id: DISH.editId || uid(), name: name.slice(0, 50), k: per.k, p: per.p, f: per.f, c: per.c, weight: W, portion: parseFloat(DISH.eat) || 300,
+      ing: DISH.ing.map(i => ({ name: i.name, k: i.k, p: i.p, f: i.f, c: i.c, g: i.g })), w: DISH.weight };
+    const rs = clone(S.recipes); rs.list = (rs.list || []).filter(r => r.id !== rec.id); rs.list.push(rec);
+    S.recipes = rs; persist("recipes", rs, 0); DISH.editId = rec.id;
+    if (!silent) toast("Блюдо «" + rec.name + "» сохранено");
+    return rec;
+  }
+  function openDish(){ $("dish").hidden = false; document.body.style.overflow = "hidden"; renderDish(); }
+  function closeDish(){ $("dish").hidden = true; document.body.style.overflow = ""; $("dSugg").hidden = true; }
+  $("dishOpen").onclick = openDish;
+  $("dishClose").onclick = closeDish;
+  $("dName").addEventListener("input", e => { DISH.name = e.target.value; });
+  $("dWeight").addEventListener("input", e => { DISH.weight = e.target.value; renderDishResult(); });
+  function showDSugg(q){
+    const box = $("dSugg");
+    if (!q || q.length < 2){ box.hidden = true; return; }
+    dSuggItems = searchLocal(q).filter(f => f.src !== "mine");
+    box.innerHTML = (dSuggItems.length ? dSuggItems.map(suggRow).join("") : `<div class="sg-note">В справочнике такого нет.</div>`) + `<button type="button" class="sg web" data-dweb="1">🔎 Найти «${esc(q)}» в интернете</button>`;
+    box.hidden = false;
+  }
+  $("dIn").addEventListener("input", e => showDSugg(e.target.value.trim()));
+  $("dIn").addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== $("dIn")) $("dSugg").hidden = true; }, 150));
+  $("dSugg").addEventListener("mousedown", e => e.preventDefault());
+  $("dSugg").addEventListener("click", async e => {
+    if (e.target.closest("[data-dweb]")){
+      const q = $("dIn").value.trim(); const box = $("dSugg");
+      box.innerHTML = `<div class="sg-note">Ищу «${esc(q)}»…</div>`;
+      try { dSuggItems = await webFoods(q); box.innerHTML = dSuggItems.length ? dSuggItems.map(suggRow).join("") : `<div class="sg-note">Ничего не нашлось.</div>`; }
+      catch (er) { box.innerHTML = `<div class="sg-note">Не удалось связаться с базой продуктов.</div>`; }
+      return;
+    }
+    const sg = e.target.closest("[data-sg]"); if (!sg) return;
+    const f = dSuggItems[+sg.dataset.sg];
+    DISH.ing.push({ name: f.name, k: f.k, p: f.p, f: f.f, c: f.c, g: f.g || 100 });
+    $("dIn").value = ""; $("dSugg").hidden = true; renderDish();
+    const inputs = $("dList").querySelectorAll("[data-dg]"); const last = inputs[inputs.length - 1]; if (last){ last.focus(); last.select(); }
+  });
+  $("dList").addEventListener("input", e => {
+    const n = e.target.dataset.dg; if (n === undefined) return;
+    const g = parseFloat(e.target.value); if (g > 0){ DISH.ing[+n].g = g;
+      e.target.nextElementSibling.textContent = "г · " + Math.round(DISH.ing[+n].k * g / 100) + " ккал"; renderDishResult(); }
+  });
+  $("dList").addEventListener("click", e => { const b = e.target.closest("[data-ddel]"); if (b){ DISH.ing.splice(+b.dataset.ddel, 1); renderDish(); } });
+  $("dishBody").addEventListener("input", e => { if (e.target.id === "dEat"){ DISH.eat = e.target.value; renderDishEat(); } });
+  $("dishBody").addEventListener("click", e => {
+    const t = e.target.closest("button"); if (!t) return;
+    if (t.dataset.deat){ DISH.eat = +t.dataset.deat; $("dEat").value = DISH.eat; renderDishEat(); return; }
+    if (t.dataset.dload){
+      const r = (S.recipes.list || []).find(x => x.id === t.dataset.dload); if (!r) return;
+      DISH = { name: r.name, ing: clone(r.ing || []), weight: r.w || "", eat: r.portion || 300, editId: r.id };
+      $("dName").value = DISH.name; $("dWeight").value = DISH.weight; renderDish(); return;
+    }
+    if (t.id === "dSave"){ saveDish(false); renderDish(); }
+    else if (t.id === "dAdd"){
+      const eat = parseFloat(DISH.eat); if (!(eat > 0)){ toast("Впиши, сколько граммов ты съел"); return; }
+      const rec = saveDish(true); const m = eat / 100;
+      const d = clone(day(cur));
+      d.meals.push({ id: uid(), name: (rec.name + ", " + Math.round(eat) + " г").slice(0, 80), kcal: Math.max(1, Math.round(rec.k * m)),
+        p: Math.round(rec.p * m * 10) / 10, f: Math.round(rec.f * m * 10) / 10, c: Math.round(rec.c * m * 10) / 10, time: nowHM() });
+      commitDay(cur, d, 0); closeDish(); toast("Добавлено: " + rec.name + ", " + Math.round(rec.k * m) + " ккал");
+    }
+    else if (t.id === "dNew"){ DISH = { name: "", ing: [], weight: "", eat: 300, editId: null }; $("dName").value = ""; $("dWeight").value = ""; renderDish(); }
+    else if (t.id === "dDelete"){
+      if (t.dataset.confirm !== "1"){ t.dataset.confirm = "1"; t.textContent = "Точно удалить?"; return; }
+      const rs = clone(S.recipes); rs.list = rs.list.filter(r => r.id !== DISH.editId); S.recipes = rs; persist("recipes", rs, 0);
+      DISH = { name: "", ing: [], weight: "", eat: 300, editId: null }; $("dName").value = ""; $("dWeight").value = ""; renderDish(); toast("Блюдо удалено");
+    }
   });
 
   $("mealForm").addEventListener("submit", e => {

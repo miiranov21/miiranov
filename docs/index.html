@@ -309,6 +309,61 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
   .dictadd .btn{grid-column:1/-1}
 }
 
+/* Course */
+.today-lesson{border:1px solid var(--lang);background:var(--lang-soft);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.today-lesson .tl-day{font-size:12px;font-weight:700;color:var(--lang);text-transform:uppercase;letter-spacing:.06em}
+.today-lesson .tl-what{font-family:var(--f-display);font-size:17px;font-weight:700;overflow-wrap:anywhere}
+.today-lesson .tl-sub{font-size:13px;color:var(--ink-2)}
+.today-lesson .btn.primary{background:var(--lang);border-color:var(--lang);align-self:flex-start;padding:10px 18px}
+.plan{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px}
+.plan .pd{display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.plan .pd.now{border-color:var(--lang)}
+.plan .pd label{font-size:12px;font-weight:700;color:var(--ink-2)}
+.units{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.unit{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.unit.cur{border-color:var(--lang)}
+.unit .uh{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.unit .ut{font-weight:700;overflow-wrap:anywhere}
+.unit .un{font-size:12px;color:var(--ink-3);white-space:nowrap}
+.parts{display:flex;flex-wrap:wrap;gap:6px}
+.parts button{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:4px 10px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.parts button.done{background:var(--habit-soft);border-color:transparent;color:var(--habit)}
+.lesson{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+.ls-top{display:flex;align-items:center;gap:12px;padding:12px 16px}
+.ls-close{border:0;background:transparent;font-size:28px;line-height:1;color:var(--ink-2);width:40px;height:40px;border-radius:10px;flex:none}
+.ls-prog{flex:1;height:10px}
+.ls-prog i{background:var(--lang)}
+.ls-count{font-size:12px;color:var(--ink-3);flex:none}
+.ls-body{flex:1;overflow-y:auto;padding:12px 16px 16px;display:flex;flex-direction:column;gap:16px;max-width:640px;width:100%;margin:0 auto}
+.ls-foot{padding:12px 16px 16px;border-top:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:10px}
+.ls-foot .btn{width:100%;max-width:640px;margin:0 auto;padding:13px;font-size:15px}
+.ls-foot .btn.primary{background:var(--lang);border-color:var(--lang)}
+.ls-foot .btn:disabled{opacity:.45}
+.ls-foot.ok{background:var(--habit-soft)}
+.ls-foot.bad{background:var(--kcal-soft)}
+.ls-fb{max-width:640px;width:100%;margin:0 auto;font-weight:700}
+.ls-fb small{display:block;font-weight:500;color:var(--ink-2);margin-top:2px}
+.ls-kind{font-size:12px;font-weight:700;color:var(--lang);text-transform:uppercase;letter-spacing:.06em}
+.ls-q{font-family:var(--f-display);font-size:clamp(20px,5.5vw,26px);line-height:1.3;overflow-wrap:anywhere;margin:0}
+.ls-sub{color:var(--ink-2);font-size:16px}
+.say{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;align-self:flex-start}
+.say.big{font-size:40px;padding:18px 28px;align-self:center;border-radius:24px}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{border:2px solid var(--line);background:var(--surface);border-radius:14px;padding:13px 14px;text-align:left;font-size:16px;font-weight:600}
+.opt.sel{border-color:var(--lang);background:var(--lang-soft)}
+.opt.right{border-color:var(--habit);background:var(--habit-soft)}
+.opt.wrong{border-color:var(--warn)}
+.answer{min-height:56px;border-bottom:2px solid var(--line);display:flex;flex-wrap:wrap;gap:6px;padding-bottom:8px;align-content:flex-start}
+.pool{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.tile{border:2px solid var(--line);border-bottom-width:4px;background:var(--surface);border-radius:12px;padding:8px 12px;font-size:16px;font-weight:600}
+.tile.used{visibility:hidden}
+.rule{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.55}
+.rule .ex{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:8px}
+.rule .ex span{color:var(--ink-2)}
+.ls-done{align-items:center;text-align:center;justify-content:center}
+.ls-done .big{font-size:56px}
+.ls-stats{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+
 /* Week charts */
 .charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .chart h3{font-family:var(--f-body);font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:6px;display:flex;justify-content:space-between}
@@ -456,12 +511,21 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <span class="meta num" id="langMeta"></span>
       </div>
       <form class="langsetup" id="langSetup" autocomplete="off" hidden>
-        <div class="field"><label for="langName">Какой язык учишь</label><input type="text" id="langName" maxlength="30" list="langList" placeholder="Английский" required></div>
+        <div class="field"><label for="langName">Какой язык учишь</label><input type="text" id="langName" maxlength="30" list="langList" value="Английский" placeholder="Английский" required></div>
         <div class="field"><label for="langGoal">Минут в день</label><input type="number" id="langGoal" min="5" max="300" value="20" inputmode="numeric" required></div>
         <button class="btn lang" type="submit" id="langSetupBtn">Начать</button>
         <datalist id="langList"><option value="Английский"><option value="Испанский"><option value="Немецкий"><option value="Французский"><option value="Итальянский"><option value="Китайский"><option value="Корейский"><option value="Японский"><option value="Турецкий"><option value="Арабский"></datalist>
       </form>
       <div class="langbox" id="langBox" hidden>
+        <div class="today-lesson" id="todayLesson"></div>
+        <details id="planBox">
+          <summary>🗓 План на неделю: что учить в какой день</summary>
+          <div class="plan" id="plan"></div>
+        </details>
+        <details id="unitsBox">
+          <summary id="unitsSum">📘 Все темы курса</summary>
+          <div class="units" id="units"></div>
+        </details>
         <div class="pbar" aria-hidden="true"><i id="langBar" style="background:var(--lang)"></i></div>
         <div class="row" id="langChips"></div>
         <form class="manual" id="langMinForm" autocomplete="off">
@@ -616,9 +680,20 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   </div>
 </nav>
 
+<div class="lesson" id="lesson" hidden role="dialog" aria-modal="true" aria-labelledby="lsTitle">
+  <div class="ls-top">
+    <button class="ls-close" type="button" id="lsClose" aria-label="Закончить урок">×</button>
+    <div class="pbar ls-prog" aria-hidden="true"><i id="lsProg"></i></div>
+    <span class="num ls-count" id="lsCount"></span>
+  </div>
+  <div class="ls-body" id="lsBody"></div>
+  <div class="ls-foot" id="lsFoot"></div>
+</div>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="config.js"></script>
+<script src="course-en.js"></script>
 <script>
 (() => {
   "use strict";
@@ -641,7 +716,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   const WDF = ["воскресенье","понедельник","вторник","среда","четверг","пятница","суббота"];
 
   // ---------- state ----------
-  const S = { settings: clone(DEFAULT_SETTINGS), books: { list: [], current: null }, dict: { words: [] }, days: {} };
+  const S = { settings: clone(DEFAULT_SETTINGS), books: { list: [], current: null }, dict: { words: [] }, course: { done: {}, xp: 0, plan: null }, days: {} };
   let cur = todayKey();
   const dirty = new Set();       // doc ids with unsaved local edits
   const timers = {};             // debounce timers per doc
@@ -715,6 +790,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       if (id === "settings"){ S.settings = Object.assign(clone(DEFAULT_SETTINGS), clone(data)); if (!Array.isArray(S.settings.bad)) S.settings.bad = []; }
       else if (id === "books") S.books = Object.assign({ list: [], current: null }, clone(data));
       else if (id === "dict") S.dict = Object.assign({ words: [] }, clone(data));
+      else if (id === "course") S.course = Object.assign({ done: {}, xp: 0, plan: null }, clone(data));
       else if (id.startsWith("d-")) S.days[id.slice(2)] = Object.assign({ meals: [], water: 0, pages: 0, habits: {}, note: "" }, clone(data));
     }
   }
@@ -763,7 +839,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const units = [...cloudDirty]; cloudDirty.clear();
     units.forEach(u => {
       const body = u === "meta"
-        ? { settings: S.settings, books: S.books, dict: S.dict }
+        ? { settings: S.settings, books: S.books, dict: S.dict, course: S.course }
         : { days: Object.fromEntries(Object.entries(S.days).filter(([k]) => k.startsWith(u))) };
       cloudBusy = cloudBusy.then(() => fsSet("pairs/" + pair.code + "/data/" + pair.pid + "_" + u, body)).catch(() => { cloudDirty.add(u); setSync("offline"); });
     });
@@ -781,6 +857,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         if (d.obj.settings && newer(d.obj.settings, S.settings) && !dirty.has("settings")){ S.settings = Object.assign(clone(DEFAULT_SETTINGS), d.obj.settings); localStore.save("settings", S.settings); changed = true; }
         if (d.obj.books && newer(d.obj.books, S.books) && !dirty.has("books")){ S.books = Object.assign({ list: [], current: null }, d.obj.books); localStore.save("books", S.books); changed = true; }
         if (d.obj.dict && newer(d.obj.dict, S.dict) && !dirty.has("dict")){ S.dict = Object.assign({ words: [] }, d.obj.dict); localStore.save("dict", S.dict); changed = true; }
+        if (d.obj.course && newer(d.obj.course, S.course) && !dirty.has("course")){ S.course = Object.assign({ done: {}, xp: 0, plan: null }, d.obj.course); localStore.save("course", S.course); changed = true; }
       } else {
         for (const [k, body] of Object.entries(d.obj.days || {})){
           if (!S.days[k] || (newer(body, S.days[k]) && !dirty.has(docId(k)))){ S.days[k] = Object.assign({ meals: [], water: 0, pages: 0, habits: {}, note: "" }, body); localStore.save(docId(k), S.days[k]); changed = true; }
@@ -789,7 +866,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
     // local records the cloud has not seen yet go up
     const seen = new Set(mine.map(d => d.id.slice(pair.pid.length + 1)));
-    if (!seen.has("meta") && (S.settings._u || S.books._u || S.dict._u)) cloudDirty.add("meta");
+    if (!seen.has("meta") && (S.settings._u || S.books._u || S.dict._u || S.course._u)) cloudDirty.add("meta");
     Object.keys(S.days).forEach(k => { if (!seen.has(k.slice(0, 7))) cloudDirty.add(k.slice(0, 7)); });
     if (cloudDirty.size){ clearTimeout(cloudT); cloudT = setTimeout(pushCloud, 500); }
     if (changed) render();
@@ -844,6 +921,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const g = goals();
       days[k] = { s: Math.round(t.score * 100), w: d.water, wg: g.water, p: d.pages, pg: g.pages, h: t.habitsDone, ht: t.habitsTotal,
         hd: S.settings.habits.filter(h => d.habits[h.id]).map(h => h.name), kc: t.kcal, kg: g.kcal, k: t.kcalOk ? 1 : 0,
+        ll: (d.lang && d.lang.lessons) || [],
         lm: (d.lang && d.lang.min) || 0, lg: S.settings.lang ? S.settings.lang.goal : 0, lw: (d.lang && d.lang.words) || 0, la: (d.lang && d.lang.acts) || [] };
     }
     const cb = S.books.list.find(b => b.id === S.books.current);
@@ -855,6 +933,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       book: cb ? { t: cb.title, r: cb.read, n: cb.total } : null,
       lang: S.settings.lang ? S.settings.lang.name : "",
       dictN: (S.dict.words || []).length,
+      units: courseUnitsDone(),
       quit: (S.settings.bad || []).map(b => { const st = badStats(b); return { n: b.name, d: st.current, b: st.best }; })
     };
   }
@@ -921,7 +1000,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     html += block("📖 Чтение", "var(--read)", pl => `${who(pl)}<span class="cv num">${pl.d.p || 0}${pl.d.pg ? " / " + pl.d.pg : ""} стр.</span>${bar(pl.d.p || 0, pl.d.pg, "var(--read)")}`);
     html += block("💧 Вода", "var(--water)", pl => `${who(pl)}<span class="cv num">${L(pl.d.w)}${pl.d.wg ? " / " + L(pl.d.wg) : ""} л</span>${bar(pl.d.w || 0, pl.d.wg, "var(--water)")}`);
     if (players.some(pl => pl.lang)) html += block("🌍 Язык", "var(--lang)", pl => pl.lang
-      ? `${who(pl)}<span class="cv num">${pl.d.lm || 0}${pl.d.lg ? " / " + pl.d.lg : ""} мин</span>${bar(pl.d.lm || 0, pl.d.lg, "var(--lang)")}<div class="cdone">${esc(pl.lang)}${pl.d.lw ? " · +" + pl.d.lw + " " + plural(pl.d.lw, "слово", "слова", "слов") : ""}${pl.dictN ? " · в словаре " + pl.dictN : ""}${(pl.d.la || []).length ? " · " + pl.d.la.map(esc).join(", ") : ""}</div>`
+      ? `${who(pl)}<span class="cv num">${pl.d.lm || 0}${pl.d.lg ? " / " + pl.d.lg : ""} мин</span>${bar(pl.d.lm || 0, pl.d.lg, "var(--lang)")}<div class="cdone">${esc(pl.lang)}${pl.d.lw ? " · +" + pl.d.lw + " " + plural(pl.d.lw, "слово", "слова", "слов") : ""}${pl.dictN ? " · в словаре " + pl.dictN : ""}${(pl.d.ll || []).length ? " · уроки: " + pl.d.ll.map(esc).join(", ") : ""}${pl.units ? " · пройдено тем: " + pl.units : ""}${(pl.d.la || []).length ? " · " + pl.d.la.map(esc).join(", ") : ""}</div>`
       : `${who(pl)}<span class="cv">пока не учит</span>`);
     html += block("✅ Привычки", "var(--habit)", pl => `${who(pl)}<span class="cv num">${pl.d.h || 0} из ${pl.d.ht || 0}</span>${bar(pl.d.h || 0, pl.d.ht, "var(--habit)")}${(pl.d.hd || []).length ? `<div class="cdone">${pl.d.hd.map(n => esc(n)).join(" · ")}</div>` : ""}`);
     html += block("🍎 Калории", "var(--kcal)", pl => `${who(pl)}<span class="cv num">${fmt(pl.d.kc || 0)}${pl.d.kg ? " / " + fmt(pl.d.kg) : ""} ккал</span>${bar(pl.d.kc || 0, pl.d.kg, "var(--kcal)")}`);
@@ -1170,6 +1249,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("quizStart").hidden = !words.length;
     $("dictList").innerHTML = words.length ? words.slice().reverse().map(w => `<div class="item"><span class="name">${esc(w.w)}</span><span class="tr">${esc(w.t)}</span>${w.k ? '<span class="known">✓ знаю</span>' : ""}<button class="x" type="button" data-wdel="${w.id}" aria-label="Удалить слово ${esc(w.w)}">×</button></div>`).join("") : `<div class="empty">Добавляй новые слова с переводом. Потом их можно повторять карточками.</div>`;
     renderQuiz();
+    renderCourse();
   }
   function renderQuiz(){
     const q = $("quiz");
@@ -1197,6 +1277,240 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   function updateLang(fn, delay = 0){
     const d = clone(day(cur)); d.lang = Object.assign({ min: 0, words: 0, acts: [], note: "" }, d.lang || {});
     fn(d.lang); commitDay(cur, d, delay);
+  }
+
+  // ---------- course ----------
+  const COURSE = window.MD_COURSE || { units: [] };
+  const KINDS = {
+    words:   { label: "Слова",       icon: "🔤", act: "Слова" },
+    grammar: { label: "Грамматика",  icon: "📐", act: "Грамматика" },
+    phrases: { label: "Фразы",       icon: "💬", act: "Разговор" },
+    listen:  { label: "Аудирование", icon: "🎧", act: "Аудирование" },
+    review:  { label: "Повторение",  icon: "🔁", act: "Слова" },
+    rest:    { label: "Выходной",    icon: "😴" }
+  };
+  const PARTS = ["words", "grammar", "phrases", "listen"];
+  const DEFAULT_PLAN = { 1: "words", 2: "grammar", 3: "phrases", 4: "words", 5: "listen", 6: "review", 0: "rest" };
+  const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+  const cap = t => t[0].toUpperCase() + t.slice(1);
+  function plan(){ return Object.assign({}, DEFAULT_PLAN, S.course.plan || {}); }
+  function partDone(u, k){ return !!(S.course.done && S.course.done[u.id] && S.course.done[u.id][k]); }
+  function unitDone(u){ return ["words", "grammar", "phrases"].every(k => partDone(u, k)); }
+  function courseUnitsDone(){ return COURSE.units.filter(unitDone).length; }
+  function reviewUnits(){ return COURSE.units.filter(u => partDone(u, "words") || partDone(u, "phrases")); }
+  function unitFor(kind){ return COURSE.units.find(u => !partDone(u, kind)) || COURSE.units[COURSE.units.length - 1]; }
+
+  function renderCourse(){
+    if (!COURSE.units.length){ $("todayLesson").innerHTML = ""; return; }
+    const wd = parseKey(cur).getDay(), kind = plan()[wd];
+    const K = KINDS[kind], isToday = cur === todayKey();
+    const dayName = (isToday ? "Сегодня, " : "") + (isToday ? WDF[wd] : cap(WDF[wd]));
+    let what = "", sub = "", btn = "";
+    if (kind === "rest"){
+      what = "😴 Выходной"; sub = "По плану отдых. Если хочется, выбери любой урок в «Все темы курса».";
+    } else if (kind === "review"){
+      const can = reviewUnits().length || (S.dict.words || []).length;
+      what = "🔁 Повторение";
+      sub = can ? "Слова и фразы из пройденных тем и твоего словаря." : "Пока нечего повторять. Пройди урок слов или фраз, и они попадут в повторение.";
+      if (can) btn = `<button class="btn primary" type="button" data-lesson="review">Начать урок</button>`;
+    } else {
+      const u = unitFor(kind), n = COURSE.units.indexOf(u) + 1;
+      what = `${K.icon} ${K.label}`;
+      sub = `Тема ${n} из ${COURSE.units.length}: ${u.icon} ${esc(u.title)}${partDone(u, kind) ? " · уже пройдено, можно повторить" : ""}`;
+      btn = `<button class="btn primary" type="button" data-lesson="${kind}" data-unit="${u.id}">Начать урок</button>`;
+    }
+    const ld = (S.days[cur] || {}).lang;
+    const doneDay = (ld && ld.lessons) || [];
+    $("todayLesson").innerHTML = `<span class="tl-day">${dayName} · курс «${esc(COURSE.name)}»</span><div class="tl-what">${what}</div><div class="tl-sub">${sub}</div>${btn}` +
+      (doneDay.length ? `<div class="tl-sub">✓ Пройдено ${isToday ? "сегодня" : "в этот день"}: ${doneDay.map(esc).join(", ")}</div>` : "");
+    const P = plan();
+    $("plan").innerHTML = WEEK_ORDER.map(d => `<div class="pd ${d === wd ? "now" : ""}"><label for="plan${d}">${cap(WDF[d])}</label>
+      <select id="plan${d}" data-plan="${d}">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}" ${P[d] === k ? "selected" : ""}>${v.icon} ${v.label}</option>`).join("")}</select></div>`).join("");
+    const curU = COURSE.units.find(u => !unitDone(u));
+    $("unitsSum").textContent = `📘 Все темы курса · пройдено ${courseUnitsDone()} из ${COURSE.units.length}`;
+    $("units").innerHTML = COURSE.units.map((u, i) => `<div class="unit ${u === curU ? "cur" : ""}">
+      <div class="uh"><span class="ut">${u.icon} ${i + 1}. ${esc(u.title)}</span><span class="un">${unitDone(u) ? "✓ пройдена" : u === curU ? "сейчас" : ""}</span></div>
+      <div class="parts">${PARTS.map(k => `<button type="button" class="${partDone(u, k) ? "done" : ""}" data-lesson="${k}" data-unit="${u.id}">${partDone(u, k) ? "✓ " : ""}${KINDS[k].label}</button>`).join("")}</div></div>`).join("");
+  }
+
+  // ---- speech ----
+  const canSpeak = "speechSynthesis" in window && typeof SpeechSynthesisUtterance === "function";
+  function speak(text){
+    if (!canSpeak || !text) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text); u.lang = COURSE.voice || "en-US"; u.rate = 0.9;
+      const pref = (COURSE.voice || "en-US").slice(0, 2);
+      const v = speechSynthesis.getVoices().find(v => v.lang && v.lang.toLowerCase().startsWith(pref));
+      if (v) u.voice = v;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+
+  // ---- lesson building ----
+  const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const norm = t => String(t).toLowerCase().replace(/[’‘`]/g, "'").replace(/[.,!?;:«»"—]/g, "").replace(/\s+/g, " ").trim();
+  const allWords = () => COURSE.units.flatMap(u => u.words);
+  const allPhrases = () => COURSE.units.flatMap(u => u.phrases);
+  function optionsFor(correct, pool, n = 4){
+    const seen = new Set([norm(correct)]), others = [];
+    for (const x of shuffle(pool)){ const k = norm(x); if (!seen.has(k)){ seen.add(k); others.push(x); } if (others.length >= n - 1) break; }
+    return shuffle([correct, ...others]);
+  }
+  function tilesQ(en, ru, unit){
+    const tokens = en.replace(/[.,!?]/g, "").split(/\s+/).filter(Boolean);
+    const low = tokens.map(norm);
+    const extra = shuffle(((unit && unit.words) || allWords()).map(w => w[0]).filter(w => !w.includes(" ") && !low.includes(norm(w)))).slice(0, 2);
+    return { type: "tiles", ru, en, tokens, pool: shuffle(tokens.concat(extra)) };
+  }
+  function buildLesson(kind, unit){
+    const Q = [];
+    if (kind === "words"){
+      unit.words.forEach(([en, ru]) => Q.push({ type: "intro", en, ru }));
+      const ws = shuffle(unit.words);
+      ws.slice(0, 5).forEach(([en, ru]) => Q.push({ type: "mc", kind: "Выбери перевод", prompt: en, speak: en, options: optionsFor(ru, unit.words.map(w => w[1]).concat(allWords().map(w => w[1]))), answer: ru }));
+      ws.slice(5, 8).forEach(([en, ru]) => Q.push({ type: "mc", kind: "Как это по-английски?", prompt: ru, options: optionsFor(en, unit.words.map(w => w[0])), answer: en }));
+      ws.slice(8, 10).forEach(([en, ru]) => Q.push({ type: "type", ru, answer: en }));
+      if (canSpeak) shuffle(unit.words).slice(0, 2).forEach(([en, ru]) => Q.push({ type: "listen", say: en, options: optionsFor(ru, unit.words.map(w => w[1])), answer: ru }));
+    } else if (kind === "grammar"){
+      Q.push({ type: "rule", g: unit.grammar });
+      unit.grammar.examples.forEach(([en, ru]) => Q.push(tilesQ(en, ru, unit)));
+      unit.quiz.forEach(q => Q.push({ type: "mc", kind: "Выбери правильный вариант", prompt: q.q, options: q.a.slice(), answer: q.a[q.c] }));
+    } else if (kind === "phrases"){
+      unit.phrases.forEach(([en, ru]) => Q.push({ type: "intro", en, ru, phrase: true }));
+      shuffle(unit.phrases).forEach(([en, ru]) => Q.push(tilesQ(en, ru, unit)));
+      shuffle(unit.phrases).slice(0, 2).forEach(([en, ru]) => Q.push({ type: "mc", kind: "Что это значит?", prompt: en, speak: en, options: optionsFor(ru, allPhrases().map(p => p[1])), answer: ru }));
+    } else if (kind === "listen"){
+      shuffle(unit.words).slice(0, 6).forEach(([en, ru]) => Q.push(canSpeak
+        ? { type: "listen", say: en, options: optionsFor(ru, unit.words.map(w => w[1])), answer: ru }
+        : { type: "mc", kind: "Выбери перевод", prompt: en, options: optionsFor(ru, unit.words.map(w => w[1])), answer: ru }));
+      shuffle(unit.phrases).forEach(([en, ru]) => Q.push(canSpeak
+        ? { type: "listen", say: en, options: optionsFor(ru, allPhrases().map(p => p[1])), answer: ru }
+        : { type: "mc", kind: "Что это значит?", prompt: en, options: optionsFor(ru, allPhrases().map(p => p[1])), answer: ru }));
+    } else if (kind === "review"){
+      const units = reviewUnits();
+      const pool = units.flatMap(u => partDone(u, "words") ? u.words : []).concat((S.dict.words || []).map(w => [w.w, w.t]));
+      const ph = units.flatMap(u => partDone(u, "phrases") ? u.phrases.map(p => ({ p, u })) : []);
+      shuffle(pool).slice(0, 8).forEach(([en, ru], i) => {
+        if (i % 3 === 2) Q.push({ type: "type", ru, answer: en });
+        else if (i % 2) Q.push({ type: "mc", kind: "Как это по-английски?", prompt: ru, options: optionsFor(en, pool.map(w => w[0]).concat(allWords().map(w => w[0]))), answer: en });
+        else Q.push({ type: "mc", kind: "Выбери перевод", prompt: en, speak: en, options: optionsFor(ru, pool.map(w => w[1]).concat(allWords().map(w => w[1]))), answer: ru });
+      });
+      shuffle(ph).slice(0, 3).forEach(({ p, u }) => Q.push(tilesQ(p[0], p[1], u)));
+    }
+    return Q;
+  }
+
+  // ---- lesson runner ----
+  let L = null;
+  function startLesson(kind, unitId){
+    const unit = kind === "review" ? null : COURSE.units.find(u => u.id === unitId);
+    if (kind !== "review" && !unit) return;
+    const q = buildLesson(kind, unit);
+    if (!q.length){ toast("Пока нечего повторять"); return; }
+    L = { kind, unit, q, i: 0, right: 0, asked: 0, start: Date.now(), retried: new Set(), state: "ask", pick: null, built: [] };
+    $("lesson").hidden = false; document.body.style.overflow = "hidden";
+    showQ();
+  }
+  function closeLesson(){
+    $("lesson").hidden = true; document.body.style.overflow = ""; L = null;
+    if (canSpeak) try { speechSynthesis.cancel(); } catch (e) {}
+  }
+  function showQ(){
+    const body = $("lsBody"), foot = $("lsFoot");
+    foot.className = "ls-foot";
+    $("lsProg").style.width = Math.min(100, L.i / L.q.length * 100) + "%";
+    if (L.i >= L.q.length) return finishLesson();
+    $("lsCount").textContent = (L.i + 1) + " / " + L.q.length;
+    const q = L.q[L.i]; L.state = "ask"; L.pick = null; L.built = [];
+    body.scrollTop = 0;
+    const sayBtn = t => canSpeak ? `<button class="say" type="button" data-say="${esc(t)}">🔊 Послушать</button>` : "";
+    if (q.type === "intro"){
+      body.innerHTML = `<span class="ls-kind">${q.phrase ? "Новая фраза" : "Новое слово"}</span><h2 class="ls-q" id="lsTitle">${esc(q.en)}</h2>${sayBtn(q.en)}<div class="ls-sub">${esc(q.ru)}</div>`;
+      foot.innerHTML = `<button class="btn primary" type="button" data-ls="next">Дальше</button>`;
+      speak(q.en);
+    } else if (q.type === "rule"){
+      body.innerHTML = `<span class="ls-kind">Правило</span><h2 class="ls-q" id="lsTitle">${esc(q.g.title)}</h2><div class="rule"><div>${esc(q.g.text)}</div>${q.g.examples.map(([en, ru]) => `<div class="ex"><b>${esc(en)}</b><span>${esc(ru)}</span></div>`).join("")}</div>`;
+      foot.innerHTML = `<button class="btn primary" type="button" data-ls="next">Понятно</button>`;
+    } else if (q.type === "mc" || q.type === "listen"){
+      const head = q.type === "listen"
+        ? `<span class="ls-kind" id="lsTitle">Послушай и выбери перевод</span><button class="say big" type="button" data-say="${esc(q.say)}" aria-label="Послушать ещё раз">🔊</button>`
+        : `<span class="ls-kind">${esc(q.kind)}</span><h2 class="ls-q" id="lsTitle">${esc(q.prompt)}</h2>${q.speak ? sayBtn(q.speak) : ""}`;
+      body.innerHTML = head + `<div class="opts">${q.options.map((o, i) => `<button class="opt" type="button" data-opt="${i}">${esc(o)}</button>`).join("")}</div>`;
+      foot.innerHTML = `<button class="btn primary" type="button" data-ls="check" disabled>Проверить</button>`;
+      if (q.type === "listen") speak(q.say);
+    } else if (q.type === "type"){
+      body.innerHTML = `<span class="ls-kind">Напиши по-английски</span><h2 class="ls-q" id="lsTitle">${esc(q.ru)}</h2><input type="text" id="lsInput" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="ответ по-английски" style="font-size:18px;padding:12px">`;
+      foot.innerHTML = `<button class="btn primary" type="button" data-ls="check">Проверить</button>`;
+      setTimeout(() => { const i = $("lsInput"); if (i) i.focus(); }, 50);
+    } else if (q.type === "tiles"){
+      body.innerHTML = `<span class="ls-kind">Собери фразу по-английски</span><h2 class="ls-q" id="lsTitle">${esc(q.ru)}</h2><div class="answer" id="lsAnswer"></div><div class="pool" id="lsPool">${q.pool.map((t, i) => `<button class="tile" type="button" data-tile="${i}">${esc(t)}</button>`).join("")}</div>`;
+      foot.innerHTML = `<button class="btn primary" type="button" data-ls="check" disabled>Проверить</button>`;
+    }
+  }
+  function renderTiles(){
+    const q = L.q[L.i];
+    $("lsAnswer").innerHTML = L.built.map((ti, pos) => `<button class="tile" type="button" data-unbuild="${pos}">${esc(q.pool[ti])}</button>`).join("");
+    [...$("lsPool").children].forEach((b, i) => b.classList.toggle("used", L.built.includes(i)));
+    $("lsFoot").querySelector('[data-ls="check"]').disabled = !L.built.length;
+  }
+  function check(){
+    const q = L.q[L.i]; let ok = false, correctText = "";
+    if (q.type === "mc" || q.type === "listen"){
+      if (L.pick === null) return;
+      ok = norm(q.options[L.pick]) === norm(q.answer); correctText = q.answer;
+      document.querySelectorAll("#lsBody .opt").forEach((b, i) => { if (norm(q.options[i]) === norm(q.answer)) b.classList.add("right"); else if (i === L.pick) b.classList.add("wrong"); b.disabled = true; });
+    } else if (q.type === "type"){
+      const v = norm($("lsInput").value);
+      if (!v) return;
+      const a = norm(q.answer);
+      ok = v === a || v === a.replace(/^to /, "") || "to " + v === a;
+      correctText = q.answer; $("lsInput").disabled = true;
+    } else if (q.type === "tiles"){
+      ok = norm(L.built.map(i => q.pool[i]).join(" ")) === norm(q.tokens.join(" "));
+      correctText = q.en;
+    }
+    L.asked++; if (ok) L.right++;
+    if (!ok && !L.retried.has(L.i)){ L.retried.add(L.q.length); L.q.push(Object.assign({}, q, { options: q.options ? shuffle(q.options) : undefined, pool: q.pool ? shuffle(q.pool) : undefined })); }
+    L.state = "checked";
+    const foot = $("lsFoot");
+    foot.className = "ls-foot " + (ok ? "ok" : "bad");
+    foot.innerHTML = `<div class="ls-fb">${ok ? "✓ Правильно!" : "Почти. Правильный ответ:"}${ok ? "" : `<small>${esc(correctText)}</small>`}</div><button class="btn primary" type="button" data-ls="next">Дальше</button>`;
+    const sayText = q.type === "listen" ? q.say : q.type === "tiles" ? q.en : q.type === "type" ? q.answer : (q.speak || (/[a-z]/i.test(q.answer) ? q.answer : null));
+    speak(sayText);
+  }
+  function finishLesson(){
+    const minutes = Math.max(1, Math.round((Date.now() - L.start) / 60000));
+    const acc = L.asked ? Math.round(L.right / L.asked * 100) : 100;
+    const xp = 10 + L.right;
+    const K = KINDS[L.kind];
+    const label = K.label + (L.unit ? " · " + L.unit.title : "");
+    const course = clone(S.course); course.done = course.done || {};
+    if (L.unit) course.done[L.unit.id] = Object.assign({}, course.done[L.unit.id], { [L.kind]: 1 });
+    course.xp = (course.xp || 0) + xp;
+    S.course = course; persist("course", course, 0);
+    let added = 0;
+    if (L.unit && L.kind === "words"){
+      const dict = clone(S.dict); dict.words = dict.words || [];
+      L.unit.words.forEach(([w, t]) => { if (!dict.words.some(x => x.w.toLowerCase() === w.toLowerCase())){ dict.words.push({ id: uid(), w, t, k: false, d: todayKey() }); added++; } });
+      if (added){ S.dict = dict; persist("dict", dict, 0); }
+    }
+    const k = todayKey(); const d = clone(day(k));
+    d.lang = Object.assign({ min: 0, words: 0, acts: [], note: "" }, d.lang || {});
+    d.lang.min = Math.min(1440, d.lang.min + minutes);
+    d.lang.words = (d.lang.words || 0) + added;
+    d.lang.lessons = (d.lang.lessons || []).concat(K.label);
+    [K.act, "Приложение"].forEach(a => { if (a && !d.lang.acts.includes(a)) d.lang.acts.push(a); });
+    commitDay(k, d, 0);
+    if (!S.settings.lang){ const st = clone(S.settings); st.lang = { name: COURSE.name, goal: 20 }; S.settings = st; persist("settings", st, 0); }
+    $("lsProg").style.width = "100%"; $("lsCount").textContent = "";
+    $("lsBody").innerHTML = `<div class="ls-done" style="display:flex;flex-direction:column;gap:14px;flex:1">
+      <div class="big">${acc >= 80 ? "🎉" : "💪"}</div><h2 class="ls-q" id="lsTitle">Урок пройден!</h2><div class="ls-sub">${esc(label)}</div>
+      <div class="ls-stats"><span class="chip ok">Точность: <span class="num">${acc}%</span></span><span class="chip">+<span class="num">${minutes}</span> мин</span><span class="chip fire">+<span class="num">${xp}</span> XP</span>${added ? `<span class="chip">+${added} слов в словарь</span>` : ""}</div></div>`;
+    $("lsFoot").className = "ls-foot";
+    $("lsFoot").innerHTML = `<button class="btn primary" type="button" data-ls="close">Готово</button>`;
+    L.finished = true;
+    render();
   }
 
   function renderQuit(){
@@ -1543,6 +1857,45 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const dict = clone(S.dict); dict.words = dict.words.filter(w => w.id !== b.dataset.wdel); S.dict = dict; persist("dict", dict, 0); render();
   });
   $("quizStart").onclick = startQuiz;
+  $("langBox").addEventListener("click", e => {
+    const b = e.target.closest("[data-lesson]"); if (!b) return;
+    startLesson(b.dataset.lesson, b.dataset.unit);
+  });
+  $("plan").addEventListener("change", e => {
+    const d = e.target.dataset.plan; if (d === undefined) return;
+    const c = clone(S.course); c.plan = Object.assign({}, plan(), { [d]: e.target.value });
+    S.course = c; persist("course", c, 0); render(); toast("План сохранён");
+  });
+  $("lsClose").onclick = () => {
+    const b = $("lsClose");
+    if (L && !L.finished && L.i > 0 && b.dataset.confirm !== "1"){ b.dataset.confirm = "1"; toast("Нажми × ещё раз, чтобы выйти. Урок не засчитается"); setTimeout(() => { b.dataset.confirm = ""; }, 3000); return; }
+    b.dataset.confirm = ""; closeLesson();
+  };
+  $("lesson").addEventListener("click", e => {
+    if (!L) return;
+    const say = e.target.closest("[data-say]"); if (say){ speak(say.dataset.say); return; }
+    const ls = e.target.closest("[data-ls]");
+    if (ls){
+      const a = ls.dataset.ls;
+      if (a === "next"){ L.i++; showQ(); }
+      else if (a === "check") check();
+      else if (a === "close") closeLesson();
+      return;
+    }
+    if (L.state !== "ask") return;
+    const opt = e.target.closest("[data-opt]");
+    if (opt){ L.pick = +opt.dataset.opt; document.querySelectorAll("#lsBody .opt").forEach(b => b.classList.toggle("sel", b === opt)); $("lsFoot").querySelector('[data-ls="check"]').disabled = false; return; }
+    const tile = e.target.closest("[data-tile]");
+    if (tile){ const i = +tile.dataset.tile; if (!L.built.includes(i)){ L.built.push(i); renderTiles(); } return; }
+    const un = e.target.closest("[data-unbuild]");
+    if (un){ L.built.splice(+un.dataset.unbuild, 1); renderTiles(); }
+  });
+  $("lesson").addEventListener("keydown", e => {
+    if (e.target.id !== "lsInput" || e.key !== "Enter" || !L) return;
+    e.preventDefault();
+    if (L.state === "ask") check(); else { L.i++; showQ(); }
+  });
+
   $("quiz").addEventListener("click", e => {
     const b = e.target.closest("[data-quiz]"); if (!b || !quiz) return;
     const a = b.dataset.quiz;

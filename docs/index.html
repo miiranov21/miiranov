@@ -25,6 +25,7 @@
   --accent:#2F4BD8;
   --kcal:#E8742A; --water:#1D8FE1; --read:#7A4FD6; --habit:#12A37A;
   --warn:#D9472B;
+  --lang:#C2417A; --lang-soft:#F9E1EC;
   --kcal-soft:#FBE7DA; --water-soft:#DCEEFB; --read-soft:#ECE4FA; --habit-soft:#D9F3EA;
   --f-display:"Unbounded","Manrope",system-ui,sans-serif;
   --f-body:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -36,6 +37,7 @@
   --ink:#E8EDF5; --ink-2:#AEB8C8; --ink-3:#7D899C;
   --accent:#7F95FF;
   --kcal:#F39250; --water:#4DB0F5; --read:#A585F0; --habit:#3CC79A; --warn:#F2735A;
+  --lang:#EC74A6; --lang-soft:#3E1A2B;
   --kcal-soft:#3A2618; --water-soft:#132E45; --read-soft:#2B2045; --habit-soft:#123528;
   color-scheme:dark}}
 :root[data-theme="dark"]{
@@ -43,6 +45,7 @@
   --ink:#E8EDF5; --ink-2:#AEB8C8; --ink-3:#7D899C;
   --accent:#7F95FF;
   --kcal:#F39250; --water:#4DB0F5; --read:#A585F0; --habit:#3CC79A; --warn:#F2735A;
+  --lang:#EC74A6; --lang-soft:#3E1A2B;
   --kcal-soft:#3A2618; --water-soft:#132E45; --read-soft:#2B2045; --habit-soft:#123528;
   color-scheme:dark}
 
@@ -282,6 +285,30 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .manual input{flex:1 1 150px;width:auto}
 .mhint{font-size:11.5px;color:var(--ink-3)}
 
+.water-bar i{background:var(--water)}
+.btn.lang{background:var(--lang-soft);border-color:transparent;color:var(--lang)}
+.langsetup{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;gap:8px;align-items:end}
+.langbox{display:flex;flex-direction:column;gap:12px}
+.acts{display:flex;flex-wrap:wrap;gap:6px}
+.acts button{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:5px 11px;font-size:13px;font-weight:600;color:var(--ink-2)}
+.acts button[aria-pressed="true"]{background:var(--lang);border-color:var(--lang);color:#fff}
+.dict{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.dictadd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:end}
+.dlist{display:flex;flex-direction:column;max-height:260px;overflow-y:auto}
+.dlist .item .tr{color:var(--ink-3);font-size:13.5px;flex:1;min-width:0;overflow-wrap:anywhere}
+.dlist .item .name{flex:0 1 auto;font-weight:600}
+.dlist .known{font-size:11px;color:var(--habit);font-weight:700;white-space:nowrap}
+.quiz{border:1px solid var(--lang);background:var(--lang-soft);border-radius:14px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.quiz .qw{font-family:var(--f-display);font-size:22px;overflow-wrap:anywhere}
+.quiz .qt{font-size:16px;color:var(--ink-2);min-height:24px}
+.quiz .qn{font-size:12px;color:var(--ink-3)}
+@media (max-width:520px){
+  .langsetup{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .langsetup .field:first-child{grid-column:1/-1}
+  .dictadd{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .dictadd .btn{grid-column:1/-1}
+}
+
 /* Week charts */
 .charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .chart h3{font-family:var(--f-body);font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:6px;display:flex;justify-content:space-between}
@@ -390,7 +417,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <h2 id="h-water"><span class="dot" style="background:var(--water)"></span>Вода</h2>
         <span class="meta num" id="waterMeta"></span>
       </div>
-      <div class="glasses" id="glasses" aria-label="Стаканы воды"></div>
+      <div class="pbar water-bar" aria-hidden="true"><i id="waterBar"></i></div>
       <form class="manual" id="waterForm" autocomplete="off">
         <label for="waterIn">Сколько выпил</label>
         <div class="row">
@@ -423,6 +450,51 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
           <button class="btn primary" type="submit">Добавить</button>
         </form>
       </details>
+
+      <div class="panel-head" style="margin-top:6px">
+        <h2 id="h-lang"><span class="dot" style="background:var(--lang)"></span>Иностранный язык</h2>
+        <span class="meta num" id="langMeta"></span>
+      </div>
+      <form class="langsetup" id="langSetup" autocomplete="off" hidden>
+        <div class="field"><label for="langName">Какой язык учишь</label><input type="text" id="langName" maxlength="30" list="langList" placeholder="Английский" required></div>
+        <div class="field"><label for="langGoal">Минут в день</label><input type="number" id="langGoal" min="5" max="300" value="20" inputmode="numeric" required></div>
+        <button class="btn lang" type="submit" id="langSetupBtn">Начать</button>
+        <datalist id="langList"><option value="Английский"><option value="Испанский"><option value="Немецкий"><option value="Французский"><option value="Итальянский"><option value="Китайский"><option value="Корейский"><option value="Японский"><option value="Турецкий"><option value="Арабский"></datalist>
+      </form>
+      <div class="langbox" id="langBox" hidden>
+        <div class="pbar" aria-hidden="true"><i id="langBar" style="background:var(--lang)"></i></div>
+        <div class="row" id="langChips"></div>
+        <form class="manual" id="langMinForm" autocomplete="off">
+          <label for="langMin">Сколько минут занимался</label>
+          <div class="row">
+            <input type="number" id="langMin" placeholder="минут" min="1" max="600" inputmode="numeric">
+            <button class="btn lang" type="submit">Добавить</button>
+            <button class="btn ghost" type="button" id="langMinSet">Это итог за день</button>
+          </div>
+        </form>
+        <div class="field">
+          <label>Чем занимался</label>
+          <div class="acts" id="langActs"></div>
+        </div>
+        <div class="field">
+          <label for="langNote">Что выучил сегодня</label>
+          <textarea id="langNote" maxlength="500" placeholder="Например: Present Perfect, 10 слов про еду, посмотрел серию с субтитрами" style="min-height:60px"></textarea>
+        </div>
+        <details id="dictBox">
+          <summary id="dictSum">📒 Мой словарь</summary>
+          <div class="dict">
+            <form class="dictadd" id="dictForm" autocomplete="off">
+              <div class="field"><label for="dW">Слово</label><input type="text" id="dW" maxlength="60" required placeholder="apple"></div>
+              <div class="field"><label for="dT">Перевод</label><input type="text" id="dT" maxlength="80" required placeholder="яблоко"></div>
+              <button class="btn lang" type="submit">Добавить</button>
+            </form>
+            <div class="quiz" id="quiz" hidden></div>
+            <div class="row"><button class="btn sm" type="button" id="quizStart">Повторить слова</button><span class="mhint" id="dictInfo"></span></div>
+            <div class="dlist" id="dictList"></div>
+          </div>
+        </details>
+        <button class="btn sm ghost" type="button" id="langChange" style="align-self:flex-start">Сменить язык или цель</button>
+      </div>
     </section>
 
     <section class="panel span2" id="p-hab" aria-labelledby="h-hab">
@@ -569,7 +641,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   const WDF = ["воскресенье","понедельник","вторник","среда","четверг","пятница","суббота"];
 
   // ---------- state ----------
-  const S = { settings: clone(DEFAULT_SETTINGS), books: { list: [], current: null }, days: {} };
+  const S = { settings: clone(DEFAULT_SETTINGS), books: { list: [], current: null }, dict: { words: [] }, days: {} };
   let cur = todayKey();
   const dirty = new Set();       // doc ids with unsaved local edits
   const timers = {};             // debounce timers per doc
@@ -642,6 +714,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       if (dirty.has(id) || !data) continue;
       if (id === "settings"){ S.settings = Object.assign(clone(DEFAULT_SETTINGS), clone(data)); if (!Array.isArray(S.settings.bad)) S.settings.bad = []; }
       else if (id === "books") S.books = Object.assign({ list: [], current: null }, clone(data));
+      else if (id === "dict") S.dict = Object.assign({ words: [] }, clone(data));
       else if (id.startsWith("d-")) S.days[id.slice(2)] = Object.assign({ meals: [], water: 0, pages: 0, habits: {}, note: "" }, clone(data));
     }
   }
@@ -690,7 +763,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const units = [...cloudDirty]; cloudDirty.clear();
     units.forEach(u => {
       const body = u === "meta"
-        ? { settings: S.settings, books: S.books }
+        ? { settings: S.settings, books: S.books, dict: S.dict }
         : { days: Object.fromEntries(Object.entries(S.days).filter(([k]) => k.startsWith(u))) };
       cloudBusy = cloudBusy.then(() => fsSet("pairs/" + pair.code + "/data/" + pair.pid + "_" + u, body)).catch(() => { cloudDirty.add(u); setSync("offline"); });
     });
@@ -707,6 +780,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       if (u === "meta"){
         if (d.obj.settings && newer(d.obj.settings, S.settings) && !dirty.has("settings")){ S.settings = Object.assign(clone(DEFAULT_SETTINGS), d.obj.settings); localStore.save("settings", S.settings); changed = true; }
         if (d.obj.books && newer(d.obj.books, S.books) && !dirty.has("books")){ S.books = Object.assign({ list: [], current: null }, d.obj.books); localStore.save("books", S.books); changed = true; }
+        if (d.obj.dict && newer(d.obj.dict, S.dict) && !dirty.has("dict")){ S.dict = Object.assign({ words: [] }, d.obj.dict); localStore.save("dict", S.dict); changed = true; }
       } else {
         for (const [k, body] of Object.entries(d.obj.days || {})){
           if (!S.days[k] || (newer(body, S.days[k]) && !dirty.has(docId(k)))){ S.days[k] = Object.assign({ meals: [], water: 0, pages: 0, habits: {}, note: "" }, body); localStore.save(docId(k), S.days[k]); changed = true; }
@@ -715,7 +789,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
     // local records the cloud has not seen yet go up
     const seen = new Set(mine.map(d => d.id.slice(pair.pid.length + 1)));
-    if (!seen.has("meta") && (S.settings._u || S.books._u)) cloudDirty.add("meta");
+    if (!seen.has("meta") && (S.settings._u || S.books._u || S.dict._u)) cloudDirty.add("meta");
     Object.keys(S.days).forEach(k => { if (!seen.has(k.slice(0, 7))) cloudDirty.add(k.slice(0, 7)); });
     if (cloudDirty.size){ clearTimeout(cloudT); cloudT = setTimeout(pushCloud, 500); }
     if (changed) render();
@@ -769,7 +843,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const d = day(k);
       const g = goals();
       days[k] = { s: Math.round(t.score * 100), w: d.water, wg: g.water, p: d.pages, pg: g.pages, h: t.habitsDone, ht: t.habitsTotal,
-        hd: S.settings.habits.filter(h => d.habits[h.id]).map(h => h.name), kc: t.kcal, kg: g.kcal, k: t.kcalOk ? 1 : 0 };
+        hd: S.settings.habits.filter(h => d.habits[h.id]).map(h => h.name), kc: t.kcal, kg: g.kcal, k: t.kcalOk ? 1 : 0,
+        lm: (d.lang && d.lang.min) || 0, lg: S.settings.lang ? S.settings.lang.goal : 0, lw: (d.lang && d.lang.words) || 0, la: (d.lang && d.lang.acts) || [] };
     }
     const cb = S.books.list.find(b => b.id === S.books.current);
     return {
@@ -778,6 +853,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       streak: streak(),
       books: S.books.list.filter(b => b.done).length,
       book: cb ? { t: cb.title, r: cb.read, n: cb.total } : null,
+      lang: S.settings.lang ? S.settings.lang.name : "",
+      dictN: (S.dict.words || []).length,
       quit: (S.settings.bad || []).map(b => { const st = badStats(b); return { n: b.name, d: st.current, b: st.best }; })
     };
   }
@@ -843,6 +920,9 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     let html = "";
     html += block("📖 Чтение", "var(--read)", pl => `${who(pl)}<span class="cv num">${pl.d.p || 0}${pl.d.pg ? " / " + pl.d.pg : ""} стр.</span>${bar(pl.d.p || 0, pl.d.pg, "var(--read)")}`);
     html += block("💧 Вода", "var(--water)", pl => `${who(pl)}<span class="cv num">${L(pl.d.w)}${pl.d.wg ? " / " + L(pl.d.wg) : ""} л</span>${bar(pl.d.w || 0, pl.d.wg, "var(--water)")}`);
+    if (players.some(pl => pl.lang)) html += block("🌍 Язык", "var(--lang)", pl => pl.lang
+      ? `${who(pl)}<span class="cv num">${pl.d.lm || 0}${pl.d.lg ? " / " + pl.d.lg : ""} мин</span>${bar(pl.d.lm || 0, pl.d.lg, "var(--lang)")}<div class="cdone">${esc(pl.lang)}${pl.d.lw ? " · +" + pl.d.lw + " " + plural(pl.d.lw, "слово", "слова", "слов") : ""}${pl.dictN ? " · в словаре " + pl.dictN : ""}${(pl.d.la || []).length ? " · " + pl.d.la.map(esc).join(", ") : ""}</div>`
+      : `${who(pl)}<span class="cv">пока не учит</span>`);
     html += block("✅ Привычки", "var(--habit)", pl => `${who(pl)}<span class="cv num">${pl.d.h || 0} из ${pl.d.ht || 0}</span>${bar(pl.d.h || 0, pl.d.ht, "var(--habit)")}${(pl.d.hd || []).length ? `<div class="cdone">${pl.d.hd.map(n => esc(n)).join(" · ")}</div>` : ""}`);
     html += block("🍎 Калории", "var(--kcal)", pl => `${who(pl)}<span class="cv num">${fmt(pl.d.kc || 0)}${pl.d.kg ? " / " + fmt(pl.d.kg) : ""} ккал</span>${bar(pl.d.kc || 0, pl.d.kg, "var(--kcal)")}`);
     if (players.some(pl => pl.book)) html += block("📚 Читает сейчас", "var(--read)", pl => `${who(pl)}<span class="cv">${pl.book ? `«${esc(pl.book.t)}» · <span class="num">${pl.book.r} / ${pl.book.n} стр.</span>` : "—"}</span>`);
@@ -852,7 +932,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       players.map(pl => `<tr><td>${esc(pl.label)}</td>${wk.map(k => k > today ? `<td class="c fut">·</td>` : `<td class="c">${val((pl.days && pl.days[k]) || {})}</td>`).join("")}<td class="c">${total(pl)}</td></tr>`).join("") + `</tbody></table>`;
     const sum = (pl, f) => wk.reduce((a, k) => a + (((pl.days && pl.days[k]) || {})[f] || 0), 0);
     $("h2h").innerHTML = wkTable("Страницы за 7 дней", d => d.p || 0, pl => sum(pl, "p")) +
-      wkTable("Вода за 7 дней, л", d => L(d.w), pl => L(sum(pl, "w")));
+      wkTable("Вода за 7 дней, л", d => L(d.w), pl => L(sum(pl, "w"))) +
+      (players.some(pl => pl.lang) ? wkTable("Язык за 7 дней, мин", d => d.lm || 0, pl => sum(pl, "lm")) : "");
     pl_updated(players);
     j.hidden = false;
     const codeLine = `<div class="row"><span>Код пары: <b class="num">${prettyCode(pair.code)}</b></span><button class="btn sm" type="button" id="pairCopy">Скопировать</button><button class="btn sm ghost" type="button" id="pairLeave">Отключить этот телефон</button></div>`;
@@ -904,7 +985,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const parts = [kcalOk, waterOk, readOk];
     let score = parts.filter(Boolean).length + (habitsTotal ? habitsDone / habitsTotal : 0);
     const max = 3 + (habitsTotal ? 1 : 0);
-    return { P, F, C, kcal, kcalOk, waterOk, readOk, habitsDone, habitsTotal, score: score / max, hasData: d.meals.length || d.water || d.pages || habitsDone };
+    return { P, F, C, kcal, kcalOk, waterOk, readOk, habitsDone, habitsTotal, score: score / max, hasData: d.meals.length || d.water || d.pages || habitsDone || (d.lang && d.lang.min) };
   }
   function streak(){
     // consecutive days with ≥75% ending today (today counts if already ≥75%)
@@ -1004,15 +1085,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 
     // water
     $("waterMeta").textContent = fmt(d.water) + " / " + fmt(g.water) + " мл";
-    const glassesGoal = Math.ceil(g.water / g.glass);
-    const filled = d.water / g.glass;
-    const count = Math.max(glassesGoal, Math.ceil(filled));
-    let gh = "";
-    for (let i = 0; i < count; i++){
-      const f = Math.max(0, Math.min(1, filled - i));
-      gh += `<span class="glass ${i >= glassesGoal ? "extra" : ""}" aria-hidden="true"><i style="height:${f * 100}%"></i></span>`;
-    }
-    $("glasses").innerHTML = gh;
+    $("waterBar").style.width = Math.min(100, d.water / g.water * 100) + "%";
+    renderLang(d);
 
     // reading
     $("readMeta").textContent = d.pages + " / " + g.pages + " стр. сегодня";
@@ -1054,6 +1128,75 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (document.activeElement !== ta || ta.dataset.day !== cur){ ta.value = d.note || ""; ta.dataset.day = cur; }
 
     renderWeek();
+  }
+
+  // ---------- language ----------
+  const LANG_ACTS = ["Слова", "Грамматика", "Аудирование", "Разговор", "Чтение", "Письмо", "Приложение", "Сериал / видео"];
+  let langEditing = false, quiz = null;
+  function langStreak(){
+    let k = todayKey(), n = 0;
+    const has = k => S.days[k] && S.days[k].lang && S.days[k].lang.min > 0;
+    if (!has(k)) k = shift(k, -1);
+    while (has(k) && n < 3650){ n++; k = shift(k, -1); }
+    return n;
+  }
+  function renderLang(d){
+    const L = S.settings.lang;
+    const setup = !L || langEditing;
+    $("langSetup").hidden = !setup; $("langBox").hidden = setup;
+    if (setup){
+      if (L && document.activeElement !== $("langName")){ $("langName").value = L.name; $("langGoal").value = L.goal; }
+      $("langSetupBtn").textContent = L ? "Сохранить" : "Начать";
+      $("langMeta").textContent = "";
+      return;
+    }
+    const lg = d.lang || {};
+    const min = lg.min || 0;
+    $("langMeta").textContent = L.name + " · " + min + " / " + L.goal + " мин";
+    $("langBar").style.width = Math.min(100, min / L.goal * 100) + "%";
+    const wkMin = [0,1,2,3,4,5,6].reduce((a, i) => { const x = S.days[shift(cur, -i)]; return a + ((x && x.lang && x.lang.min) || 0); }, 0);
+    const words = S.dict.words || [];
+    const st = langStreak();
+    $("langChips").innerHTML = `<span class="chip ${st ? "fire" : ""}">🔥 Серия: <span class="num">${st}</span> ${plural(st, "день", "дня", "дней")}</span>
+      <span class="chip">За 7 дней: <span class="num">${wkMin}</span> мин</span>
+      <span class="chip ok">Слов в словаре: <span class="num">${words.length}</span></span>
+      ${lg.words ? `<span class="chip">Новых слов сегодня: <span class="num">${lg.words}</span></span>` : ""}`;
+    $("langActs").innerHTML = LANG_ACTS.map(a => `<button type="button" data-act="${a}" aria-pressed="${!!(lg.acts && lg.acts.includes(a))}">${a}</button>`).join("");
+    const ta = $("langNote");
+    if (document.activeElement !== ta || ta.dataset.day !== cur){ ta.value = lg.note || ""; ta.dataset.day = cur; }
+    $("dictSum").textContent = "📒 Мой словарь · " + words.length + " " + plural(words.length, "слово", "слова", "слов");
+    const known = words.filter(w => w.k).length;
+    $("dictInfo").textContent = words.length ? "выучено " + known + " из " + words.length : "";
+    $("quizStart").hidden = !words.length;
+    $("dictList").innerHTML = words.length ? words.slice().reverse().map(w => `<div class="item"><span class="name">${esc(w.w)}</span><span class="tr">${esc(w.t)}</span>${w.k ? '<span class="known">✓ знаю</span>' : ""}<button class="x" type="button" data-wdel="${w.id}" aria-label="Удалить слово ${esc(w.w)}">×</button></div>`).join("") : `<div class="empty">Добавляй новые слова с переводом. Потом их можно повторять карточками.</div>`;
+    renderQuiz();
+  }
+  function renderQuiz(){
+    const q = $("quiz");
+    if (!quiz){ q.hidden = true; return; }
+    q.hidden = false;
+    if (quiz.i >= quiz.list.length){
+      q.innerHTML = `<div class="qw">Готово!</div><div class="qt">Знаешь ${quiz.ok} из ${quiz.list.length}</div><div class="row"><button class="btn lang" type="button" data-quiz="again">Ещё раз</button><button class="btn ghost" type="button" data-quiz="close">Закрыть</button></div>`;
+      return;
+    }
+    const w = quiz.list[quiz.i];
+    q.innerHTML = `<div class="qn">${quiz.i + 1} из ${quiz.list.length}</div><div class="qw">${esc(quiz.flip ? w.t : w.w)}</div><div class="qt">${quiz.shown ? esc(quiz.flip ? w.w : w.t) : ""}</div>` +
+      (quiz.shown ? `<div class="row"><button class="btn lang" type="button" data-quiz="yes">Знаю</button><button class="btn" type="button" data-quiz="no">Не знаю</button></div>`
+                  : `<button class="btn lang" type="button" data-quiz="show">Показать перевод</button>`) +
+      `<button class="btn sm ghost" type="button" data-quiz="close">Закончить</button>`;
+  }
+  function startQuiz(){
+    const words = (S.dict.words || []).slice();
+    // unknown words first, then a few known ones
+    const unknown = words.filter(w => !w.k).sort(() => Math.random() - .5);
+    const knownW = words.filter(w => w.k).sort(() => Math.random() - .5);
+    const list = unknown.concat(knownW).slice(0, 15);
+    quiz = { list, i: 0, ok: 0, shown: false, flip: false };
+    renderQuiz();
+  }
+  function updateLang(fn, delay = 0){
+    const d = clone(day(cur)); d.lang = Object.assign({ min: 0, words: 0, acts: [], note: "" }, d.lang || {});
+    fn(d.lang); commitDay(cur, d, delay);
   }
 
   function renderQuit(){
@@ -1355,6 +1498,67 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (ml > 10000){ toast("Проверь число"); return; }
     const d = clone(day(cur)); d.water = ml; commitDay(cur, d, 0); $("waterIn").value = ""; toast("Итог за день: " + fmt(ml) + " мл");
   };
+  $("langSetup").addEventListener("submit", e => {
+    e.preventDefault();
+    const name = $("langName").value.trim(); const goal = parseInt($("langGoal").value, 10);
+    if (!name){ toast("Впиши, какой язык учишь"); return; }
+    const st = clone(S.settings); st.lang = { name: name.slice(0, 30), goal: goal >= 5 && goal <= 300 ? goal : 20 };
+    S.settings = st; persist("settings", st, 0); langEditing = false; render(); toast("Удачи с языком!");
+  });
+  $("langChange").onclick = () => { langEditing = true; render(); $("langName").focus(); };
+  $("langMinForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const n = parseInt($("langMin").value, 10);
+    if (!(n > 0)){ toast("Впиши, сколько минут занимался"); return; }
+    updateLang(l => { l.min = Math.min(1440, l.min + n); }); $("langMin").value = ""; toast("+" + n + " мин");
+  });
+  $("langMinSet").onclick = () => {
+    const n = parseInt($("langMin").value, 10);
+    if (isNaN(n) || n < 0){ toast("Впиши, сколько всего минут за день"); return; }
+    updateLang(l => { l.min = Math.min(1440, n); }); $("langMin").value = ""; toast("Итог за день: " + n + " мин");
+  };
+  $("langActs").addEventListener("click", e => {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const a = b.dataset.act;
+    updateLang(l => { l.acts = l.acts || []; const i = l.acts.indexOf(a); if (i >= 0) l.acts.splice(i, 1); else l.acts.push(a); }, 300);
+  });
+  $("langNote").addEventListener("input", e => {
+    const v = e.target.value;
+    const d = clone(day(cur)); d.lang = Object.assign({ min: 0, words: 0, acts: [], note: "" }, d.lang || {}); d.lang.note = v;
+    S.days[cur] = d; persist(docId(cur), d, 900);
+  });
+  $("dictForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const w = $("dW").value.trim(), t = $("dT").value.trim();
+    if (!w || !t) return;
+    if ((S.dict.words || []).some(x => x.w.toLowerCase() === w.toLowerCase())){ toast("Это слово уже есть в словаре"); return; }
+    const dict = clone(S.dict); dict.words = dict.words || []; dict.words.push({ id: uid(), w, t, k: false, d: cur });
+    S.dict = dict; persist("dict", dict, 0);
+    updateLang(l => { l.words = (l.words || 0) + 1; });
+    $("dW").value = ""; $("dT").value = ""; $("dW").focus();
+  });
+  $("dictList").addEventListener("click", e => {
+    const b = e.target.closest("[data-wdel]"); if (!b) return;
+    if (b.dataset.confirm !== "1"){ b.dataset.confirm = "1"; b.textContent = "?"; b.style.color = "var(--warn)"; setTimeout(() => { if (b.isConnected){ b.dataset.confirm = ""; b.textContent = "×"; b.style.color = ""; } }, 3000); return; }
+    const dict = clone(S.dict); dict.words = dict.words.filter(w => w.id !== b.dataset.wdel); S.dict = dict; persist("dict", dict, 0); render();
+  });
+  $("quizStart").onclick = startQuiz;
+  $("quiz").addEventListener("click", e => {
+    const b = e.target.closest("[data-quiz]"); if (!b || !quiz) return;
+    const a = b.dataset.quiz;
+    if (a === "show"){ quiz.shown = true; }
+    else if (a === "yes" || a === "no"){
+      const w = quiz.list[quiz.i];
+      if (a === "yes") quiz.ok++;
+      const dict = clone(S.dict); const x = dict.words.find(y => y.id === w.id);
+      if (x && x.k !== (a === "yes")){ x.k = a === "yes"; S.dict = dict; persist("dict", dict, 1500); }
+      quiz.i++; quiz.shown = false; quiz.flip = Math.random() < .3;
+    }
+    else if (a === "again"){ startQuiz(); return; }
+    else if (a === "close"){ quiz = null; }
+    render();
+  });
+
   $("pagesForm").addEventListener("submit", e => {
     e.preventDefault();
     const n = parseInt($("pagesCustom").value, 10);
@@ -1459,6 +1663,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       profile: norm ? pr : (S.settings.profile || null),
       bad: S.settings.bad || [],
       nick: S.settings.nick || "",
+      lang: S.settings.lang || null,
       goals: { kcal: num("gKcal", 800, 6000, g.kcal), water: num("gWater", 500, 6000, g.water), pages: num("gPages", 1, 500, g.pages), glass: num("gGlass", 100, 1000, g.glass), protein: opt("gP", 500), fat: opt("gF", 400), carbs: opt("gC", 1000) },
       habits: draftHabits.map(h => ({ id: h.id, name: h.name.trim() })).filter(h => h.name)
     };

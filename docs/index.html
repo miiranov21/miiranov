@@ -342,6 +342,11 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .repstats small{font-size:11.5px;color:var(--ink-2)}
 #report .charts{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
 #report .heat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px}
+#report .charts{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.heat td.c.slip{background:var(--warn)}
+.rep-h{font-family:var(--f-body);font-size:14px;font-weight:700;margin:4px 4px 8px}
+#repPair{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px}
+#repPair:empty{display:none}
 
 /* Food lookup */
 .foodfield{position:relative}
@@ -812,6 +817,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <div class="repstats" id="repStats"></div>
     <div class="charts" id="charts"></div>
     <div class="heat" id="heat"></div>
+    <div id="repPair"></div>
     <p class="mhint">Пунктир на графиках — твоя цель на день.</p>
   </div>
 </div>
@@ -1893,8 +1899,9 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       bars += `<text x="${x + w / 2}" y="${H - 5}" text-anchor="middle" font-size="10" fill="${last ? "var(--ink)" : "var(--ink-3)"}" font-weight="${last ? 700 : 400}">${labels[i]}</text>`;
     });
     const gy = y(goal);
-    const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
-    return `<div class="chart"><h3><span>${title}</span><span class="num" style="font-weight:500;color:var(--ink-3)">в среднем ${unit === "л" ? (avg / 1000).toFixed(1).replace(".", ",") : fmt(avg)} ${unit}</span></h3>
+    const nz0 = vals.filter(v => v > 0);
+    const avg = nz0.length ? nz0.reduce((s, v) => s + v, 0) / nz0.length : 0;
+    return `<div class="chart"><h3><span>${title}</span><span class="num" style="font-weight:500;color:var(--ink-3)">в среднем за день ${unit === "л" ? (avg / 1000).toFixed(1).replace(".", ",") : fmt(avg)} ${unit}</span></h3>
       <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${title} за 7 дней">
         <line x1="0" x2="${W}" y1="${H - padB}" y2="${H - padB}" stroke="var(--line)"/>
         ${bars}
@@ -1925,16 +1932,57 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div><span>📖 Прочитано</span><b>${pagesW} стр.</b><small>цель выполнена ${daysOk(k => totals(k).readOk)} из ${past.length} дн.</small></div>
       <div><span>✅ Привычки</span><b>${hTot ? Math.round(hDone / hTot * 100) : 0}%</b><small>отмечено ${hDone} из ${hTot}</small></div>
       <div><span>🌍 Язык</span><b>${langMin} мин</b><small>${S.settings.lang ? esc(S.settings.lang.name) : "язык не выбран"}</small></div>`;
+    // nutrition macros
+    const wm = withFood.length;
+    if (wm && (g0.protein || tt.some(t => t.P || t.F || t.C))){
+      const av = f => Math.round(tt.filter(t => t.kcal > 0).reduce((s, t) => s + t[f], 0) / wm);
+      $("repStats").innerHTML += `<div><span>🥩 БЖУ в среднем</span><b>${av("P")} / ${av("F")} / ${av("C")}</b><small>${g0.protein ? "норма " + g0.protein + " / " + g0.fat + " / " + g0.carbs + " г" : "белки / жиры / углеводы, г"}</small></div>`;
+    }
+    // language details
+    const lessons = dd.reduce((s, d) => s + (((d.lang && d.lang.lessons) || []).length), 0);
+    const newWords = dd.reduce((s, d) => s + ((d.lang && d.lang.words) || 0), 0);
+    const xpW = dd.reduce((s, d) => s + ((d.lang && d.lang.xp) || 0), 0);
+    const langDays = dd.filter(d => d.lang && d.lang.min > 0).length;
+    if (S.settings.lang) $("repStats").innerHTML += `<div><span>🎓 Уроки языка</span><b>${lessons}</b><small>занимался ${langDays} из ${past.length} дн. · +${newWords} слов · +${xpW} XP</small></div>`;
+    // books finished this week
+    const finished = S.books.list.filter(b => b.done && b.finished && b.finished >= keys[0] && b.finished <= end);
+    $("repStats").innerHTML += `<div><span>📚 Дочитано книг</span><b>${finished.length}</b><small>${finished.length ? finished.map(b => "«" + esc(b.title) + "»").join(", ") : "на этой неделе пока нет"}</small></div>`;
+    // bad habits
+    (S.settings.bad || []).forEach(bh => {
+      const inRange = past.filter(k => k >= bh.start);
+      if (!inRange.length) return;
+      const slips = inRange.filter(k => S.days[k] && S.days[k].slips && S.days[k].slips[bh.id]).length;
+      const st = badStats(bh);
+      $("repStats").innerHTML += `<div><span>🚭 Без «${esc(bh.name)}»</span><b>${inRange.length - slips} из ${inRange.length} дн.</b><small>срывов за неделю: ${slips} · сейчас ${st.current} ${plural(st.current, "день", "дня", "дней")} без · рекорд ${st.best}</small></div>`;
+    });
+    // partner
+    const partner = (typeof pair !== "undefined" && pair) ? boardDocs.filter(x => x.id !== pair.pid) : [];
+    if (partner.length){
+      const sumP = (pl, f) => keys.reduce((a, k) => a + (((pl.days || {})[k] || {})[f] || 0), 0);
+      const me = buildSummary();
+      const rows = [Object.assign({ label: (S.settings.nick || "Я") + " (я)" }, me)].concat(partner.map(x => Object.assign({ label: x.nick || "Партнёр" }, x)));
+      $("repPair").innerHTML = `<h3 class="rep-h">👫 Мы вдвоём за неделю</h3><div class="h2h"><table><thead><tr><th></th><th>Страниц</th><th>Воды, л</th><th>Привычек</th><th>Язык, мин</th></tr></thead><tbody>` +
+        rows.map(r => `<tr><td>${esc(r.label)}</td><td class="c">${sumP(r, "p")}</td><td class="c">${(sumP(r, "w") / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}</td><td class="c">${sumP(r, "h")} из ${sumP(r, "ht")}</td><td class="c">${sumP(r, "lm")}</td></tr>`).join("") +
+        `</tbody></table></div>`;
+    } else $("repPair").innerHTML = "";
     const labels = keys.map(k => { const d = parseKey(k); return WD[d.getDay()] + " " + d.getDate(); });
     const g = goals();
     $("charts").innerHTML =
       barChart("Калории", "var(--kcal)", keys.map(k => totals(k).kcal), g.kcal, "ккал", labels) +
       barChart("Вода", "var(--water)", keys.map(k => day(k).water), g.water, "л", labels) +
-      barChart("Чтение", "var(--read)", keys.map(k => day(k).pages), g.pages, "стр.", labels);
+      barChart("Чтение", "var(--read)", keys.map(k => day(k).pages), g.pages, "стр.", labels) +
+      (S.settings.lang ? barChart("Язык", "var(--lang)", keys.map(k => (day(k).lang && day(k).lang.min) || 0), S.settings.lang.goal || 20, "мин", labels) : "");
     const hs = S.settings.habits;
-    $("heat").innerHTML = hs.length ? `<table><thead><tr><th></th>${labels.map(l => `<th>${l}</th>`).join("")}</tr></thead><tbody>` +
+    const bads = (S.settings.bad || []);
+    const today0 = todayKey();
+    $("heat").innerHTML = (hs.length || bads.length) ? `<h3 class="rep-h">Привычки по дням</h3><table><thead><tr><th></th>${labels.map(l => `<th>${l}</th>`).join("")}</tr></thead><tbody>` +
       hs.map(h => `<tr><td>${esc(h.name)}</td>${keys.map(k => `<td class="c ${day(k).habits[h.id] ? "on" : ""}" title="${day(k).habits[h.id] ? "сделано" : "нет"}"></td>`).join("")}</tr>`).join("") +
-      `</tbody></table>` : "";
+      bads.map(bh => `<tr><td>🚭 ${esc(bh.name)}</td>${keys.map(k => {
+        if (k < bh.start || k > today0) return `<td class="c" title="—"></td>`;
+        const slip = S.days[k] && S.days[k].slips && S.days[k].slips[bh.id];
+        return `<td class="c ${slip ? "slip" : "on"}" title="${slip ? "срыв" : "без срыва"}"></td>`;
+      }).join("")}</tr>`).join("") +
+      `</tbody></table><p class="mhint">Зелёный — сделано или без срыва, красный — срыв.</p>` : "";
   }
 
   $("reportOpen").onclick = () => { repEnd = todayKey(); $("report").hidden = false; document.body.style.overflow = "hidden"; renderWeek(); };

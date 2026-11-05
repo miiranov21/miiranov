@@ -2,6 +2,6 @@
 // Впиши сюда Project ID своего проекта Firebase (см. SETUP.md).
 // Пока строка пустая, трекер работает без облака: записи хранятся только на телефоне.
 window.MD_CONFIG = {
-  projectId: "",
+  projectId: "my-day-c41c8",
   apiKey: ""      // необязательно
 };

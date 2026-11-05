@@ -276,6 +276,12 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .h2h caption{text-align:left;font-weight:700;font-size:13px;color:var(--ink-2);padding:6px 0 2px}
 .h2h table + table{margin-top:8px}
 
+.manual{display:flex;flex-direction:column;gap:6px}
+.manual label{font-size:12px;color:var(--ink-3);font-weight:600}
+.manual .row{flex-wrap:wrap}
+.manual input{flex:1 1 150px;width:auto}
+.mhint{font-size:11.5px;color:var(--ink-3)}
+
 /* Week charts */
 .charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .chart h3{font-family:var(--f-body);font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:6px;display:flex;justify-content:space-between}
@@ -390,6 +396,15 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <button class="btn water" data-water="500">+ бутылка 500 мл</button>
         <button class="btn ghost" data-water="-250">− 250 мл</button>
       </div>
+      <form class="manual" id="waterForm" autocomplete="off">
+        <label for="waterIn">Сколько выпил</label>
+        <div class="row">
+          <input type="text" id="waterIn" inputmode="decimal" placeholder="например 300 мл или 0,5 л" aria-describedby="waterHint">
+          <button class="btn water" type="submit" data-mode="add">Добавить</button>
+          <button class="btn ghost" type="button" id="waterSet">Это итог за день</button>
+        </div>
+        <span class="mhint" id="waterHint">Число до 10 считается в литрах, больше — в миллилитрах.</span>
+      </form>
 
       <div class="panel-head" style="margin-top:6px">
         <h2 id="h-read"><span class="dot" style="background:var(--read)"></span>Чтение</h2>
@@ -399,10 +414,16 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <button class="btn read" data-pages="5">+5 стр.</button>
         <button class="btn read" data-pages="10">+10 стр.</button>
         <button class="btn read" data-pages="20">+20 стр.</button>
-        <input type="number" id="pagesCustom" placeholder="стр." min="1" max="999" style="width:84px" inputmode="numeric" aria-label="Своё число страниц">
-        <button class="btn read" id="pagesAdd">+</button>
         <button class="btn ghost" data-pages="-5">− 5</button>
       </div>
+      <form class="manual" id="pagesForm" autocomplete="off">
+        <label for="pagesCustom">Сколько прочитал</label>
+        <div class="row">
+          <input type="number" id="pagesCustom" placeholder="страниц" min="1" max="2000" inputmode="numeric">
+          <button class="btn read" type="submit" id="pagesAdd">Добавить</button>
+          <button class="btn ghost" type="button" id="pagesSet">Это итог за день</button>
+        </div>
+      </form>
       <div class="books" id="books"></div>
       <details id="bookDetails">
         <summary>+ Добавить книгу</summary>
@@ -1331,8 +1352,35 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (d.slips[bid]) toast("Срыв отмечен. Начни новую серию прямо сейчас");
   }
 
-  $("pagesAdd").onclick = () => { const n = parseInt($("pagesCustom").value, 10); if (n > 0){ addPages(n); $("pagesCustom").value = ""; } };
-  $("pagesCustom").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); $("pagesAdd").click(); } });
+  function readWater(){
+    const raw = String($("waterIn").value).trim().toLowerCase().replace(",", ".");
+    const n = parseFloat(raw);
+    if (!(n > 0)) return null;
+    const ml = /мл|ml/.test(raw) ? n : (/л|l/.test(raw) || n <= 10) ? n * 1000 : n;
+    return Math.round(ml);
+  }
+  $("waterForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const ml = readWater(); if (!ml){ toast("Впиши, сколько выпил: например 300 или 0,5"); return; }
+    if (ml > 6000){ toast("Слишком много за раз. Проверь число"); return; }
+    addWater(ml); $("waterIn").value = ""; toast("+" + fmt(ml) + " мл");
+  });
+  $("waterSet").onclick = () => {
+    const ml = readWater(); if (ml === null){ toast("Впиши, сколько всего выпил за день"); return; }
+    if (ml > 10000){ toast("Проверь число"); return; }
+    const d = clone(day(cur)); d.water = ml; commitDay(cur, d, 0); $("waterIn").value = ""; toast("Итог за день: " + fmt(ml) + " мл");
+  };
+  $("pagesForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const n = parseInt($("pagesCustom").value, 10);
+    if (!(n > 0)){ toast("Впиши, сколько страниц прочитал"); return; }
+    addPages(n); $("pagesCustom").value = ""; toast("+" + n + " стр.");
+  });
+  $("pagesSet").onclick = () => {
+    const n = parseInt($("pagesCustom").value, 10);
+    if (!(n >= 0) || isNaN(n)){ toast("Впиши, сколько всего страниц за день"); return; }
+    addPages(n - day(cur).pages); $("pagesCustom").value = ""; toast("Итог за день: " + n + " стр.");
+  };
 
   // default meal type by time of day
   (() => { const h = new Date().getHours(); $("mType").value = h < 11 ? "Завтрак" : h < 16 ? "Обед" : h < 21 ? "Ужин" : "Перекус"; })();

@@ -409,6 +409,18 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .asset{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
 .asset .at{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
 @media (max-width:520px){.invsum{grid-template-columns:minmax(0,1fr)}}
+.tinv{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--surface-2)}
+.tinv .th{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.tinv .tlogo{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:7px;background:#FFDD2D;color:#333;font-weight:800;font-size:15px;margin-right:6px;vertical-align:middle}
+.tinv ol{margin:0;padding-left:20px;font-size:13px;color:var(--ink-2);display:flex;flex-direction:column;gap:3px}
+.tinv .tpos{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.tinv .tpos:last-child{border-bottom:0}
+.tinv .tpos .tn{min-width:0;overflow-wrap:anywhere}
+.tinv .tpos .tn small{display:block;color:var(--ink-3);font-size:11.5px}
+.tinv .tpos .tv{text-align:right;white-space:nowrap;font-family:var(--f-num)}
+.tinv .tpos .tv small{display:block;font-size:11.5px}
+.tinv .terr{color:var(--warn);font-size:13px}
+.finh4{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--ink-2)}
 .finlessons{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
 .finlessons button{display:flex;align-items:center;gap:10px;text-align:left;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:10px 12px;font-size:13.5px;font-weight:600;min-width:0}
 .finlessons button.done{background:var(--fin-soft);border-color:transparent}
@@ -863,6 +875,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 
       <div class="finsec">
         <h3 class="finh">📈 Инвестиции <span id="invMeta"></span></h3>
+        <div class="tinv" id="tinv"></div>
+        <h4 class="finh4">Учёт вложений из конвертов</h4>
         <div class="invsum" id="invSum"></div>
         <div class="assets" id="assets"></div>
         <form class="finform2" id="invForm" autocomplete="off">
@@ -2703,7 +2717,111 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       return `<div class="item"><span class="mt num">${+t.d.slice(8)}.${t.d.slice(5, 7)}</span><span class="name">${t.t === "inc" ? esc(what) : what}</span><span class="num" style="color:${t.t === "inc" ? "var(--fin)" : "var(--ink)"}">${t.t === "inc" ? "+" : "−"}${money(t.a)}</span><button class="x" type="button" data-fdel="${t.id}" aria-label="Удалить запись">×</button></div>`;
     }).join("") : `<div class="empty">В этом месяце записей нет.</div>`;
     $("finCur").value = FIN.cur;
+    if (!tState.busy && !(document.activeElement && document.activeElement.id === "tToken")) renderTinv();
   }
+  // ---------- T-Invest (read-only token, stays on this phone) ----------
+  const T_BASES = ["https://invest-public-api.tbank.ru/rest/tinkoff.public.invest.api.contract.v1.", "https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1."];
+  let tState = { busy: false, err: "", data: null };
+  try { const c = JSON.parse(localStorage.getItem("moy-den-tinv-cache") || "null"); if (c) tState.data = c; } catch (e) {}
+  const qv = q => q ? (+q.units || 0) + (+q.nano || 0) / 1e9 : 0;
+  async function tCall(method, body){
+    let lastErr = null;
+    for (const base of T_BASES){
+      try {
+        const ctrl = new AbortController(); const tm = setTimeout(() => ctrl.abort(), 15000);
+        const r = await fetch(base + method, { method: "POST", signal: ctrl.signal, headers: { "Authorization": "Bearer " + FIN.tToken, "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify(body || {}) });
+        clearTimeout(tm);
+        if (r.status === 401 || r.status === 403) throw Object.assign(new Error("token"), { code: "token" });
+        if (!r.ok) throw Object.assign(new Error("HTTP " + r.status), { code: "http" });
+        return await r.json();
+      } catch (e) { lastErr = e; if (e.code === "token") throw e; }
+    }
+    throw lastErr || new Error("network");
+  }
+  async function tRefresh(){
+    if (!FIN.tToken || tState.busy) return;
+    tState.busy = true; tState.err = ""; renderTinv();
+    try {
+      const acc = await tCall("UsersService/GetAccounts", {});
+      const accounts = (acc.accounts || []).filter(a => !a.status || a.status === "ACCOUNT_STATUS_OPEN");
+      const names = (tState.data && tState.data.names) || {};
+      const out = [];
+      for (const a of accounts){
+        const pf = await tCall("OperationsService/GetPortfolio", { accountId: a.id, currency: "RUB" });
+        const positions = [];
+        for (const p of (pf.positions || [])){
+          if (p.instrumentType === "currency") continue;
+          const key = p.instrumentUid || p.figi;
+          if (key && !names[key]){
+            try {
+              const ins = await tCall("InstrumentsService/GetInstrumentBy", p.instrumentUid ? { idType: "INSTRUMENT_ID_TYPE_UID", id: p.instrumentUid } : { idType: "INSTRUMENT_ID_TYPE_FIGI", id: p.figi });
+              names[key] = { name: (ins.instrument && ins.instrument.name) || p.ticker || key, ticker: (ins.instrument && ins.instrument.ticker) || p.ticker || "" };
+            } catch (e) { names[key] = { name: p.ticker || p.figi || "Бумага", ticker: p.ticker || "" }; }
+          }
+          const qty = qv(p.quantity), price = qv(p.currentPrice), avg = qv(p.averagePositionPrice);
+          positions.push({ key, qty, value: qty * price, cost: qty * avg, yield: qv(p.expectedYield), cur: (p.currentPrice && p.currentPrice.currency) || "rub", type: p.instrumentType });
+        }
+        out.push({ id: a.id, name: a.name || "Счёт", total: qv(pf.totalAmountPortfolio), yieldPct: qv(pf.expectedYield), cash: qv(pf.totalAmountCurrencies), positions });
+      }
+      tState.data = { at: new Date().toISOString(), accounts: out, names };
+      try { localStorage.setItem("moy-den-tinv-cache", JSON.stringify(tState.data)); } catch (e) {}
+    } catch (e) {
+      tState.err = e.code === "token"
+        ? "Т-Инвестиции не приняли токен. Проверь, что скопировал его целиком и он не отозван."
+        : "Т-Инвестиции не ответили. Проверь интернет. Если ошибка повторяется, значит, Т-Банк не пускает запросы прямо из браузера: напиши об этом, подключим через промежуточный сервер.";
+    }
+    tState.busy = false; renderTinv();
+  }
+  const rub = v => (Math.round(v * 100) / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 }) + " ₽";
+  function renderTinv(){
+    const box = $("tinv"); if (!box) return;
+    if (!FIN.tToken){
+      box.innerHTML = `<div class="th"><b><span class="tlogo">T</span>Подключить Т-Инвестиции</b></div>
+        <span class="mhint">Портфель будет подтягиваться автоматически: стоимость, доходность и бумаги. Нужен токен <b>только для чтения</b>: с ним нельзя покупать, продавать или выводить деньги.</span>
+        <ol><li>Открой приложение Т-Банка или Т-Инвестиций.</li><li>Найди раздел с токенами: обычно «Настройки» → «Токены T-Invest API» (или поиск по слову «токен»).</li><li>Создай токен и выбери доступ <b>«Только для чтения»</b>.</li><li>Скопируй токен и вставь сюда.</li></ol>
+        <div class="row"><input type="password" id="tToken" autocomplete="off" placeholder="t.xxxxxxxx…" style="flex:1 1 200px" aria-label="Токен T-Invest API только для чтения"><button class="btn fin" type="button" data-t="connect">Подключить</button></div>
+        <span class="mhint">🔒 Токен хранится только на этом телефоне и отправляется только в Т-Банк. Отключить можно в любой момент здесь или отозвать в приложении Т-Банка.</span>`;
+      return;
+    }
+    const d = tState.data;
+    let html = `<div class="th"><b><span class="tlogo">T</span>Т-Инвестиции</b><span class="row"><button class="btn sm" type="button" data-t="refresh" ${tState.busy ? "disabled" : ""}>${tState.busy ? "Обновляю…" : "Обновить"}</button><button class="btn sm ghost" type="button" data-t="off">Отключить</button></span></div>`;
+    if (tState.err) html += `<div class="terr">${esc(tState.err)}</div>`;
+    if (d && d.accounts){
+      const tot = d.accounts.reduce((s, a) => s + a.total, 0);
+      const cost = d.accounts.reduce((s, a) => s + a.positions.reduce((x, p) => x + p.cost, 0), 0);
+      const val = d.accounts.reduce((s, a) => s + a.positions.reduce((x, p) => x + p.value, 0), 0);
+      const pl = val - cost, plp = cost > 0 ? pl / cost * 100 : 0;
+      html += `<div class="invsum"><div><span>Портфель</span><b class="num">${rub(tot)}</b></div><div><span>Бумаги: результат</span><b class="num ${pl >= 0 ? "pos" : "neg"}">${pl >= 0 ? "+" : ""}${rub(pl)} · ${pl >= 0 ? "+" : ""}${plp.toFixed(1).replace(".", ",")}%</b></div><div><span>Обновлено</span><b class="num" style="font-size:13px">${new Date(d.at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</b></div></div>`;
+      d.accounts.forEach(a => {
+        html += `<div class="mhint" style="margin-top:4px"><b>${esc(a.name)}</b> · ${rub(a.total)}${a.cash ? " · свободные деньги " + rub(a.cash) : ""}</div>`;
+        html += a.positions.length ? a.positions.sort((x, y) => y.value - x.value).map(p => {
+          const n = d.names[p.key] || { name: p.key, ticker: "" };
+          const y = p.value - p.cost, yp = p.cost > 0 ? y / p.cost * 100 : 0;
+          return `<div class="tpos"><span class="tn">${esc(n.name)}<small>${esc(n.ticker)} · ${p.qty.toLocaleString("ru-RU", { maximumFractionDigits: 4 })} шт.</small></span><span class="tv">${p.cur === "rub" ? rub(p.value) : (Math.round(p.value * 100) / 100).toLocaleString("ru-RU") + " " + p.cur.toUpperCase()}<small class="${y >= 0 ? "pos" : "neg"}">${y >= 0 ? "+" : ""}${yp.toFixed(1).replace(".", ",")}%</small></span></div>`;
+        }).join("") : `<div class="mhint">На этом счёте пока нет бумаг.</div>`;
+      });
+    } else if (!tState.busy && !tState.err) html += `<div class="mhint">Нажми «Обновить», чтобы загрузить портфель.</div>`;
+    box.innerHTML = html;
+  }
+  $("tinv").addEventListener("click", e => {
+    const b = e.target.closest("[data-t]"); if (!b) return;
+    const a = b.dataset.t;
+    if (a === "connect"){
+      const t = $("tToken").value.trim();
+      if (t.length < 20){ toast("Вставь токен целиком"); return; }
+      FIN.tToken = t; saveFin(); renderTinv(); tRefresh();
+    } else if (a === "refresh") tRefresh();
+    else if (a === "off"){
+      if (b.dataset.confirm !== "1"){ b.dataset.confirm = "1"; b.textContent = "Точно отключить?"; return; }
+      delete FIN.tToken; saveFin(); tState = { busy: false, err: "", data: null };
+      try { localStorage.removeItem("moy-den-tinv-cache"); } catch (er) {}
+      renderTinv(); toast("Т-Инвестиции отключены. Токен удалён с телефона");
+    }
+  });
+  // refresh automatically at most every 15 minutes while the app is open
+  setTimeout(() => { if (FIN.tToken && (!tState.data || Date.now() - Date.parse(tState.data.at) > 15 * 60000)) tRefresh(); }, 1500);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && FIN.tToken && tState.data && Date.now() - Date.parse(tState.data.at) > 15 * 60000) tRefresh(); });
+
   function txDate(){ return finMonth === todayKey().slice(0, 7) ? todayKey() : finMonth + "-01"; }
   function nowTm(){ const t = new Date(); return pad(t.getHours()) + ":" + pad(t.getMinutes()); }
   const num = id => parseFloat(String($(id).value).replace(",", "."));

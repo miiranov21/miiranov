@@ -259,10 +259,10 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .wrap{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 .panel,.summary{scroll-margin-top:12px}
 .bnav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(15,25,45,.08);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
-.bnav-in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;padding-block:6px}
+.bnav-in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:2px;padding-block:6px}
 .bnav button{border:0;background:transparent;border-radius:12px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink-3);min-width:0}
 .bnav button .ic{font-size:20px;line-height:1.1;filter:grayscale(.6);opacity:.8}
-.bnav button .tx{font-size:10px;letter-spacing:-.02em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.bnav button .tx{font-size:9.5px;letter-spacing:-.03em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .bnav button:hover{background:var(--surface-2)}
 .bnav button.on{color:var(--accent);background:var(--surface-2)}
 .bnav button.on .ic{filter:none;opacity:1}
@@ -308,6 +308,25 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
   .dictadd{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
   .dictadd .btn{grid-column:1/-1}
 }
+
+/* Level + chart */
+.lvl{border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.lvl .lv-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.lvl .lv-name{font-family:var(--f-display);font-size:19px;font-weight:700}
+.lvl .lv-cefr{font-family:var(--f-num);font-size:13px;color:var(--lang);font-weight:700}
+.lvl .lv-sub{font-size:13px;color:var(--ink-2)}
+.lvl .steps{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
+.lvl .steps span{height:6px;border-radius:99px;background:var(--surface-2)}
+.lvl .steps span.on{background:var(--lang)}
+.lvl .steps-l{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;font-size:10.5px;color:var(--ink-3);text-align:center;font-family:var(--f-num)}
+.lvl.test{border-color:var(--lang);background:var(--lang-soft)}
+.lchart{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.lchart h3{font-family:var(--f-body);font-size:13.5px;font-weight:700;margin:0;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.lchart h3 span{font-weight:500;color:var(--ink-3);font-size:12.5px}
+.lchart svg{width:100%;height:auto;display:block}
+.lchart .seg2{display:flex;gap:4px}
+.lchart .seg2 button{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;color:var(--ink-2)}
+.lchart .seg2 button[aria-pressed="true"]{background:var(--lang);border-color:var(--lang);color:#fff}
 
 /* Course */
 .today-lesson{border:1px solid var(--lang);background:var(--lang-soft);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
@@ -506,7 +525,10 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         </form>
       </details>
 
-      <div class="panel-head" style="margin-top:6px">
+    </section>
+
+    <section class="panel span2" id="p-lang" aria-labelledby="h-lang">
+      <div class="panel-head">
         <h2 id="h-lang"><span class="dot" style="background:var(--lang)"></span>Иностранный язык</h2>
         <span class="meta num" id="langMeta"></span>
       </div>
@@ -517,6 +539,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <datalist id="langList"><option value="Английский"><option value="Испанский"><option value="Немецкий"><option value="Французский"><option value="Итальянский"><option value="Китайский"><option value="Корейский"><option value="Японский"><option value="Турецкий"><option value="Арабский"></datalist>
       </form>
       <div class="langbox" id="langBox" hidden>
+        <div class="lvl" id="langLevel"></div>
+        <div class="lchart" id="langChart"></div>
         <div class="today-lesson" id="todayLesson"></div>
         <details id="planBox">
           <summary>🗓 План на неделю: что учить в какой день</summary>
@@ -611,13 +635,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div class="heat" id="heat"></div>
     </section>
 
-    <section class="panel span2" aria-labelledby="h-note">
-      <div class="panel-head">
-        <h2 id="h-note"><span class="dot" style="background:var(--ink-3)"></span>Заметка дня</h2>
-        <span class="meta" id="noteState"></span>
-      </div>
-      <textarea id="dayNote" maxlength="2000" placeholder="Что получилось сегодня? Что прочитал интересного? Что улучшить завтра?"></textarea>
-    </section>
   </div>
 </div>
 
@@ -674,7 +691,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <button type="button" data-go="vsPanel"><span class="ic" aria-hidden="true">👫</span><span class="tx">Пара</span></button>
     <button type="button" data-go="p-kcal"><span class="ic" aria-hidden="true">🍎</span><span class="tx">Еда</span></button>
     <button type="button" data-go="p-water"><span class="ic" aria-hidden="true">💧</span><span class="tx">Вода</span></button>
-    <button type="button" data-go="p-hab"><span class="ic" aria-hidden="true">✅</span><span class="tx">Привычки</span></button>
+    <button type="button" data-go="p-lang"><span class="ic" aria-hidden="true">🌍</span><span class="tx">Язык</span></button>
+    <button type="button" data-go="p-hab"><span class="ic" aria-hidden="true">✅</span><span class="tx">Цели</span></button>
     <button type="button" data-go="p-quit"><span class="ic" aria-hidden="true">🚭</span><span class="tx">Отказ</span></button>
     <button type="button" data-go="p-week"><span class="ic" aria-hidden="true">📊</span><span class="tx">Неделя</span></button>
   </div>
@@ -934,6 +952,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       lang: S.settings.lang ? S.settings.lang.name : "",
       dictN: (S.dict.words || []).length,
       units: courseUnitsDone(),
+      lvl: S.settings.lang ? LEVELS[currentLevel()].name + " (" + LEVELS[currentLevel()].cefr + ")" : "",
+      xpT: totalXp(),
       quit: (S.settings.bad || []).map(b => { const st = badStats(b); return { n: b.name, d: st.current, b: st.best }; })
     };
   }
@@ -1000,7 +1020,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     html += block("📖 Чтение", "var(--read)", pl => `${who(pl)}<span class="cv num">${pl.d.p || 0}${pl.d.pg ? " / " + pl.d.pg : ""} стр.</span>${bar(pl.d.p || 0, pl.d.pg, "var(--read)")}`);
     html += block("💧 Вода", "var(--water)", pl => `${who(pl)}<span class="cv num">${L(pl.d.w)}${pl.d.wg ? " / " + L(pl.d.wg) : ""} л</span>${bar(pl.d.w || 0, pl.d.wg, "var(--water)")}`);
     if (players.some(pl => pl.lang)) html += block("🌍 Язык", "var(--lang)", pl => pl.lang
-      ? `${who(pl)}<span class="cv num">${pl.d.lm || 0}${pl.d.lg ? " / " + pl.d.lg : ""} мин</span>${bar(pl.d.lm || 0, pl.d.lg, "var(--lang)")}<div class="cdone">${esc(pl.lang)}${pl.d.lw ? " · +" + pl.d.lw + " " + plural(pl.d.lw, "слово", "слова", "слов") : ""}${pl.dictN ? " · в словаре " + pl.dictN : ""}${(pl.d.ll || []).length ? " · уроки: " + pl.d.ll.map(esc).join(", ") : ""}${pl.units ? " · пройдено тем: " + pl.units : ""}${(pl.d.la || []).length ? " · " + pl.d.la.map(esc).join(", ") : ""}</div>`
+      ? `${who(pl)}<span class="cv num">${pl.d.lm || 0}${pl.d.lg ? " / " + pl.d.lg : ""} мин</span>${bar(pl.d.lm || 0, pl.d.lg, "var(--lang)")}<div class="cdone">${esc(pl.lang)}${pl.d.lw ? " · +" + pl.d.lw + " " + plural(pl.d.lw, "слово", "слова", "слов") : ""}${pl.dictN ? " · в словаре " + pl.dictN : ""}${(pl.d.ll || []).length ? " · уроки: " + pl.d.ll.map(esc).join(", ") : ""}${pl.units ? " · пройдено тем: " + pl.units : ""}${pl.lvl ? " · уровень: " + esc(pl.lvl) : ""}${(pl.d.la || []).length ? " · " + pl.d.la.map(esc).join(", ") : ""}</div>`
       : `${who(pl)}<span class="cv">пока не учит</span>`);
     html += block("✅ Привычки", "var(--habit)", pl => `${who(pl)}<span class="cv num">${pl.d.h || 0} из ${pl.d.ht || 0}</span>${bar(pl.d.h || 0, pl.d.ht, "var(--habit)")}${(pl.d.hd || []).length ? `<div class="cdone">${pl.d.hd.map(n => esc(n)).join(" · ")}</div>` : ""}`);
     html += block("🍎 Калории", "var(--kcal)", pl => `${who(pl)}<span class="cv num">${fmt(pl.d.kc || 0)}${pl.d.kg ? " / " + fmt(pl.d.kg) : ""} ккал</span>${bar(pl.d.kc || 0, pl.d.kg, "var(--kcal)")}`);
@@ -1124,13 +1144,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <div class="hint">${t.readOk ? "цель выполнена" : "ещё " + (g.pages - d.pages) + " стр."}</div></div></div>
       <div class="ring-card"><div class="ring">${ring(t.habitsTotal ? t.habitsDone / t.habitsTotal : 0, "var(--habit)")}<span class="pct">${t.habitsDone}/${t.habitsTotal}</span></div>
         <div><div class="lbl">Привычки</div><div class="val">${t.habitsDone} <small>из ${t.habitsTotal}</small></div>
-        <div class="hint">${t.habitsTotal && t.habitsDone === t.habitsTotal ? "все отмечены" : "отметь, что сделал"}</div></div></div>
-      <div class="score">
-        <strong>День выполнен на <span class="num">${Math.round(t.score * 100)}%</span></strong>
-        <div class="bar" aria-hidden="true"><i style="width:${Math.round(t.score * 100)}%"></i></div>
-        <span class="chip ${st ? "fire" : ""}">🔥 Серия: <span class="num">${st}</span> ${plural(st, "день", "дня", "дней")}</span>
-        ${t.score >= 0.75 ? '<span class="chip ok">✓ День засчитан</span>' : '<span class="chip">Засчитывается от 75%</span>'}
-      </div>`;
+        <div class="hint">${t.habitsTotal && t.habitsDone === t.habitsTotal ? "все отмечены" : "отметь, что сделал"}</div></div></div>`;
 
     $("profileCta").hidden = !!calcNorm(S.settings.profile);
     if (g.protein || g.fat || g.carbs){
@@ -1202,9 +1216,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     renderBoard();
     scheduleSummary();
 
-    // note (don't clobber while typing)
-    const ta = $("dayNote");
-    if (document.activeElement !== ta || ta.dataset.day !== cur){ ta.value = d.note || ""; ta.dataset.day = cur; }
 
     renderWeek();
   }
@@ -1250,6 +1261,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("dictList").innerHTML = words.length ? words.slice().reverse().map(w => `<div class="item"><span class="name">${esc(w.w)}</span><span class="tr">${esc(w.t)}</span>${w.k ? '<span class="known">✓ знаю</span>' : ""}<button class="x" type="button" data-wdel="${w.id}" aria-label="Удалить слово ${esc(w.w)}">×</button></div>`).join("") : `<div class="empty">Добавляй новые слова с переводом. Потом их можно повторять карточками.</div>`;
     renderQuiz();
     renderCourse();
+    renderLevel();
+    renderLangChart();
   }
   function renderQuiz(){
     const q = $("quiz");
@@ -1331,6 +1344,131 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("units").innerHTML = COURSE.units.map((u, i) => `<div class="unit ${u === curU ? "cur" : ""}">
       <div class="uh"><span class="ut">${u.icon} ${i + 1}. ${esc(u.title)}</span><span class="un">${unitDone(u) ? "✓ пройдена" : u === curU ? "сейчас" : ""}</span></div>
       <div class="parts">${PARTS.map(k => `<button type="button" class="${partDone(u, k) ? "done" : ""}" data-lesson="${k}" data-unit="${u.id}">${partDone(u, k) ? "✓ " : ""}${KINDS[k].label}</button>`).join("")}</div></div>`).join("");
+  }
+
+  // ---------- levels, placement test, progress chart ----------
+  const LEVELS = [
+    { name: "Новичок",       cefr: "A0", about: "Только начинаешь: алфавит, приветствия, первые слова." },
+    { name: "Начинающий",    cefr: "A1", about: "Знаешь простые фразы о себе, семье и еде." },
+    { name: "Элементарный",  cefr: "A2", about: "Можешь рассказать о своём дне и прошлых событиях." },
+    { name: "Средний",       cefr: "B1", about: "Объясняешься в поездках, понимаешь основное в разговоре." },
+    { name: "Выше среднего", cefr: "B2", about: "Свободно говоришь на большинство тем, смотришь сериалы." },
+    { name: "Продвинутый",   cefr: "C1", about: "Говоришь бегло и точно, понимаешь сложные тексты." }
+  ];
+  // 16 questions, 4 per band: A1, A2, B1, B2-C1
+  const PLACEMENT = [
+    { q: "I ___ a student.", a: ["am", "is", "are"], c: 0 },
+    { q: "Как по-английски «яблоко»?", a: ["table", "apple", "water"], c: 1 },
+    { q: "She ___ two brothers.", a: ["have", "has", "is"], c: 1 },
+    { q: "___ is your name?", a: ["Where", "Who", "What"], c: 2 },
+    { q: "Yesterday we ___ to the cinema.", a: ["go", "went", "gone"], c: 1 },
+    { q: "There ___ some milk in the fridge.", a: ["is", "are", "be"], c: 0 },
+    { q: "My brother is ___ than me.", a: ["tall", "taller", "tallest"], c: 1 },
+    { q: "I ___ TV when you called.", a: ["watched", "am watching", "was watching"], c: 2 },
+    { q: "I have lived here ___ 2015.", a: ["since", "for", "from"], c: 0 },
+    { q: "If it rains tomorrow, we ___ at home.", a: ["stay", "will stay", "stayed"], c: 1 },
+    { q: "This bridge ___ in 1990.", a: ["built", "was built", "is building"], c: 1 },
+    { q: "Что значит «reliable»?", a: ["надёжный", "быстрый", "дорогой"], c: 0 },
+    { q: "If I ___ more free time, I would travel.", a: ["have", "had", "will have"], c: 1 },
+    { q: "She suggested ___ a taxi.", a: ["to take", "take", "taking"], c: 2 },
+    { q: "By next summer, I ___ my degree.", a: ["will finish", "will have finished", "finish"], c: 1 },
+    { q: "Hardly ___ the station when the train left.", a: ["I had reached", "had I reached", "I reached"], c: 1 }
+  ];
+  function levelFromScore(n){ return n <= 3 ? 0 : n <= 6 ? 1 : n <= 9 ? 2 : n <= 12 ? 3 : n <= 14 ? 4 : 5; }
+  function courseLevel(){ const n = courseUnitsDone(); return n >= 7 ? 2 : n >= 3 ? 1 : 0; }
+  function currentLevel(){ const t = S.course.test; return Math.max(t ? t.level : 0, courseLevel()); }
+  function totalXp(){ return Object.values(S.days).reduce((a, d) => a + ((d.lang && d.lang.xp) || 0), 0); }
+
+  function renderLevel(){
+    const box = $("langLevel");
+    const t = S.course.test;
+    if (!t && !S.course.testSkipped){
+      box.className = "lvl test";
+      box.innerHTML = `<div class="lv-name">Определи свой уровень</div>
+        <div class="lv-sub">Короткий тест из ${PLACEMENT.length} вопросов, около 5 минут. По результату курс начнётся с подходящей темы, а знакомые темы отметятся пройденными.</div>
+        <div class="row"><button class="btn lang" type="button" data-test="start">Пройти тест</button><button class="btn ghost" type="button" data-test="skip">Начать с нуля</button></div>`;
+      return;
+    }
+    const lv = currentLevel(), L0 = LEVELS[lv];
+    let next = "";
+    if (lv < 2){
+      const need = (lv === 0 ? 3 : 7) - courseUnitsDone();
+      next = `До уровня «${LEVELS[lv + 1].name}»: пройди ещё ${need} ${plural(need, "тему", "темы", "тем")} курса.`;
+    } else if (courseUnitsDone() < COURSE.units.length){
+      next = `Курс в приложении рассчитан до уровня A2. Осталось тем: ${COURSE.units.length - courseUnitsDone()}.`;
+    } else next = "Курс до A2 пройден. Повторяй слова и проходи тест ещё раз, чтобы проверить уровень.";
+    box.className = "lvl";
+    box.innerHTML = `<div class="lv-top"><span class="lv-name">${L0.name}</span><span class="lv-cefr">${L0.cefr}</span></div>
+      <div class="steps" aria-hidden="true">${LEVELS.map((x, i) => `<span class="${i <= lv ? "on" : ""}"></span>`).join("")}</div>
+      <div class="steps-l" aria-hidden="true">${LEVELS.map(x => `<span>${x.cefr}</span>`).join("")}</div>
+      <div class="lv-sub">${L0.about}</div>
+      <div class="lv-sub">${next}</div>
+      <div class="row">${t ? `<span class="mhint">Тест: ${t.score} из ${PLACEMENT.length} · ${parseKey(t.date).getDate()} ${MONTHS[parseKey(t.date).getMonth()]}</span>` : ""}<button class="btn sm ghost" type="button" data-test="start">${t ? "Пройти тест ещё раз" : "Пройти тест уровня"}</button></div>`;
+  }
+
+  let chartMode = "xp";
+  function renderLangChart(){
+    const box = $("langChart");
+    const keys = Object.keys(S.days).filter(k => S.days[k].lang && (S.days[k].lang.xp || S.days[k].lang.min)).sort();
+    const today = todayKey();
+    const field = chartMode === "xp" ? "xp" : "min";
+    const unit = chartMode === "xp" ? "XP" : "мин";
+    const head = `<h3>📈 Мой прогресс <span>${chartMode === "xp" ? "опыт нарастающим итогом" : "минуты занятий нарастающим итогом"}</span></h3>
+      <div class="seg2"><button type="button" data-chart="xp" aria-pressed="${chartMode === "xp"}">Опыт</button><button type="button" data-chart="min" aria-pressed="${chartMode === "min"}">Минуты</button></div>`;
+    if (!keys.length){ box.innerHTML = head + `<div class="empty">Линия появится после первого урока. Каждый урок поднимает её выше.</div>`; return; }
+    // from the first study day (at most 60 days back) to today
+    let start = keys[0]; const lim = shift(today, -59); if (start < lim) start = lim;
+    let base = 0; keys.filter(k => k < start).forEach(k => { base += S.days[k].lang[field] || 0; });
+    const days = []; for (let k = start; k <= today; k = shift(k, 1)) days.push(k);
+    if (days.length < 2) days.unshift(shift(start, -1));
+    let acc = base; const vals = days.map(k => { const l = S.days[k] && S.days[k].lang; acc += (l && l[field]) || 0; return acc; });
+    const W = 600, H = 190, pl = 40, pr = 16, pt = 18, pb = 26;
+    const max = Math.max(10, ...vals) * 1.12;
+    const x = i => pl + (W - pl - pr) * (i / (days.length - 1));
+    const y = v => pt + (H - pt - pb) * (1 - v / max);
+    const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
+    const area = `M${x(0)},${y(0)} L${pts.join(" L")} L${x(days.length - 1)},${y(0)} Z`;
+    const ticks = [0, max / 2, max].map(v => Math.round(v));
+    const lab = k => { const d = parseKey(k); return d.getDate() + " " + MONTHS[d.getMonth()].slice(0, 3); };
+    const last = vals[vals.length - 1];
+    const lx = x(days.length - 1), ly = y(last);
+    box.innerHTML = head + `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Прогресс по языку: ${last} ${unit}">
+      ${ticks.map(t => `<line x1="${pl}" x2="${W - pr}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" stroke-width="1"/><text x="${pl - 6}" y="${y(t) + 4}" text-anchor="end" font-size="11" fill="var(--ink-3)" font-family="JetBrains Mono, monospace">${t}</text>`).join("")}
+      <path d="${area}" fill="var(--lang)" opacity=".14"/>
+      <polyline points="${pts.join(" ")}" fill="none" stroke="var(--lang)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${lx}" cy="${ly}" r="5.5" fill="var(--lang)" stroke="var(--surface)" stroke-width="2"/>
+      <text x="${lx - 8}" y="${Math.max(12, ly - 10)}" text-anchor="end" font-size="13" font-weight="700" fill="var(--ink)" font-family="JetBrains Mono, monospace">${last} ${unit}</text>
+      <text x="${pl}" y="${H - 6}" font-size="11" fill="var(--ink-3)">${lab(days[0])}</text>
+      <text x="${W - pr}" y="${H - 6}" text-anchor="end" font-size="11" fill="var(--ink-3)">${lab(days[days.length - 1])}</text>
+    </svg>`;
+  }
+
+  function startTest(){
+    const q = PLACEMENT.map((x, i) => ({ type: "mc", kind: "Тест уровня · вопрос " + (i + 1), prompt: x.q, options: x.a.slice(), answer: x.a[x.c] }));
+    L = { kind: "test", unit: null, q, i: 0, right: 0, asked: 0, start: Date.now(), retried: new Set(), state: "ask", pick: null, built: [] };
+    $("lesson").hidden = false; document.body.style.overflow = "hidden";
+    showQ();
+  }
+  function finishTest(){
+    const score = L.right, lv = levelFromScore(score);
+    const course = clone(S.course); course.done = course.done || {};
+    const skipUnits = lv >= 3 ? COURSE.units.length : lv === 2 ? 6 : lv === 1 ? 3 : 0;
+    COURSE.units.slice(0, skipUnits).forEach(u => { course.done[u.id] = Object.assign({ words: 1, grammar: 1, phrases: 1 }, course.done[u.id]); });
+    course.test = { level: lv, score, date: todayKey() };
+    S.course = course; persist("course", course, 0);
+    if (!S.settings.lang){ const st = clone(S.settings); st.lang = { name: COURSE.name, goal: 20 }; S.settings = st; persist("settings", st, 0); }
+    const L0 = LEVELS[lv];
+    const startU = COURSE.units[Math.min(skipUnits, COURSE.units.length - 1)];
+    $("lsProg").style.width = "100%"; $("lsCount").textContent = "";
+    $("lsBody").innerHTML = `<div class="ls-done" style="display:flex;flex-direction:column;gap:14px;flex:1">
+      <div class="big">🎯</div><span class="ls-kind">Твой уровень</span><h2 class="ls-q" id="lsTitle">${L0.name} · ${L0.cefr}</h2>
+      <div class="ls-sub">${L0.about}</div>
+      <div class="ls-stats"><span class="chip ok">Правильно: <span class="num">${score}</span> из ${PLACEMENT.length}</span></div>
+      <div class="ls-sub">${lv >= 3 ? "Темы курса в приложении (до A2) отмечены пройденными. Используй повторение и словарь." : skipUnits ? `Знакомые темы отмечены пройденными. Начнёшь с темы «${esc(startU.title)}».` : "Начнёшь с первой темы «Приветствия»."}</div></div>`;
+    $("lsFoot").className = "ls-foot";
+    $("lsFoot").innerHTML = `<button class="btn primary" type="button" data-ls="close">Готово</button>`;
+    L.finished = true;
+    render();
   }
 
   // ---- speech ----
@@ -1420,7 +1558,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const body = $("lsBody"), foot = $("lsFoot");
     foot.className = "ls-foot";
     $("lsProg").style.width = Math.min(100, L.i / L.q.length * 100) + "%";
-    if (L.i >= L.q.length) return finishLesson();
+    if (L.i >= L.q.length) return L.kind === "test" ? finishTest() : finishLesson();
     $("lsCount").textContent = (L.i + 1) + " / " + L.q.length;
     const q = L.q[L.i]; L.state = "ask"; L.pick = null; L.built = [];
     body.scrollTop = 0;
@@ -1471,6 +1609,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       correctText = q.en;
     }
     L.asked++; if (ok) L.right++;
+    if (L.kind === "test"){ L.i++; showQ(); return; }
     if (!ok && !L.retried.has(L.i)){ L.retried.add(L.q.length); L.q.push(Object.assign({}, q, { options: q.options ? shuffle(q.options) : undefined, pool: q.pool ? shuffle(q.pool) : undefined })); }
     L.state = "checked";
     const foot = $("lsFoot");
@@ -1500,6 +1639,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     d.lang.min = Math.min(1440, d.lang.min + minutes);
     d.lang.words = (d.lang.words || 0) + added;
     d.lang.lessons = (d.lang.lessons || []).concat(K.label);
+    d.lang.xp = (d.lang.xp || 0) + xp;
     [K.act, "Приложение"].forEach(a => { if (a && !d.lang.acts.includes(a)) d.lang.acts.push(a); });
     commitDay(k, d, 0);
     if (!S.settings.lang){ const st = clone(S.settings); st.lang = { name: COURSE.name, goal: 20 }; S.settings = st; persist("settings", st, 0); }
@@ -1824,7 +1964,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     e.preventDefault();
     const n = parseInt($("langMin").value, 10);
     if (!(n > 0)){ toast("Впиши, сколько минут занимался"); return; }
-    updateLang(l => { l.min = Math.min(1440, l.min + n); }); $("langMin").value = ""; toast("+" + n + " мин");
+    updateLang(l => { l.min = Math.min(1440, l.min + n); l.xp = (l.xp || 0) + n; }); $("langMin").value = ""; toast("+" + n + " мин · +" + n + " XP");
   });
   $("langMinSet").onclick = () => {
     const n = parseInt($("langMin").value, 10);
@@ -1848,7 +1988,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if ((S.dict.words || []).some(x => x.w.toLowerCase() === w.toLowerCase())){ toast("Это слово уже есть в словаре"); return; }
     const dict = clone(S.dict); dict.words = dict.words || []; dict.words.push({ id: uid(), w, t, k: false, d: cur });
     S.dict = dict; persist("dict", dict, 0);
-    updateLang(l => { l.words = (l.words || 0) + 1; });
+    updateLang(l => { l.words = (l.words || 0) + 1; l.xp = (l.xp || 0) + 2; });
     $("dW").value = ""; $("dT").value = ""; $("dW").focus();
   });
   $("dictList").addEventListener("click", e => {
@@ -1858,6 +1998,10 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   });
   $("quizStart").onclick = startQuiz;
   $("langBox").addEventListener("click", e => {
+    const tb = e.target.closest("[data-test]");
+    if (tb){ if (tb.dataset.test === "start") startTest(); else { const c = clone(S.course); c.testSkipped = true; S.course = c; persist("course", c, 0); render(); } return; }
+    const cb = e.target.closest("[data-chart]");
+    if (cb){ chartMode = cb.dataset.chart; renderLangChart(); return; }
     const b = e.target.closest("[data-lesson]"); if (!b) return;
     startLesson(b.dataset.lesson, b.dataset.unit);
   });
@@ -1948,12 +2092,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("bookDetails").open = false; render();
   });
 
-  $("dayNote").addEventListener("input", e => {
-    const d = clone(day(cur)); d.note = e.target.value; S.days[cur] = d;
-    $("noteState").textContent = "сохраняю…";
-    persist(docId(cur), d, 900);
-    clearTimeout(timers.noteLbl); timers.noteLbl = setTimeout(() => { $("noteState").textContent = "сохранено"; }, 1400);
-  });
 
   // ---------- settings ----------
   let draftHabits = [];

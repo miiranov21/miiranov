@@ -234,6 +234,19 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .nick{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .nick input{flex:1 1 160px;max-width:260px}
 
+/* Bottom nav */
+.wrap{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+.panel,.summary{scroll-margin-top:12px}
+.bnav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(15,25,45,.08);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
+.bnav-in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;padding-block:6px}
+.bnav button{border:0;background:transparent;border-radius:12px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink-3);min-width:0}
+.bnav button .ic{font-size:20px;line-height:1.1;filter:grayscale(.6);opacity:.8}
+.bnav button .tx{font-size:10px;letter-spacing:-.02em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.bnav button:hover{background:var(--surface-2)}
+.bnav button.on{color:var(--accent);background:var(--surface-2)}
+.bnav button.on .ic{filter:none;opacity:1}
+.toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+
 /* Week charts */
 .charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .chart h3{font-family:var(--f-body);font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:6px;display:flex;justify-content:space-between}
@@ -315,7 +328,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   </section>
 
   <div class="grid">
-    <section class="panel" aria-labelledby="h-kcal">
+    <section class="panel" id="p-kcal" aria-labelledby="h-kcal">
       <div class="panel-head">
         <h2 id="h-kcal"><span class="dot" style="background:var(--kcal)"></span>Питание</h2>
         <span class="meta num" id="kcalMeta"></span>
@@ -335,7 +348,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div class="field" id="recentWrap" hidden><label>Быстро добавить ещё раз</label><div class="recent" id="recent"></div></div>
     </section>
 
-    <section class="panel" aria-labelledby="h-water">
+    <section class="panel" id="p-water" aria-labelledby="h-water">
       <div class="panel-head">
         <h2 id="h-water"><span class="dot" style="background:var(--water)"></span>Вода</h2>
         <span class="meta num" id="waterMeta"></span>
@@ -371,7 +384,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       </details>
     </section>
 
-    <section class="panel span2" aria-labelledby="h-hab">
+    <section class="panel span2" id="p-hab" aria-labelledby="h-hab">
       <div class="panel-head">
         <h2 id="h-hab"><span class="dot" style="background:var(--habit)"></span>Привычки</h2>
         <span class="row"><span class="meta" id="habMeta"></span><button class="btn sm ghost" type="button" id="editHabits" aria-pressed="false">Изменить</button></span>
@@ -383,7 +396,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       </form>
     </section>
 
-    <section class="panel span2" aria-labelledby="h-quit">
+    <section class="panel span2" id="p-quit" aria-labelledby="h-quit">
       <div class="panel-head">
         <h2 id="h-quit"><span class="dot" style="background:var(--warn)"></span>Избавление от вредных привычек</h2>
         <span class="meta">зелёный день — без срыва</span>
@@ -412,7 +425,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       </div>
     </section>
 
-    <section class="panel span2" aria-labelledby="h-week">
+    <section class="panel span2" id="p-week" aria-labelledby="h-week">
       <div class="panel-head">
         <h2 id="h-week"><span class="dot" style="background:var(--accent)"></span>Последние 7 дней</h2>
         <span class="meta">пунктир — твоя цель</span>
@@ -477,6 +490,18 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     </div>
   </form>
 </dialog>
+
+<nav class="bnav" aria-label="Разделы">
+  <div class="bnav-in" id="bnav">
+    <button type="button" data-go="summary"><span class="ic" aria-hidden="true">🏠</span><span class="tx">День</span></button>
+    <button type="button" data-go="vsPanel"><span class="ic" aria-hidden="true">🏆</span><span class="tx">Битва</span></button>
+    <button type="button" data-go="p-kcal"><span class="ic" aria-hidden="true">🍎</span><span class="tx">Еда</span></button>
+    <button type="button" data-go="p-water"><span class="ic" aria-hidden="true">💧</span><span class="tx">Вода</span></button>
+    <button type="button" data-go="p-hab"><span class="ic" aria-hidden="true">✅</span><span class="tx">Привычки</span></button>
+    <button type="button" data-go="p-quit"><span class="ic" aria-hidden="true">🚭</span><span class="tx">Отказ</span></button>
+    <button type="button" data-go="p-week"><span class="ic" aria-hidden="true">📊</span><span class="tx">Неделя</span></button>
+  </div>
+</nav>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -1248,6 +1273,28 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     persist("settings", S.settings, 0);
     $("settings").close(); render(); toast("Цели сохранены");
   });
+
+  // ---------- bottom nav ----------
+  const navBtns = [...document.querySelectorAll("#bnav [data-go]")];
+  const reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let navLock = 0;
+  function setActive(id){ navBtns.forEach(b => b.classList.toggle("on", b.dataset.go === id)); }
+  navBtns.forEach(b => b.addEventListener("click", () => {
+    const el = $(b.dataset.go); if (!el) return;
+    setActive(b.dataset.go); navLock = Date.now();
+    if (b.dataset.go === "summary") window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+    else el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  }));
+  function syncNav(){
+    if (Date.now() - navLock < 900) return;
+    const line = window.innerHeight * 0.35; let curId = "summary";
+    for (const b of navBtns){ const el = $(b.dataset.go); if (el && el.getBoundingClientRect().top <= line) curId = b.dataset.go; }
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) curId = navBtns[navBtns.length - 1].dataset.go;
+    setActive(curId);
+  }
+  let navRaf = 0;
+  window.addEventListener("scroll", () => { if (!navRaf) navRaf = requestAnimationFrame(() => { navRaf = 0; syncNav(); }); }, { passive: true });
+  setActive("summary");
 
   // ---------- misc ----------
   let toastT;

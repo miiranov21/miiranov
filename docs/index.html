@@ -27,6 +27,7 @@
   --warn:#D9472B;
   --lang:#C2417A; --lang-soft:#F9E1EC;
   --fin:#0F8B6C; --fin-soft:#DDF2EA;
+  --vit:#D9822B; --vit-soft:#FBEBDA;
   --kcal-soft:#FBE7DA; --water-soft:#DCEEFB; --read-soft:#ECE4FA; --habit-soft:#D9F3EA;
   --f-display:"Unbounded","Manrope",system-ui,sans-serif;
   --f-body:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -40,6 +41,7 @@
   --kcal:#F39250; --water:#4DB0F5; --read:#A585F0; --habit:#3CC79A; --warn:#F2735A;
   --lang:#EC74A6; --lang-soft:#3E1A2B;
   --fin:#3FCB9F; --fin-soft:#12352B;
+  --vit:#F0A35A; --vit-soft:#3A2614;
   --kcal-soft:#3A2618; --water-soft:#132E45; --read-soft:#2B2045; --habit-soft:#123528;
   color-scheme:dark}}
 :root[data-theme="dark"]{
@@ -49,6 +51,7 @@
   --kcal:#F39250; --water:#4DB0F5; --read:#A585F0; --habit:#3CC79A; --warn:#F2735A;
   --lang:#EC74A6; --lang-soft:#3E1A2B;
   --fin:#3FCB9F; --fin-soft:#12352B;
+  --vit:#F0A35A; --vit-soft:#3A2614;
   --kcal-soft:#3A2618; --water-soft:#132E45; --read-soft:#2B2045; --habit-soft:#123528;
   color-scheme:dark}
 
@@ -305,12 +308,12 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 /* Bottom nav */
 .wrap{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 .panel,.summary{scroll-margin-top:12px}
-.bnav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(15,25,45,.08);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
+.bnav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(15,25,45,.08);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(4px,env(safe-area-inset-left,0px));padding-right:max(4px,env(safe-area-inset-right,0px))}
 .bnav-in{max-width:760px;margin:0 auto;display:flex;gap:2px;padding-block:6px}
-.bnav button{flex:1 1 0;border:0;background:transparent;border-radius:12px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink-3);min-width:0}
+.bnav button{flex:1 1 0;border:0;background:transparent;border-radius:12px;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink-3);min-width:0}
 .bnav button .ic{display:block;width:23px;height:23px;line-height:0}
 .bnav button .ic svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.bnav button .tx{font-size:9.5px;letter-spacing:-.03em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.bnav button .tx{font-size:9px;letter-spacing:-.05em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .bnav button:hover{background:var(--surface-2)}
 .bnav button.on{color:var(--accent);background:var(--surface-2)}
 .bnav button.on .ic svg{stroke-width:2.1}
@@ -452,6 +455,32 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .fingoal .pbar i{background:var(--fin)}
 @media (max-width:760px){.finform{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.finform .seg,.finform .btn{grid-column:1/-1}}
 
+/* Vitamins */
+.vits{display:flex;flex-direction:column;gap:10px}
+.vgroup{display:flex;flex-direction:column;gap:6px}
+.vgroup h3{font-family:var(--f-body);font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:700;margin:0}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.vit-wrap{position:relative;display:flex;min-width:0}
+.vtile{flex:1;display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:10px 12px;text-align:left;min-width:0}
+.vtile .pill{width:30px;height:30px;border-radius:999px;border:2px solid var(--vit);display:grid;place-items:center;flex:none;font-size:15px;color:transparent}
+.vtile.on{background:var(--vit-soft);border-color:transparent}
+.vtile.on .pill{background:var(--vit);color:#fff}
+.vtile .vn{flex:1;min-width:0;font-weight:700;font-size:14px;overflow-wrap:anywhere}
+.vtile .vn small{display:block;font-weight:500;font-size:12px;color:var(--ink-2)}
+.vtile .vn .vs{color:var(--ink-3);font-family:var(--f-num);font-size:11.5px}
+.vtile.done-course{opacity:.6}
+.vits.editing .habit-del{display:block}
+.vitform{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,.8fr) auto auto;gap:8px;align-items:end;margin-top:10px}
+.vchk{display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;padding-bottom:9px}
+.btn.vit{background:var(--vit);border-color:var(--vit);color:#fff}
+@media (max-width:760px){.vitform{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.vitform .btn{grid-column:1/-1}}
+.vitideas{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:10px}
+.videa{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;font-size:13px;text-align:left;background:var(--surface)}
+.videa b{font-size:14px}
+.videa span{color:var(--ink-2)}
+.videa small{color:var(--vit);font-weight:700}
+.vitwarn{font-size:12.5px;color:var(--ink-2);background:var(--vit-soft);border-radius:10px;padding:8px 12px;margin:10px 0 0}
+
 /* Section filter */
 .viewbar{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .vb-top{display:flex;flex-direction:column;gap:2px}
@@ -467,6 +496,7 @@ body.hide-p-lang #p-lang, body.hide-p-lang [data-go="p-lang"],
 body.hide-p-hab #p-hab, body.hide-p-hab [data-go="p-hab"], body.hide-p-hab [data-sec="p-hab"],
 body.hide-p-cal #p-cal,
 body.hide-p-fin #p-fin, body.hide-p-fin [data-go="p-fin"],
+body.hide-p-vit #p-vit, body.hide-p-vit [data-go="p-vit"],
 body.hide-report #reportOpen{display:none!important}
 body.hide-p-water #p-kcal, body.hide-p-kcal #p-water{grid-column:1/-1}
 
@@ -854,6 +884,31 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     </section>
 
 
+    <section class="panel span2" id="p-vit" aria-labelledby="h-vit">
+      <div class="panel-head">
+        <h2 id="h-vit"><span class="dot" style="background:var(--vit)"></span>Витамины</h2>
+        <span class="row"><span class="meta" id="vitMeta"></span><button class="btn sm ghost" type="button" id="editVits" aria-pressed="false">Изменить</button></span>
+      </div>
+      <div class="vits" id="vits"></div>
+      <details id="vitAddBox">
+        <summary>+ Добавить витамин</summary>
+        <form class="vitform" id="vitForm" autocomplete="off">
+          <div class="field"><label for="vName">Название</label><input type="text" id="vName" maxlength="40" required list="vitList" placeholder="Витамин D3"></div>
+          <div class="field"><label for="vDose">Доза</label><input type="text" id="vDose" maxlength="30" placeholder="1 капсула, 2000 МЕ"></div>
+          <div class="field"><label for="vWhen">Когда</label><select id="vWhen"><option value="m">🌅 Утром</option><option value="d">☀️ Днём</option><option value="e">🌙 Вечером</option></select></div>
+          <div class="field"><label for="vDays">Курс, дней</label><input type="number" id="vDays" min="1" max="730" inputmode="numeric" placeholder="без срока"></div>
+          <label class="vchk"><input type="checkbox" id="vFood"> во время еды</label>
+          <button class="btn vit" type="submit">Добавить</button>
+        </form>
+        <datalist id="vitList"></datalist>
+      </details>
+      <details id="vitIdeas">
+        <summary>💡 Что обычно пьют и как</summary>
+        <div class="vitideas" id="vitIdeasList"></div>
+        <p class="vitwarn">⚠️ Витамины — не конфеты: избыток некоторых из них (D, A, железо) вредит. Перед началом лучше сдать анализы и посоветоваться с врачом, особенно при хронических болезнях, беременности или приёме лекарств. Подсказки здесь общие и не заменяют консультацию.</p>
+      </details>
+    </section>
+
     <section class="panel span2" id="p-cal" aria-labelledby="h-cal">
       <div class="panel-head">
         <h2 id="h-cal"><span class="dot" style="background:var(--habit)"></span>Календарь привычек</h2>
@@ -993,6 +1048,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <button type="button" data-go="p-water"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3.5s6 6.4 6 10.7a6 6 0 0 1-12 0C6 9.9 12 3.5 12 3.5z"/><path d="M9.2 14.6a2.9 2.9 0 0 0 2.6 2.6"/></svg></span><span class="tx">Вода</span></button>
     <button type="button" data-go="p-lang"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.3 2.5 3.5 5.3 3.5 8.5s-1.2 6-3.5 8.5c-2.3-2.5-3.5-5.3-3.5-8.5s1.2-6 3.5-8.5z"/></svg></span><span class="tx">Язык</span></button>
     <button type="button" data-go="p-hab"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.2 12.4 2.6 2.6 5-5.4"/></svg></span><span class="tx">Привычки</span></button>
+    <button type="button" data-go="p-vit"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.2" y="8.6" width="17.6" height="6.8" rx="3.4" transform="rotate(-40 12 12)"/><path d="m9.3 9.4 5.3 5.2"/></svg></span><span class="tx">Витамины</span></button>
     <button type="button" data-go="p-fin"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="6.5" width="17" height="13" rx="2.5"/><path d="M3.5 10.5h17"/><path d="M15.5 15h2"/><path d="M7 6.5 15.5 4l1 2.5"/></svg></span><span class="tx">Финансы</span></button>
   </div>
 </nav>
@@ -1297,6 +1353,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       days[k] = { w: d.water, wg: g.water, p: d.pages, pg: g.pages, h: t.habitsDone, ht: t.habitsTotal,
         hd: S.settings.habits.filter(h => d.habits[h.id]).map(h => h.name),
         ll: (d.lang && d.lang.lessons) || [],
+        vt: vitsFor(k).filter(v => d.vits && d.vits[v.id]).length, vn: vitsFor(k).length, vd: vitsFor(k).filter(v => d.vits && d.vits[v.id]).map(v => v.name),
         lm: (d.lang && d.lang.min) || 0, lg: S.settings.lang ? S.settings.lang.goal : 0, lw: (d.lang && d.lang.words) || 0, la: (d.lang && d.lang.acts) || [] };
     }
     const cb = S.books.list.find(b => b.id === S.books.current);
@@ -1381,6 +1438,9 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (players.some(pl => pl.lang)) html += block("🌍 Язык", "var(--lang)", pl => pl.lang
       ? `${who(pl)}<span class="cv num">${pl.d.lm || 0}${pl.d.lg ? " / " + pl.d.lg : ""} мин</span>${bar(pl.d.lm || 0, pl.d.lg, "var(--lang)")}<div class="cdone">${esc(pl.lang)}${pl.d.lw ? " · +" + pl.d.lw + " " + plural(pl.d.lw, "слово", "слова", "слов") : ""}${pl.dictN ? " · в словаре " + pl.dictN : ""}${(pl.d.ll || []).length ? " · уроки: " + pl.d.ll.map(esc).join(", ") : ""}${pl.units ? " · пройдено тем: " + pl.units : ""}${pl.lvl ? " · уровень: " + esc(pl.lvl) : ""}${(pl.d.la || []).length ? " · " + pl.d.la.map(esc).join(", ") : ""}</div>`
       : `${who(pl)}<span class="cv">пока не учит</span>`);
+    if (players.some(pl => pl.d.vn)) html += block("💊 Витамины", "var(--vit)", pl => pl.d.vn
+      ? `${who(pl)}<span class="cv num">${pl.d.vt || 0} из ${pl.d.vn}</span>${bar(pl.d.vt || 0, pl.d.vn, "var(--vit)")}${(pl.d.vd || []).length ? `<div class="cdone">${pl.d.vd.map(esc).join(" · ")}</div>` : ""}`
+      : `${who(pl)}<span class="cv">не пьёт</span>`);
     html += block("✅ Привычки", "var(--habit)", pl => `${who(pl)}<span class="cv num">${pl.d.h || 0} из ${pl.d.ht || 0}</span>${bar(pl.d.h || 0, pl.d.ht, "var(--habit)")}${(pl.d.hd || []).length ? `<div class="cdone">${pl.d.hd.map(n => esc(n)).join(" · ")}</div>` : ""}`);
     if (players.some(pl => (pl.shelf || []).length || pl.want)) html += block("📚 Библиотека", "var(--read)", pl => `${who(pl)}<span class="cv num">прочитано ${pl.books || 0}${pl.want ? " · хочет " + pl.want : ""}</span>${(pl.shelf || []).length ? `<div class="cdone">${pl.shelf.slice(0, 6).map(b => "«" + esc(b.t) + "»" + (b.r ? " " + "★".repeat(b.r) : "")).join(" · ")}</div>` : ""}`);
     if (players.some(pl => (pl.habStreaks || []).length)) html += block("🔥 Серии привычек", "var(--habit)", pl => `${who(pl)}<span class="cv">${(pl.habStreaks || []).length ? pl.habStreaks.map(h => `<span class="chip fire">${esc(h.n)}: <span class="num">${h.s}</span> ${plural(h.s, "день", "дня", "дней")}</span>`).join(" ") : "—"}</span>`);
@@ -1444,7 +1504,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const parts = [kcalOk, waterOk, readOk];
     let score = parts.filter(Boolean).length + (habitsTotal ? habitsDone / habitsTotal : 0);
     const max = 3 + (habitsTotal ? 1 : 0);
-    return { P, F, C, kcal, kcalOk, waterOk, readOk, habitsDone, habitsTotal, score: score / max, hasData: d.meals.length || d.water || d.pages || habitsDone || (d.lang && d.lang.min) };
+    return { P, F, C, kcal, kcalOk, waterOk, readOk, habitsDone, habitsTotal, score: score / max, hasData: d.meals.length || d.water || d.pages || habitsDone || (d.lang && d.lang.min) || (d.vits && Object.keys(d.vits).length) };
   }
   function streak(){
     // consecutive days with ≥75% ending today (today counts if already ≥75%)
@@ -1603,6 +1663,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 
     renderCal();
     renderIdeas();
+    renderVits();
     renderFin();
     renderBoard();
     scheduleSummary();
@@ -2189,6 +2250,10 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const held = inRange.filter(k => S.days[k] && S.days[k].habits && S.days[k].habits[h.id]).length;
       $("repStats").innerHTML += `<div><span>🚭 ${esc(h.name)}</span><b>${held} из ${inRange.length} дн.</b><small>продержался · сейчас ${habitStreak(h.id)} ${plural(habitStreak(h.id), "день", "дня", "дней")} · рекорд ${bestStreak(h.id)}</small></div>`;
     });
+    // vitamins
+    const vTot = past.reduce((a, k) => a + vitsFor(k).length, 0);
+    if (vTot){ const vOk = past.reduce((a, k) => a + vitsFor(k).filter(v => S.days[k] && S.days[k].vits && S.days[k].vits[v.id]).length, 0);
+      $("repStats").innerHTML += `<div><span>💊 Витамины</span><b>${Math.round(vOk / vTot * 100)}%</b><small>выпито ${vOk} из ${vTot} приёмов</small></div>`; }
     // finance (this phone only)
     const finW = (typeof FIN !== "undefined" ? FIN.tx : []).filter(t => t.t === "exp" && t.d >= keys[0] && t.d <= end).reduce((a, t) => a + t.a, 0);
     if (typeof FIN !== "undefined" && FIN.tx.length) $("repStats").innerHTML += `<div><span>💰 Расходы за неделю</span><b>${(Math.round(finW)).toLocaleString("ru-RU")} ${FIN.cur}</b><small>видно только тебе</small></div>`;
@@ -2635,6 +2700,76 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   $("portion").addEventListener("input", e => {
     if (e.target.id !== "pGrams") return;
     const g = parseInt(e.target.value, 10); if (g > 0 && g <= 3000){ FSEL.grams = g; applyPortion(); }
+  });
+
+  // ---------- vitamins ----------
+  const VIT_IDEAS = [
+    { n: "Витамин D3", dose: "1 капсула", w: "m", food: true, note: "Жирорастворимый: лучше с едой, где есть жиры. Дозу подбирают по анализу на витамин D." },
+    { n: "Омега-3", dose: "1–2 капсулы", w: "d", food: true, note: "Пьют во время еды, так лучше усваивается и меньше неприятного привкуса." },
+    { n: "Магний", dose: "1 таблетка", w: "e", food: true, note: "Часто пьют вечером. Цитрат или глицинат обычно мягче для желудка, чем оксид." },
+    { n: "Витамин C", dose: "1 таблетка", w: "d", food: false, note: "Водорастворимый, можно в любое время. Помогает усвоению железа, если пить вместе." },
+    { n: "Витамин B12", dose: "1 таблетка", w: "m", food: false, note: "Лучше утром: у некоторых бодрит. Особенно важен тем, кто мало ест мяса и рыбы." },
+    { n: "Железо", dose: "1 таблетка", w: "m", food: false, note: "Только по анализам: избыток вреден. Не запивать чаем, кофе и молоком, не пить вместе с кальцием." },
+    { n: "Цинк", dose: "1 таблетка", w: "d", food: true, note: "Лучше с едой, чтобы не тошнило. Не пить одновременно с железом и кальцием." },
+    { n: "Кальций", dose: "1 таблетка", w: "e", food: true, note: "Не вместе с железом и цинком: мешают друг другу. Часто сочетают с витамином D." },
+    { n: "Мультивитамины", dose: "1 таблетка", w: "m", food: true, note: "Обычно утром с завтраком. Если пьёшь мультивитамины, проверь, не дублируют ли их другие добавки." }
+  ];
+  const WHEN = { m: "🌅 Утро", d: "☀️ День", e: "🌙 Вечер" };
+  let editingVits = false;
+  function vitDayN(v, k){ return v.start ? Math.round((parseKey(k) - parseKey(v.start)) / 86400000) + 1 : 0; }
+  function vitActive(v, k){ return (!v.start || k >= v.start) && (!v.days || vitDayN(v, k) <= v.days); }
+  function vitStreak(id){ let k = todayKey(), n = 0; const on = k => !!(S.days[k] && S.days[k].vits && S.days[k].vits[id]); if (!on(k)) k = shift(k, -1); while (on(k) && n < 3650){ n++; k = shift(k, -1); } return n; }
+  function vitsFor(k){ return (S.settings.vits || []).filter(v => vitActive(v, k)); }
+  function renderVits(){
+    const list = S.settings.vits || [];
+    const d = day(cur), taken = d.vits || {};
+    const act = vitsFor(cur);
+    $("vitMeta").textContent = act.length ? `${act.filter(v => taken[v.id]).length} из ${act.length} сегодня` : "";
+    $("editVits").hidden = !list.length;
+    $("vits").classList.toggle("editing", editingVits);
+    if (!list.length){
+      $("vits").innerHTML = `<div class="empty">Пока ничего нет. Добавь витамин ниже или выбери из подсказок «Что обычно пьют и как». Потом каждый день просто нажимай на него, когда выпил.</div>`;
+      $("vitAddBox").open = true;
+    } else {
+      $("vits").innerHTML = ["m", "d", "e"].map(w => {
+        const g = list.filter(v => (v.when || "m") === w);
+        if (!g.length) return "";
+        return `<div class="vgroup"><h3>${WHEN[w]}</h3><div class="vgrid">${g.map(v => {
+          const on = !!taken[v.id], active = vitActive(v, cur), dn = vitDayN(v, cur), st = vitStreak(v.id);
+          const course = v.days ? (dn > v.days ? `курс завершён (${v.days} дн.)` : dn >= 1 ? `день ${dn} из ${v.days}` : `курс с ${parseKey(v.start).getDate()} ${MONTHS[parseKey(v.start).getMonth()]}`) : "";
+          const info = [v.dose, v.food ? "во время еды" : ""].filter(Boolean).join(" · ");
+          return `<div class="vit-wrap"><button class="vtile ${on ? "on" : ""} ${active ? "" : "done-course"}" type="button" ${active ? `data-vit="${v.id}"` : "disabled"} aria-pressed="${on}" aria-label="${esc(v.name)}: ${on ? "выпил" : "нажми, когда выпьешь"}"><span class="pill">✓</span><span class="vn">${esc(v.name)}${info ? `<small>${esc(info)}</small>` : ""}<span class="vs">${[course, st ? "🔥 " + st + " " + plural(st, "день", "дня", "дней") + " подряд" : ""].filter(Boolean).join(" · ")}</span></span></button><button class="habit-del" type="button" data-vdel="${v.id}" aria-label="Удалить ${esc(v.name)}">×</button></div>`;
+        }).join("")}</div></div>`;
+      }).join("");
+    }
+    $("vitList").innerHTML = VIT_IDEAS.map(v => `<option value="${esc(v.n)}">`).join("");
+    if (!$("vitIdeasList").innerHTML) $("vitIdeasList").innerHTML = VIT_IDEAS.map((v, i) => `<button class="videa" type="button" data-vidx="${i}"><b>${esc(v.n)}</b><span>${esc(v.note)}</span><small>${WHEN[v.w]}${v.food ? " · с едой" : ""} · нажми, чтобы заполнить</small></button>`).join("");
+  }
+  $("vits").addEventListener("click", e => {
+    const t = e.target.closest("[data-vit]");
+    if (t){ const d = clone(day(cur)); d.vits = d.vits || {}; if (d.vits[t.dataset.vit]) delete d.vits[t.dataset.vit]; else d.vits[t.dataset.vit] = true; commitDay(cur, d, 300); return; }
+    const x = e.target.closest("[data-vdel]");
+    if (x){
+      if (x.dataset.confirm !== "1"){ x.dataset.confirm = "1"; x.textContent = "?"; x.style.color = "var(--warn)"; setTimeout(() => { if (x.isConnected){ x.dataset.confirm = ""; x.textContent = "×"; x.style.color = ""; } }, 3000); return; }
+      const st = clone(S.settings); st.vits = (st.vits || []).filter(v => v.id !== x.dataset.vdel); S.settings = st; persist("settings", st, 0); render();
+    }
+  });
+  $("editVits").onclick = () => { editingVits = !editingVits; $("editVits").textContent = editingVits ? "Готово" : "Изменить"; $("editVits").setAttribute("aria-pressed", editingVits); renderVits(); };
+  $("vitIdeasList").addEventListener("click", e => {
+    const b = e.target.closest("[data-vidx]"); if (!b) return;
+    const v = VIT_IDEAS[+b.dataset.vidx];
+    $("vName").value = v.n; $("vDose").value = v.dose; $("vWhen").value = v.w; $("vFood").checked = v.food;
+    $("vitAddBox").open = true; $("vName").scrollIntoView({ behavior: "smooth", block: "center" }); $("vDose").focus();
+  });
+  $("vitForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const name = $("vName").value.trim(); if (!name) return;
+    const days = parseInt($("vDays").value, 10);
+    const st = clone(S.settings); st.vits = st.vits || [];
+    st.vits.push({ id: "v" + uid(), name: name.slice(0, 40), dose: $("vDose").value.trim().slice(0, 30), when: $("vWhen").value, food: $("vFood").checked, start: todayKey(), days: days > 0 ? days : 0 });
+    S.settings = st; persist("settings", st, 0);
+    ["vName", "vDose", "vDays"].forEach(id => { $(id).value = ""; }); $("vFood").checked = false; $("vitAddBox").open = false;
+    render(); toast("Добавлено: " + name + ". Отмечай каждый день, когда выпьешь");
   });
 
   // ---------- habit ideas ----------
@@ -3267,6 +3402,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       bad: [],
       nick: S.settings.nick || "",
       lang: S.settings.lang || null,
+      vits: S.settings.vits || [],
       goals: { kcal: num("gKcal", 800, 6000, g.kcal), water: num("gWater", 500, 6000, g.water), pages: num("gPages", 1, 500, g.pages), glass: num("gGlass", 100, 1000, g.glass), protein: opt("gP", 500), fat: opt("gF", 400), carbs: opt("gC", 1000) },
       habits: draftHabits.map(h => Object.assign({}, h, { name: h.name.trim() })).filter(h => h.name)
     };
@@ -3297,7 +3433,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   setActive("summary");
 
   // ---------- section filter (per phone, easy to undo) ----------
-  const SECTIONS = [["vsPanel", "👫 Пара"], ["p-kcal", "🍎 Питание"], ["p-water", "💧 Вода и чтение"], ["p-lang", "🌍 Язык"], ["p-hab", "✅ Привычки"], ["p-cal", "📅 Календарь привычек"], ["p-fin", "💰 Финансы"], ["report", "📊 Отчёт за неделю"]];
+  const SECTIONS = [["vsPanel", "👫 Пара"], ["p-kcal", "🍎 Питание"], ["p-water", "💧 Вода и чтение"], ["p-lang", "🌍 Язык"], ["p-hab", "✅ Привычки"], ["p-vit", "💊 Витамины"], ["p-cal", "📅 Календарь привычек"], ["p-fin", "💰 Финансы"], ["report", "📊 Отчёт за неделю"]];
   let hiddenSecs = [];
   try { hiddenSecs = JSON.parse(localStorage.getItem("moy-den-hidden") || "[]"); } catch (e) { hiddenSecs = []; }
   function applyView(){

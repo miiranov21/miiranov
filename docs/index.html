@@ -1083,8 +1083,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       if (!t.hasData) continue;
       const d = day(k);
       const g = goals();
-      days[k] = { s: Math.round(t.score * 100), w: d.water, wg: g.water, p: d.pages, pg: g.pages, h: t.habitsDone, ht: t.habitsTotal,
-        hd: S.settings.habits.filter(h => d.habits[h.id]).map(h => h.name), kc: t.kcal, kg: g.kcal, k: t.kcalOk ? 1 : 0,
+      days[k] = { w: d.water, wg: g.water, p: d.pages, pg: g.pages, h: t.habitsDone, ht: t.habitsTotal,
+        hd: S.settings.habits.filter(h => d.habits[h.id]).map(h => h.name),
         ll: (d.lang && d.lang.lessons) || [],
         lm: (d.lang && d.lang.min) || 0, lg: S.settings.lang ? S.settings.lang.goal : 0, lw: (d.lang && d.lang.words) || 0, la: (d.lang && d.lang.acts) || [] };
     }
@@ -1092,9 +1092,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     return {
       nick: (S.settings.nick || "").slice(0, 24),
       days,
-      streak: streak(),
       books: S.books.list.filter(b => b.done).length,
       book: cb ? { t: cb.title, r: cb.read, n: cb.total } : null,
+      shelf: S.books.list.filter(b => b.done).sort((a, b) => (b.finished || "").localeCompare(a.finished || "")).slice(0, 12).map(b => ({ t: b.title, a: b.author || "", r: b.rating || 0 })),
+      want: S.books.list.filter(b => b.want).length,
+      habStreaks: S.settings.habits.map(h => ({ n: h.name, s: habitStreak(h.id) })).filter(x => x.s > 1),
       lang: S.settings.lang ? S.settings.lang.name : "",
       dictN: (S.dict.words || []).length,
       units: courseUnitsDone(),
@@ -1139,7 +1141,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
           <div class="row">${chooseList.map(p => `<button class="btn" type="button" data-pickme="${esc(p.id)}">Я — ${esc(p.nick || "без имени")}</button>`).join("")}
           <button class="btn primary" type="button" data-pickme="new">Я новый участник</button></div>`;
       } else {
-        j.innerHTML = `<b>Смотрите прогресс друг друга.</b> Один из вас создаёт пару и отправляет код второму. Тогда здесь будет видно, сколько каждый прочитал, выпил воды, сделал привычек и съел калорий. Еда и заметки остаются личными.
+        j.innerHTML = `<b>Смотрите прогресс друг друга.</b> Один из вас создаёт пару и отправляет код второму. Тогда здесь будет видно всё, чем каждый занимается: чтение, библиотека, вода, привычки, язык и вредные привычки. Калории и еда остаются личными.
           <div class="row"><button class="btn primary" type="button" id="pairCreate">Создать пару</button><span style="color:var(--ink-3)">или</span>
           <input type="text" id="pairCode" placeholder="Код пары: XXXX-XXXX-XXXX" maxlength="16" autocomplete="off" autocapitalize="characters" style="max-width:220px" aria-label="Код пары">
           <button class="btn" type="button" id="pairJoin">Подключиться</button></div>`;
@@ -1169,7 +1171,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       ? `${who(pl)}<span class="cv num">${pl.d.lm || 0}${pl.d.lg ? " / " + pl.d.lg : ""} мин</span>${bar(pl.d.lm || 0, pl.d.lg, "var(--lang)")}<div class="cdone">${esc(pl.lang)}${pl.d.lw ? " · +" + pl.d.lw + " " + plural(pl.d.lw, "слово", "слова", "слов") : ""}${pl.dictN ? " · в словаре " + pl.dictN : ""}${(pl.d.ll || []).length ? " · уроки: " + pl.d.ll.map(esc).join(", ") : ""}${pl.units ? " · пройдено тем: " + pl.units : ""}${pl.lvl ? " · уровень: " + esc(pl.lvl) : ""}${(pl.d.la || []).length ? " · " + pl.d.la.map(esc).join(", ") : ""}</div>`
       : `${who(pl)}<span class="cv">пока не учит</span>`);
     html += block("✅ Привычки", "var(--habit)", pl => `${who(pl)}<span class="cv num">${pl.d.h || 0} из ${pl.d.ht || 0}</span>${bar(pl.d.h || 0, pl.d.ht, "var(--habit)")}${(pl.d.hd || []).length ? `<div class="cdone">${pl.d.hd.map(n => esc(n)).join(" · ")}</div>` : ""}`);
-    html += block("🍎 Калории", "var(--kcal)", pl => `${who(pl)}<span class="cv num">${fmt(pl.d.kc || 0)}${pl.d.kg ? " / " + fmt(pl.d.kg) : ""} ккал</span>${bar(pl.d.kc || 0, pl.d.kg, "var(--kcal)")}`);
+    if (players.some(pl => (pl.shelf || []).length || pl.want)) html += block("📚 Библиотека", "var(--read)", pl => `${who(pl)}<span class="cv num">прочитано ${pl.books || 0}${pl.want ? " · хочет " + pl.want : ""}</span>${(pl.shelf || []).length ? `<div class="cdone">${pl.shelf.slice(0, 6).map(b => "«" + esc(b.t) + "»" + (b.r ? " " + "★".repeat(b.r) : "")).join(" · ")}</div>` : ""}`);
+    if (players.some(pl => (pl.habStreaks || []).length)) html += block("🔥 Серии привычек", "var(--habit)", pl => `${who(pl)}<span class="cv">${(pl.habStreaks || []).length ? pl.habStreaks.map(h => `<span class="chip fire">${esc(h.n)}: <span class="num">${h.s}</span> ${plural(h.s, "день", "дня", "дней")}</span>`).join(" ") : "—"}</span>`);
     if (players.some(pl => pl.book)) html += block("📚 Читает сейчас", "var(--read)", pl => `${who(pl)}<span class="cv">${pl.book ? `«${esc(pl.book.t)}» · <span class="num">${pl.book.r} / ${pl.book.n} стр.</span>` : "—"}</span>`);
     if (players.some(pl => (pl.quit || []).length)) html += block("🚭 Без вредных привычек", "var(--habit)", pl => `${who(pl)}<span class="cv">${(pl.quit || []).length ? pl.quit.map(q => `<span class="chip ok">${esc(q.n)}: <span class="num">${q.d}</span> ${plural(q.d, "день", "дня", "дней")}</span>`).join(" ") : "—"}</span>`);
     $("vs").innerHTML = html;

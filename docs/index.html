@@ -213,7 +213,23 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .qtile.slipped .box{background:var(--warn);border-color:var(--warn);color:#fff}
 .qtile.pre{opacity:.55}
 .qtile .st{white-space:normal}
-#quitList.editing .habit-del{display:block}
+.hgroup{grid-column:1/-1;font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+.hgroup small{text-transform:none;letter-spacing:0;font-weight:500}
+.habit.badh.on{background:var(--habit-soft)}
+.habit .rec{display:block;font-family:var(--f-num);font-size:11.5px;color:var(--kcal);font-weight:700}
+.hmx{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+.hmx table{border-collapse:separate;border-spacing:3px;font-size:11.5px;min-width:100%}
+.hmx th{font-weight:600;color:var(--ink-3);text-align:center;min-width:22px;font-family:var(--f-num)}
+.hmx th.we{color:var(--warn)}
+.hmx th.td{color:var(--ink);text-decoration:underline}
+.hmx td.hn2{position:sticky;left:0;background:var(--surface);font-weight:600;white-space:nowrap;padding:0 8px 0 6px;max-width:150px;overflow:hidden;text-overflow:ellipsis;z-index:1}
+.hmx td.c{height:22px;min-width:22px;border-radius:6px;text-align:center;color:#fff;font-size:11px}
+.hmx td.c.ok{background:var(--habit)}
+.hmx td.c.no{background:var(--surface-2)}
+.hmx td.c.fail{background:var(--warn)}
+.hmx td.c.fut,.hmx td.c.pre{background:transparent}
+.hmx td.tot{font-family:var(--f-num);color:var(--ink-2);white-space:nowrap;padding-left:6px}
+.hmx .empty{padding:14px}
 .quit-list{display:flex;flex-direction:column;gap:10px;min-width:0}
 .qcard{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--surface);text-align:left;width:100%}
 .qcard.sel{border-color:var(--habit);box-shadow:0 0 0 1px var(--habit) inset}
@@ -281,7 +297,7 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .wrap{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 .panel,.summary{scroll-margin-top:12px}
 .bnav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(15,25,45,.08);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
-.bnav-in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;padding-block:6px}
+.bnav-in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;padding-block:6px}
 .bnav button{border:0;background:transparent;border-radius:12px;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink-3);min-width:0}
 .bnav button .ic{font-size:20px;line-height:1.1;filter:grayscale(.6);opacity:.8}
 .bnav button .tx{font-size:9.5px;letter-spacing:-.03em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
@@ -715,42 +731,25 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       </div>
       <div class="habits" id="habits"></div>
       <form class="addhabit" id="habitForm" autocomplete="off">
-        <input type="text" id="habitName" maxlength="40" placeholder="Своя привычка: например, «Английский 20 мин»" aria-label="Название новой привычки" required>
-        <button class="btn primary" type="submit">+ Добавить привычку</button>
+        <input type="text" id="habitName" maxlength="40" placeholder="Новая привычка: «Зарядка», «Не курить»…" aria-label="Название новой привычки" required>
+        <select id="habitType" aria-label="Тип привычки" style="flex:0 1 150px"><option value="good">✅ Полезная</option><option value="bad">🚭 Вредная</option></select>
+        <button class="btn primary" type="submit">+ Добавить</button>
       </form>
     </section>
 
-    <section class="panel span2" id="p-quit" aria-labelledby="h-quit">
-      <div class="panel-head">
-        <h2 id="h-quit"><span class="dot" style="background:var(--warn)"></span>Избавление от вредных привычек</h2>
-        <span class="row"><span class="meta" id="quitMeta"></span><button class="btn sm ghost" type="button" id="editBad" aria-pressed="false">Изменить</button></span>
-      </div>
-      <div class="habits" id="quitList"></div>
-      <form class="addhabit" id="badForm" autocomplete="off">
-        <input type="text" id="badName" maxlength="40" required placeholder="От чего избавляюсь: курение, соцсети, сладкое…" aria-label="Название вредной привычки">
-        <label class="mhint" for="badStart">с</label><input type="date" id="badStart" required style="flex:0 1 150px" aria-label="С какого дня">
-        <button class="btn primary" type="submit">+ Добавить</button>
-      </form>
-      <p class="mhint" id="quitHint">Зелёная плитка — день без срыва. Нажми на плитку, если сорвался, и ещё раз, чтобы отменить. Стрелками вверху можно отметить прошлые дни.</p>
-    </section>
 
     <section class="panel span2" id="p-cal" aria-labelledby="h-cal">
       <div class="panel-head">
         <h2 id="h-cal"><span class="dot" style="background:var(--habit)"></span>Календарь привычек</h2>
-        <span class="meta">полезные и вредные вместе</span>
+        <span class="meta">как держимся каждый день</span>
       </div>
-      <div class="calwrap">
-        <div class="cal" aria-labelledby="calTitle">
-          <div class="cal-head">
-            <select id="calHabit" aria-label="Чей прогресс показать"></select>
-            <div class="cal-nav"><button type="button" id="calPrev" aria-label="Предыдущий месяц">‹</button><span class="m" id="calTitle"></span><button type="button" id="calNext" aria-label="Следующий месяц">›</button></div>
-          </div>
-          <div class="cal-grid" id="calGrid"></div>
-          <div class="cal-legend" id="calLegend"></div>
-          <div class="cal-stats" id="calStats"></div>
-        </div>
-        <div class="calday" id="calDay"></div>
+      <div class="cal-head">
+        <span class="mhint">Календарь заполняется сам по твоим отметкам в «Привычках».</span>
+        <div class="cal-nav"><button type="button" id="calPrev" aria-label="Предыдущий месяц">‹</button><span class="m" id="calTitle"></span><button type="button" id="calNext" aria-label="Следующий месяц">›</button></div>
       </div>
+      <div class="hmx" id="hmx"></div>
+      <div class="cal-legend" id="calLegend"></div>
+      <div class="cal-stats" id="calStats"></div>
     </section>
 
 
@@ -811,8 +810,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <button type="button" data-go="p-kcal"><span class="ic" aria-hidden="true">🍎</span><span class="tx">Еда</span></button>
     <button type="button" data-go="p-water"><span class="ic" aria-hidden="true">💧</span><span class="tx">Вода</span></button>
     <button type="button" data-go="p-lang"><span class="ic" aria-hidden="true">🌍</span><span class="tx">Язык</span></button>
-    <button type="button" data-go="p-hab"><span class="ic" aria-hidden="true">✅</span><span class="tx">Цели</span></button>
-    <button type="button" data-go="p-quit"><span class="ic" aria-hidden="true">🚭</span><span class="tx">Отказ</span></button>
+    <button type="button" data-go="p-hab"><span class="ic" aria-hidden="true">✅</span><span class="tx">Привычки</span></button>
   </div>
 </nav>
 
@@ -1094,10 +1092,10 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   function normCode(v){ return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
 
   async function connect(){
-    store = localStore; localStore.load(); resolveStore(); loaded = true; render();
+    store = localStore; localStore.load(); resolveStore(); loaded = true; migrateBad(); render();
     setSync("ok");
     if (!CLOUD || !pair) return;
-    try { await pullCloud(); } catch (e) { setSync("offline"); }
+    try { await pullCloud(); migrateBad(); render(); } catch (e) { setSync("offline"); }
     pollBoard();
   }
   setInterval(pollBoard, 20000);
@@ -1125,13 +1123,13 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       book: cb ? { t: cb.title, r: cb.read, n: cb.total } : null,
       shelf: S.books.list.filter(b => b.done).sort((a, b) => (b.finished || "").localeCompare(a.finished || "")).slice(0, 12).map(b => ({ t: b.title, a: b.author || "", r: b.rating || 0 })),
       want: S.books.list.filter(b => b.want).length,
-      habStreaks: S.settings.habits.map(h => ({ n: h.name, s: habitStreak(h.id) })).filter(x => x.s > 1),
+      habStreaks: S.settings.habits.filter(h => h.type !== "bad").map(h => ({ n: h.name, s: habitStreak(h.id) })).filter(x => x.s > 1),
       lang: S.settings.lang ? S.settings.lang.name : "",
       dictN: myWords().length,
       units: courseUnitsDone(),
       lvl: S.settings.lang ? LEVELS[currentLevel()].name + " (" + LEVELS[currentLevel()].cefr + ")" : "",
       xpT: totalXp(),
-      quit: (S.settings.bad || []).map(b => { const st = badStats(b); return { n: b.name, d: st.current, b: st.best }; })
+      quit: S.settings.habits.filter(h => h.type === "bad").map(h => ({ n: h.name, d: habitStreak(h.id), b: bestStreak(h.id) }))
     };
   }
   function scheduleSummary(){
@@ -1203,7 +1201,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (players.some(pl => (pl.shelf || []).length || pl.want)) html += block("📚 Библиотека", "var(--read)", pl => `${who(pl)}<span class="cv num">прочитано ${pl.books || 0}${pl.want ? " · хочет " + pl.want : ""}</span>${(pl.shelf || []).length ? `<div class="cdone">${pl.shelf.slice(0, 6).map(b => "«" + esc(b.t) + "»" + (b.r ? " " + "★".repeat(b.r) : "")).join(" · ")}</div>` : ""}`);
     if (players.some(pl => (pl.habStreaks || []).length)) html += block("🔥 Серии привычек", "var(--habit)", pl => `${who(pl)}<span class="cv">${(pl.habStreaks || []).length ? pl.habStreaks.map(h => `<span class="chip fire">${esc(h.n)}: <span class="num">${h.s}</span> ${plural(h.s, "день", "дня", "дней")}</span>`).join(" ") : "—"}</span>`);
     if (players.some(pl => pl.book)) html += block("📚 Читает сейчас", "var(--read)", pl => `${who(pl)}<span class="cv">${pl.book ? `«${esc(pl.book.t)}» · <span class="num">${pl.book.r} / ${pl.book.n} стр.</span>` : "—"}</span>`);
-    if (players.some(pl => (pl.quit || []).length)) html += block("🚭 Без вредных привычек", "var(--habit)", pl => `${who(pl)}<span class="cv">${(pl.quit || []).length ? pl.quit.map(q => `<span class="chip ok">${esc(q.n)}: <span class="num">${q.d}</span> ${plural(q.d, "день", "дня", "дней")}</span>`).join(" ") : "—"}</span>`);
+    if (players.some(pl => (pl.quit || []).length)) html += block("🚭 Вредные привычки", "var(--habit)", pl => `${who(pl)}<span class="cv">${(pl.quit || []).length ? pl.quit.map(q => `<span class="chip fire">${esc(q.n)}: рекорд <span class="num">${q.b != null ? q.b : q.d}</span> · сейчас <span class="num">${q.d}</span></span>`).join(" ") : "—"}</span>`);
     $("vs").innerHTML = html;
     const wkTable = (title, val, total) => `<table><caption>${title}</caption><thead><tr><th></th>${wk.map(k => { const d = parseKey(k); return `<th>${WD[d.getDay()]} ${d.getDate()}</th>`; }).join("")}<th>Всего</th></tr></thead><tbody>` +
       players.map(pl => `<tr><td>${esc(pl.label)}</td>${wk.map(k => k > today ? `<td class="c fut">·</td>` : `<td class="c">${val((pl.days && pl.days[k]) || {})}</td>`).join("")}<td class="c">${total(pl)}</td></tr>`).join("") + `</tbody></table>`;
@@ -1284,6 +1282,26 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const next = MILESTONES.find(m => m > current) || current + 365;
     const prev = [...MILESTONES].reverse().find(m => m <= current) || 0;
     return { current, best, slips: slips.length, total, next, prev, slippedToday: slips.includes(today) };
+  }
+  function bestStreak(hid){
+    const keys = Object.keys(S.days).filter(k => S.days[k].habits && S.days[k].habits[hid]).sort();
+    let best = 0, run = 0, prev = null;
+    for (const k of keys){ run = prev && shift(prev, 1) === k ? run + 1 : 1; best = Math.max(best, run); prev = k; }
+    return best;
+  }
+  function migrateBad(){
+    const bad = S.settings.bad || []; if (!bad.length) return;
+    const st = clone(S.settings), today = todayKey(), touched = [];
+    bad.forEach(b => {
+      if (!st.habits.some(h => h.id === b.id)) st.habits.push({ id: b.id, name: b.name, type: "bad", since: b.start });
+      for (let k = b.start; k < today; k = shift(k, 1)){
+        const d = S.days[k] ? clone(S.days[k]) : { date: k, meals: [], water: 0, pages: 0, habits: {}, note: "" };
+        d.habits = d.habits || {};
+        if (!(d.slips && d.slips[b.id]) && !d.habits[b.id]){ d.habits[b.id] = true; S.days[k] = d; touched.push(k); }
+      }
+    });
+    st.bad = []; S.settings = st; persist("settings", st, 0);
+    touched.forEach(k => persist(docId(k), S.days[k], 0));
   }
   function habitStreak(hid){
     let k = todayKey(), n = 0;
@@ -1384,13 +1402,22 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     // habits
     const hs = S.settings.habits;
     $("habMeta").textContent = hs.length ? t.habitsDone + " из " + hs.length + " сделано" : "";
-    $("habits").innerHTML = hs.length ? hs.map(h => {
-      const on = !!d.habits[h.id], s = habitStreak(h.id);
-      return `<div class="habit-wrap"><button class="habit ${on ? "on" : ""}" data-habit="${h.id}" aria-pressed="${on}"><span class="box">✓</span><span class="hn">${esc(h.name)}${s ? `<span class="st">серия ${s} ${plural(s, "день", "дня", "дней")}</span>` : ""}</span></button><button class="habit-del" type="button" data-habdel="${h.id}" aria-label="Удалить привычку ${esc(h.name)}">×</button></div>`;
-    }).join("") : `<div class="empty">Привычек пока нет. Добавь свою ниже.</div>`;
+    const tile = h => {
+      const on = !!d.habits[h.id], s = habitStreak(h.id), isBad = h.type === "bad";
+      const sub = isBad
+        ? `<span class="rec">🏆 рекорд ${bestStreak(h.id)} ${plural(bestStreak(h.id), "день", "дня", "дней")}</span><span class="st">сейчас ${s} ${plural(s, "день", "дня", "дней")}</span>`
+        : (s ? `<span class="st">🔥 серия ${s} ${plural(s, "день", "дня", "дней")}</span>` : "");
+      const lab = isBad ? (on ? "продержался" : "нажми, если продержался") : (on ? "сделано" : "нажми, если сделал");
+      return `<div class="habit-wrap"><button class="habit ${isBad ? "badh" : ""} ${on ? "on" : ""}" data-habit="${h.id}" aria-pressed="${on}" aria-label="${esc(h.name)}: ${lab}"><span class="box">✓</span><span class="hn">${esc(h.name)}${sub}</span></button><button class="habit-del" type="button" data-habdel="${h.id}" aria-label="Удалить привычку ${esc(h.name)}">×</button></div>`;
+    };
+    const goodH = hs.filter(h => h.type !== "bad"), badH = hs.filter(h => h.type === "bad");
+    $("habits").innerHTML = hs.length
+      ? (goodH.length ? `<div class="hgroup">✅ Полезные <small>— нажми, если сделал</small></div>` + goodH.map(tile).join("") : "") +
+        (badH.length ? `<div class="hgroup">🚭 Вредные <small>— нажми, если продержался</small></div>` + badH.map(tile).join("") : "")
+      : `<div class="empty">Привычек пока нет. Добавь первую ниже и выбери: полезная или вредная.</div>`;
     $("habits").classList.toggle("editing", editingHabits);
 
-    renderQuit();
+    renderCal();
     renderBoard();
     scheduleSummary();
 
@@ -1859,33 +1886,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     render();
   }
 
-  let editingBad = false;
-  function renderQuit(){
-    const bad = S.settings.bad || [];
-    if (!$("badStart").value) $("badStart").value = todayKey();
-    $("badStart").max = todayKey();
-    $("quitList").classList.toggle("editing", editingBad);
-    $("editBad").hidden = !bad.length;
-    $("quitHint").hidden = !bad.length;
-    if (!bad.length){
-      $("quitList").innerHTML = `<div class="empty">Добавь привычку, от которой хочешь избавиться, и день, с которого начал. Трекер будет считать дни без срывов, а календарь покажет каждый чистый день.</div>`;
-      $("quitMeta").textContent = "";
-    } else {
-      let clean = 0, active = 0;
-      $("quitList").innerHTML = bad.map(b => {
-        const st = badStats(b);
-        const pre = cur < b.start || cur > todayKey();
-        const slip = !!(S.days[cur] && S.days[cur].slips && S.days[cur].slips[b.id]);
-        if (!pre){ active++; if (!slip) clean++; }
-        const cls = pre ? "pre" : slip ? "slipped" : "on";
-        const sub = pre ? "ещё не начал" : `${st.current} ${plural(st.current, "день", "дня", "дней")} без · до ${st.next}: ещё ${st.next - st.current}`;
-        const lab = pre ? "" : slip ? `Срыв в этот день. Нажми, чтобы отменить` : `Без срыва. Нажми, если сорвался`;
-        return `<div class="habit-wrap"><button class="habit qtile ${cls}" type="button" ${pre ? "disabled" : `data-qtile="${b.id}"`} aria-pressed="${slip}" aria-label="${esc(b.name)}: ${lab}"><span class="box">${slip ? "✕" : "✓"}</span><span class="hn">${esc(b.name)}<span class="st">${sub}</span></span></button><button class="habit-del" type="button" data-baddel="${b.id}" aria-label="Удалить ${esc(b.name)}">×</button></div>`;
-      }).join("");
-      $("quitMeta").textContent = active ? `${clean} из ${active} без срыва` : "";
-    }
-    renderCal();
-  }
 
   // calendar
   let calSel = null;
@@ -1902,89 +1902,38 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   function calOptions(){
     return [{ key: "all", name: "📅 Все привычки вместе" }, ...(S.settings.bad || []).map(b => ({ key: "b:" + b.id, name: "Без: " + b.name })), ...S.settings.habits.map(h => ({ key: "g:" + h.id, name: h.name }))];
   }
+  function cellState(h, k, today){
+    if (k > today) return "fut";
+    if (h.since && k < h.since) return "pre";
+    const on = !!(S.days[k] && S.days[k].habits && S.days[k].habits[h.id]);
+    if (on) return "ok";
+    return h.type === "bad" && h.since && k < today ? "fail" : "no";
+  }
   function renderCal(){
-    const opts = calOptions();
-    if (!opts.find(o => o.key === calSel)) calSel = opts.length ? opts[0].key : null;
-    $("calHabit").innerHTML = opts.map(o => `<option value="${o.key}" ${o.key === calSel ? "selected" : ""}>${esc(o.name)}</option>`).join("");
     const [y, m] = calMonth.split("-").map(Number);
     $("calTitle").textContent = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"][m - 1] + " " + y;
     $("calNext").disabled = calMonth >= todayKey().slice(0, 7);
-    const today = todayKey();
-    const first = new Date(y, m - 1, 1), daysIn = new Date(y, m, 0).getDate();
-    const lead = (first.getDay() + 6) % 7;
-    let html = ["пн","вт","ср","чт","пт","сб","вс"].map(w => `<div class="wd">${w}</div>`).join("");
-    for (let i = 0; i < lead; i++) html += `<div class="cday blank"></div>`;
-    const isAll = calSel === "all";
-    const isBad = calSel && calSel[0] === "b";
-    const id = calSel ? calSel.slice(2) : null;
-    const b = isBad ? S.settings.bad.find(x => x.id === id) : null;
-    let okN = 0, badN = 0, allSum = 0, allDays = 0;
-    for (let dn = 1; dn <= daysIn; dn++){
-      const k = y + "-" + pad(m) + "-" + pad(dn);
-      let cls = "", label = dn + " " + MONTHS[m - 1], clickable = false;
-      if (!calSel || k > today) cls = "off";
-      else if (isAll){
-        const items = dayHabitItems(k);
-        if (!items.length) cls = "off";
-        else {
-          clickable = true;
-          const done = items.filter(i => i.ok).length, pct = done / items.length;
-          const anySlip = items.some(i => i.kind === "b" && !i.ok);
-          cls = "lv" + (pct >= 1 ? 4 : pct >= .75 ? 3 : pct >= .5 ? 2 : pct > 0 ? 1 : 0) + (anySlip ? " hasslip" : "");
-          if (pct >= 1) okN++;
-          allSum += pct; allDays++;
-          label += `: выполнено ${done} из ${items.length}`;
-          if (k === calPick) cls += " sel";
-        }
-      }
-      else if (isBad){
-        if (!b || k < b.start) cls = "off";
-        else {
-          clickable = true;
-          const slip = !!(S.days[k] && S.days[k].slips && S.days[k].slips[id]);
-          if (slip){ cls = "bad"; badN++; label += ": срыв"; }
-          else if (k < today){ cls = "ok"; okN++; label += ": без срыва"; }
-          else { cls = "miss"; label += ": сегодня, пока без срыва"; }
-        }
-      } else {
-        clickable = true;
-        const done = !!(S.days[k] && S.days[k].habits && S.days[k].habits[id]);
-        if (done){ cls = "ok"; okN++; label += ": сделано"; } else { cls = "miss"; label += ": не отмечено"; }
-      }
-      if (k === today) cls += " today";
-      html += `<button type="button" class="cday ${cls}" ${clickable ? `data-calday="${k}"` : "disabled"} aria-label="${label}">${dn}${cls.includes("hasslip") ? '<i class="sl" aria-hidden="true"></i>' : ""}</button>`;
-    }
-    $("calGrid").innerHTML = html;
-    renderCalDay();
-    if (isAll){
-      $("calLegend").innerHTML = `<span><i style="background:var(--surface-2);border:1px solid var(--line)"></i>0%</span><span><i style="background:color-mix(in srgb,var(--habit) 50%,var(--surface-2))"></i>половина</span><span><i style="background:var(--habit)"></i>всё выполнено</span><span><i style="background:var(--warn);border-radius:50%"></i>был срыв</span>`;
-      $("calStats").innerHTML = allDays ? `<span class="chip ok">Идеальных дней: <span class="num">${okN}</span></span><span class="chip">В среднем: <span class="num">${Math.round(allSum / allDays * 100)}%</span></span>` : "";
-    } else if (isBad){
-      $("calLegend").innerHTML = `<span><i style="background:var(--habit)"></i>без срыва</span><span><i style="background:var(--warn)"></i>срыв</span><span>нажми на день, чтобы отметить или снять срыв</span>`;
-      const st = b ? badStats(b) : null;
-      $("calStats").innerHTML = st ? `<span class="chip ok">Чистых дней в месяце: <span class="num">${okN}</span></span><span class="chip">Срывов: <span class="num">${badN}</span></span><span class="chip fire">Рекорд: <span class="num">${st.best}</span> ${plural(st.best, "день", "дня", "дней")}</span>` : "";
-    } else if (calSel){
-      $("calLegend").innerHTML = `<span><i style="background:var(--habit)"></i>сделано</span><span>нажми на день, чтобы отметить задним числом</span>`;
-      const passed = calMonth === today.slice(0, 7) ? +today.slice(8) : daysIn;
-      $("calStats").innerHTML = `<span class="chip ok">Сделано: <span class="num">${okN}</span> из ${passed}</span><span class="chip fire">Серия: <span class="num">${habitStreak(id)}</span></span>`;
-    } else { $("calLegend").innerHTML = ""; $("calStats").innerHTML = ""; }
+    const today = todayKey(), daysIn = new Date(y, m, 0).getDate();
+    const hs = S.settings.habits;
+    if (!hs.length){ $("hmx").innerHTML = `<div class="empty">Добавь привычки, и здесь появится их календарь.</div>`; $("calLegend").innerHTML = ""; $("calStats").innerHTML = ""; return; }
+    const ks = []; for (let dn = 1; dn <= daysIn; dn++) ks.push(y + "-" + pad(m) + "-" + pad(dn));
+    const head = `<tr><th></th>${ks.map(k => { const wd = parseKey(k).getDay(); return `<th class="${wd === 0 || wd === 6 ? "we" : ""} ${k === today ? "td" : ""}">${+k.slice(8)}</th>`; }).join("")}<th></th></tr>`;
+    let perfect = 0;
+    ks.forEach(k => { if (k <= today){ const st = hs.map(h => cellState(h, k, today)).filter(x => x !== "pre"); if (st.length && st.every(x => x === "ok")) perfect++; } });
+    const rows = hs.map(h => {
+      const sts = ks.map(k => cellState(h, k, today));
+      const ok = sts.filter(x => x === "ok").length, counted = sts.filter(x => x === "ok" || x === "no" || x === "fail").length;
+      const titleOf = st => st === "ok" ? (h.type === "bad" ? "продержался" : "сделано") : st === "fail" ? "не продержался" : st === "no" ? "не отмечено" : "";
+      return `<tr><td class="hn2">${h.type === "bad" ? "🚭" : "✅"} ${esc(h.name)}</td>${sts.map((st, i) => `<td class="c ${st}" title="${+ks[i].slice(8)}: ${titleOf(st)}">${st === "ok" ? "✓" : st === "fail" ? "✕" : ""}</td>`).join("")}<td class="tot">${ok}/${counted}</td></tr>`;
+    }).join("");
+    $("hmx").innerHTML = `<table aria-label="Календарь привычек за месяц"><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+    $("calLegend").innerHTML = `<span><i style="background:var(--habit)"></i>сделал / продержался</span><span><i style="background:var(--warn)"></i>вредная: не продержался</span><span><i style="background:var(--surface-2);border:1px solid var(--line)"></i>не отмечено</span>`;
+    const recs = hs.filter(h => h.type === "bad").map(h => `<span class="chip fire">🏆 ${esc(h.name)}: рекорд ${bestStreak(h.id)}</span>`);
+    const sers = hs.filter(h => h.type !== "bad").map(h => habitStreak(h.id) ? `<span class="chip ok">🔥 ${esc(h.name)}: серия ${habitStreak(h.id)}</span>` : "").filter(Boolean);
+    $("calStats").innerHTML = `<span class="chip">Идеальных дней в месяце: <span class="num">${perfect}</span></span>` + sers.join("") + recs.join("");
+    // keep the table scrolled to today
+    const sc = $("hmx"); if (calMonth === today.slice(0, 7)){ const th = sc.querySelector("th.td"); if (th) sc.scrollLeft = Math.max(0, th.offsetLeft - sc.clientWidth + 60); }
   }
-
-  function renderCalDay(){
-    const box = $("calDay");
-    if (calSel !== "all"){ box.hidden = true; return; }
-    box.hidden = false;
-    const k = calPick || todayKey();
-    const items = dayHabitItems(k);
-    const d = parseKey(k);
-    const title = (k === todayKey() ? "Сегодня, " : "") + d.getDate() + " " + MONTHS[d.getMonth()] + ", " + WDF[d.getDay()];
-    if (!items.length){ box.innerHTML = `<h3>${title}</h3><div class="empty">Добавь привычки в разделах «Привычки» и «Избавление от вредных привычек».</div>`; return; }
-    const done = items.filter(i => i.ok).length;
-    box.innerHTML = `<h3>${title}</h3><div class="mhint">Выполнено ${done} из ${items.length}</div>` +
-      items.map(i => `<div class="ci ${i.ok ? "" : "n"}"><span class="mk ${i.ok ? "y" : i.kind === "b" ? "x" : "n"}">${i.ok ? "✓" : i.kind === "b" ? "✕" : ""}</span><span>${esc(i.name)}${!i.ok && i.kind === "b" ? " — срыв" : ""}</span></div>`).join("") +
-      `<button class="btn sm" type="button" data-calopen="${k}" style="align-self:flex-start">Открыть этот день и отметить</button>`;
-  }
-
   function barChart(title, color, vals, goal, unit, labels){
     const W = 300, H = 140, padL = 4, padB = 20, padT = 14;
     const max = Math.max(goal * 1.25, ...vals, 1);
@@ -2048,12 +1997,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const finished = S.books.list.filter(b => b.done && b.finished && b.finished >= keys[0] && b.finished <= end);
     $("repStats").innerHTML += `<div><span>📚 Дочитано книг</span><b>${finished.length}</b><small>${finished.length ? finished.map(b => "«" + esc(b.title) + "»").join(", ") : "на этой неделе пока нет"}</small></div>`;
     // bad habits
-    (S.settings.bad || []).forEach(bh => {
-      const inRange = past.filter(k => k >= bh.start);
+    S.settings.habits.filter(h => h.type === "bad").forEach(h => {
+      const inRange = past.filter(k => !h.since || k >= h.since);
       if (!inRange.length) return;
-      const slips = inRange.filter(k => S.days[k] && S.days[k].slips && S.days[k].slips[bh.id]).length;
-      const st = badStats(bh);
-      $("repStats").innerHTML += `<div><span>🚭 Без «${esc(bh.name)}»</span><b>${inRange.length - slips} из ${inRange.length} дн.</b><small>срывов за неделю: ${slips} · сейчас ${st.current} ${plural(st.current, "день", "дня", "дней")} без · рекорд ${st.best}</small></div>`;
+      const held = inRange.filter(k => S.days[k] && S.days[k].habits && S.days[k].habits[h.id]).length;
+      $("repStats").innerHTML += `<div><span>🚭 ${esc(h.name)}</span><b>${held} из ${inRange.length} дн.</b><small>продержался · сейчас ${habitStreak(h.id)} ${plural(habitStreak(h.id), "день", "дня", "дней")} · рекорд ${bestStreak(h.id)}</small></div>`;
     });
     // partner
     const partner = (typeof pair !== "undefined" && pair) ? boardDocs.filter(x => x.id !== pair.pid) : [];
@@ -2073,16 +2021,10 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       barChart("Чтение", "var(--read)", keys.map(k => day(k).pages), g.pages, "стр.", labels) +
       (S.settings.lang ? barChart("Язык", "var(--lang)", keys.map(k => (day(k).lang && day(k).lang.min) || 0), S.settings.lang.goal || 20, "мин", labels) : "");
     const hs = S.settings.habits;
-    const bads = (S.settings.bad || []);
     const today0 = todayKey();
-    $("heat").innerHTML = (hs.length || bads.length) ? `<h3 class="rep-h">Привычки по дням</h3><table><thead><tr><th></th>${labels.map(l => `<th>${l}</th>`).join("")}</tr></thead><tbody>` +
-      hs.map(h => `<tr><td>${esc(h.name)}</td>${keys.map(k => `<td class="c ${day(k).habits[h.id] ? "on" : ""}" title="${day(k).habits[h.id] ? "сделано" : "нет"}"></td>`).join("")}</tr>`).join("") +
-      bads.map(bh => `<tr><td>🚭 ${esc(bh.name)}</td>${keys.map(k => {
-        if (k < bh.start || k > today0) return `<td class="c" title="—"></td>`;
-        const slip = S.days[k] && S.days[k].slips && S.days[k].slips[bh.id];
-        return `<td class="c ${slip ? "slip" : "on"}" title="${slip ? "срыв" : "без срыва"}"></td>`;
-      }).join("")}</tr>`).join("") +
-      `</tbody></table><p class="mhint">Зелёный — сделано или без срыва, красный — срыв.</p>` : "";
+    $("heat").innerHTML = hs.length ? `<h3 class="rep-h">Привычки по дням</h3><table><thead><tr><th></th>${labels.map(l => `<th>${l}</th>`).join("")}</tr></thead><tbody>` +
+      hs.map(h => `<tr><td>${h.type === "bad" ? "🚭" : "✅"} ${esc(h.name)}</td>${keys.map(k => { const st = cellState(h, k, today0); return `<td class="c ${st === "ok" ? "on" : st === "fail" ? "slip" : ""}" title="${st}"></td>`; }).join("")}</tr>`).join("") +
+      `</tbody></table><p class="mhint">Зелёный — сделал или продержался, красный — вредная привычка: не продержался.</p>` : "";
   }
 
   $("reportOpen").onclick = () => { repEnd = todayKey(); $("report").hidden = false; document.body.style.overflow = "hidden"; renderWeek(); };
@@ -2226,27 +2168,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   $("habitForm").addEventListener("submit", e => {
     e.preventDefault();
     const name = $("habitName").value.trim(); if (!name) return;
-    const st = clone(S.settings); st.habits.push({ id: "h" + uid(), name });
-    S.settings = st; persist("settings", st, 0); $("habitName").value = ""; render(); toast("Привычка добавлена");
+    const type = $("habitType").value === "bad" ? "bad" : "good";
+    const st = clone(S.settings); st.habits.push({ id: "h" + uid(), name, type, since: todayKey() });
+    S.settings = st; persist("settings", st, 0); $("habitName").value = ""; $("habitType").value = "good"; render();
+    toast(type === "bad" ? "Вредная привычка добавлена. Отмечай дни, когда продержался" : "Привычка добавлена");
   });
-  $("editBad").onclick = () => {
-    editingBad = !editingBad;
-    $("editBad").textContent = editingBad ? "Готово" : "Изменить";
-    $("editBad").setAttribute("aria-pressed", editingBad);
-    render();
-  };
-  $("badForm").addEventListener("submit", e => {
-    e.preventDefault();
-    const name = $("badName").value.trim(); let start = $("badStart").value || todayKey();
-    if (!name) return;
-    if (start > todayKey()) start = todayKey();
-    const st = clone(S.settings); const id = "b" + uid();
-    st.bad = st.bad || []; st.bad.push({ id, name, start });
-    S.settings = st; persist("settings", st, 0);
-    calSel = "b:" + id; calMonth = todayKey().slice(0, 7);
-    $("badName").value = ""; render(); toast("Отсчёт начат. Держись!");
-  });
-  $("calHabit").addEventListener("change", e => { calSel = e.target.value; try { localStorage.setItem("moy-den-cal", calSel); } catch (er) {} render(); });
   $("calPrev").onclick = () => { const [y, m] = calMonth.split("-").map(Number); const d = new Date(y, m - 2, 1); calMonth = d.getFullYear() + "-" + pad(d.getMonth() + 1); renderCal(); };
   $("calNext").onclick = () => { const [y, m] = calMonth.split("-").map(Number); const d = new Date(y, m, 1); const k = d.getFullYear() + "-" + pad(d.getMonth() + 1); if (k <= todayKey().slice(0, 7)){ calMonth = k; renderCal(); } };
 
@@ -2823,11 +2749,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const opt = (id, hi) => { const n = parseInt($(id).value, 10); return n >= 0 && n <= hi ? n : 0; };
     S.settings = {
       profile: norm ? pr : (S.settings.profile || null),
-      bad: S.settings.bad || [],
+      bad: [],
       nick: S.settings.nick || "",
       lang: S.settings.lang || null,
       goals: { kcal: num("gKcal", 800, 6000, g.kcal), water: num("gWater", 500, 6000, g.water), pages: num("gPages", 1, 500, g.pages), glass: num("gGlass", 100, 1000, g.glass), protein: opt("gP", 500), fat: opt("gF", 400), carbs: opt("gC", 1000) },
-      habits: draftHabits.map(h => ({ id: h.id, name: h.name.trim() })).filter(h => h.name)
+      habits: draftHabits.map(h => Object.assign({}, h, { name: h.name.trim() })).filter(h => h.name)
     };
     persist("settings", S.settings, 0);
     $("settings").close(); render(); toast("Цели сохранены");

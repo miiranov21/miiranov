@@ -309,6 +309,10 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
   .dictadd .btn{grid-column:1/-1}
 }
 
+.item .mt{flex:none;min-width:44px;font-size:12.5px;color:var(--ink-3);font-weight:700}
+.addmeal > .btn{grid-column:span 2}
+@media (max-width:520px){.addmeal > .btn{grid-column:1/-1}}
+
 /* Food lookup */
 .foodfield{position:relative}
 .sugg{position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:15;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(15,25,45,.16);max-height:340px;overflow-y:auto;padding:4px}
@@ -534,8 +538,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
           <div class="sugg" id="sugg" role="listbox" hidden></div></div>
         <div class="portion" id="portion" hidden></div>
         <div class="field"><label for="mKcal">Ккал</label><input type="number" id="mKcal" placeholder="350" min="1" max="5000" required inputmode="numeric"></div>
-        <div class="field"><label for="mType">Приём</label>
-          <select id="mType"><option>Завтрак</option><option>Обед</option><option>Ужин</option><option>Перекус</option></select></div>
         <div class="field"><label for="mP">Белки, г</label><input type="number" id="mP" placeholder="12" min="0" max="500" step="0.1" inputmode="decimal"></div>
         <div class="field"><label for="mF">Жиры, г</label><input type="number" id="mF" placeholder="8" min="0" max="500" step="0.1" inputmode="decimal"></div>
         <div class="field"><label for="mC">Углеводы, г</label><input type="number" id="mC" placeholder="55" min="0" max="1000" step="0.1" inputmode="decimal"></div>
@@ -1226,15 +1228,12 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     // meals
     $("kcalMeta").textContent = fmt(t.kcal) + " / " + fmt(g.kcal) + " ккал";
     if (!d.meals.length){
-      $("meals").innerHTML = `<div class="empty">Пока ничего не записано. Добавь первый приём пищи ниже: название и калории.</div>`;
+      $("meals").innerHTML = `<div class="empty">Пока ничего не записано. Напиши ниже, что съел: время запишется само.</div>`;
     } else {
-      $("meals").innerHTML = MEALS.map(type => {
-        const items = d.meals.filter(m => m.type === type);
-        if (!items.length) return "";
-        const sum = items.reduce((s, m) => s + (+m.kcal || 0), 0);
-        return `<div class="meal-group"><h3><span>${type}</span><span class="num">${fmt(sum)} ккал</span></h3>` +
-          items.map(m => `<div class="item"><span class="name">${esc(m.name)}</span>${(m.p || m.f || m.c) ? `<span class="mac">Б${fmt(m.p || 0)} Ж${fmt(m.f || 0)} У${fmt(m.c || 0)}</span>` : ""}<span class="num">${fmt(m.kcal)}</span><button class="x" data-delmeal="${m.id}" aria-label="Удалить ${esc(m.name)}">×</button></div>`).join("") + `</div>`;
-      }).join("");
+      // older entries saved with a meal type instead of a time sort into that part of the day
+      const sortKey = m => m.time || ({ "Завтрак": "08:00", "Обед": "13:00", "Ужин": "19:00", "Перекус": "22:00" }[m.type] || "12:00");
+      $("meals").innerHTML = `<div class="meal-group">` + d.meals.slice().sort((a, b) => sortKey(a).localeCompare(sortKey(b))).map(m =>
+        `<div class="item"><span class="mt num">${m.time || esc(m.type || "")}</span><span class="name">${esc(m.name)}</span>${(m.p || m.f || m.c) ? `<span class="mac">Б${fmt(m.p || 0)} Ж${fmt(m.f || 0)} У${fmt(m.c || 0)}</span>` : ""}<span class="num">${fmt(m.kcal)}</span><button class="x" data-delmeal="${m.id}" aria-label="Удалить ${esc(m.name)}">×</button></div>`).join("") + `</div>`;
     }
     // recent foods
     const seen = new Map();
@@ -1906,7 +1905,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     else if (ds.delmeal){ const d = clone(day(cur)); d.meals = d.meals.filter(m => m.id !== ds.delmeal); commitDay(cur, d, 0); }
     else if (ds.recent !== undefined){
       const m = $("recent")._items[+ds.recent]; if (!m) return;
-      const d = clone(day(cur)); d.meals.push({ id: uid(), name: m.name, kcal: m.kcal, p: m.p || 0, f: m.f || 0, c: m.c || 0, type: $("mType").value }); commitDay(cur, d, 0);
+      const d = clone(day(cur)); d.meals.push({ id: uid(), name: m.name, kcal: m.kcal, p: m.p || 0, f: m.f || 0, c: m.c || 0, time: nowHM() }); commitDay(cur, d, 0);
       toast("Добавлено: " + m.name);
     }
     else if (ds.habit){ const d = clone(day(cur)); d.habits[ds.habit] = !d.habits[ds.habit]; if (!d.habits[ds.habit]) delete d.habits[ds.habit]; commitDay(cur, d, 300); }
@@ -2142,7 +2141,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   };
 
   // default meal type by time of day
-  (() => { const h = new Date().getHours(); $("mType").value = h < 11 ? "Завтрак" : h < 16 ? "Обед" : h < 21 ? "Ужин" : "Перекус"; })();
+  function nowHM(){ const t = new Date(); return pad(t.getHours()) + ":" + pad(t.getMinutes()); }
 
   // ---------- food lookup ----------
   const FOODS = (window.MD_FOODS || []).map(r => {
@@ -2239,6 +2238,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     showSugg(e.target.value.trim());
   });
   $("mName").addEventListener("focus", e => showSugg(e.target.value.trim()));
+  $("mName").addEventListener("blur", () => { setTimeout(() => { if (document.activeElement !== $("mName")){ $("sugg").hidden = true; $("mName").setAttribute("aria-expanded", "false"); } }, 150); });
   $("mName").addEventListener("keydown", e => {
     const box = $("sugg"); if (box.hidden) return;
     const rows = [...box.querySelectorAll(".sg")];
@@ -2272,7 +2272,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     let mealName = name;
     if (FSEL && name === FSEL.name && FSEL.grams) mealName = name + ", " + FSEL.grams + (FSEL.ml ? " мл" : " г");
     closeFood();
-    const d = clone(day(cur)); d.meals.push({ id: uid(), name: mealName.slice(0, 80), kcal, p: g1("mP"), f: g1("mF"), c: g1("mC"), type: $("mType").value }); commitDay(cur, d, 0);
+    const d = clone(day(cur)); d.meals.push({ id: uid(), name: mealName.slice(0, 80), kcal, p: g1("mP"), f: g1("mF"), c: g1("mC"), time: nowHM() }); commitDay(cur, d, 0);
     ["mName", "mKcal", "mP", "mF", "mC"].forEach(id => { $(id).value = ""; }); $("mName").focus();
   });
 

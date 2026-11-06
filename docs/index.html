@@ -485,6 +485,9 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .resetbox[open]{display:flex;flex-direction:column;gap:8px}
 .resetbox summary{font-weight:600;color:var(--ink-2)}
 
+.updbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border:1px solid var(--accent);background:var(--surface);border-radius:var(--r);padding:10px 14px;font-weight:600}
+.appver{font-size:12px;color:var(--ink-3);text-align:center}
+
 /* Section filter */
 .viewbar{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .vb-top{display:flex;flex-direction:column;gap:2px}
@@ -726,6 +729,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <button id="next" aria-label="Следующий день">›</button>
         <button class="today" id="today">Сегодня</button>
       </div>
+      <button class="iconbtn" id="updBtn" title="Загрузить последнюю версию приложения">↻ Обновить</button>
       <button class="iconbtn" id="viewOpen" aria-expanded="false" aria-controls="viewBar">☰ Разделы</button>
       <button class="iconbtn" id="openSettings">⚙ Цели</button>
     </div>
@@ -735,6 +739,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <div class="vb-chips" id="viewChips"></div>
   </div>
   <div class="viewnote" id="viewNote" hidden></div>
+  <div class="updbar" id="updBar" hidden><span>✨ Вышла новая версия приложения</span><button class="btn sm primary" type="button" id="updNow">Обновить сейчас</button></div>
 
   <div class="note" id="syncNote" hidden></div>
 
@@ -1049,6 +1054,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div class="row" style="flex-wrap:nowrap"><input type="text" id="newHabit" maxlength="40" placeholder="Например: 10 000 шагов"><button class="btn" type="button" id="addHabit">Добавить</button></div>
     </div>
     <p class="note" style="margin:0">Калории засчитываются, если ты в пределах 90–105% от цели.</p>
+    <p class="appver" id="appVer"></p>
     <details class="resetbox">
       <summary>Сбросить прогресс</summary>
       <p class="mhint">Удаляется только твоё: у партнёра ничего не изменится. Отменить сброс нельзя.</p>
@@ -3570,7 +3576,35 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 })();
 </script>
 <script>
-if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+// ---------- app updates ----------
+const APP_VERSION = "2026.11.06-2";
+(function(){
+  const $ = id => document.getElementById(id);
+  const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;
+  const toastMsg = m => { const t = $("toast"); if (!t) return; t.textContent = m; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2500); };
+  async function hardUpdate(){
+    toastMsg("Загружаю последнюю версию…");
+    try {
+      if ("serviceWorker" in navigator){ const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.update().catch(() => {}))); }
+      if (window.caches){ const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); }
+    } catch (e) {}
+    location.reload();
+  }
+  async function checkVersion(){
+    try {
+      const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
+      if (!r.ok) return;
+      const j = await r.json();
+      $("updBar").hidden = !(j && j.v && j.v !== APP_VERSION);
+    } catch (e) {}
+  }
+  $("updBtn").onclick = hardUpdate;
+  $("updNow").onclick = hardUpdate;
+  if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").then(reg => { reg.update().catch(() => {}); }).catch(() => {}));
+  setTimeout(checkVersion, 2500);
+  // the home-screen app on iPhone often resumes instead of reloading: check again every time it comes back
+  document.addEventListener("visibilitychange", () => { if (!document.hidden){ checkVersion(); if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => {}); } });
+})();
 </script>
 </body>
 </html>

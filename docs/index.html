@@ -488,6 +488,23 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .updbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border:1px solid var(--accent);background:var(--surface);border-radius:var(--r);padding:10px 14px;font-weight:600}
 .appver{font-size:12px;color:var(--ink-3);text-align:center}
 
+.tr{font-size:16px;color:var(--lang);font-family:var(--f-body);letter-spacing:.01em}
+.tr b{font-weight:800}
+.trs{display:block;font-size:12px;color:var(--lang);font-weight:500}
+.trf{display:block;margin-top:4px;color:var(--ink-2)!important}
+.trf b{font-weight:800}
+.sayrow{display:flex;gap:6px;flex-wrap:wrap}
+.say.sm{padding:3px 9px;font-size:13px;align-self:center}
+.rule .ex{align-items:center}
+.rule .exl{display:flex;flex-direction:column;min-width:0}
+.rule .exl .tr{font-size:13px}
+.voicebox{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.invbox summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px}
+.invbox summary::-webkit-details-marker{display:none}
+.invbox summary::after{content:"Показать ›";margin-left:auto;font-size:12.5px;font-weight:600;color:var(--fin)}
+.invbox[open] summary::after{content:"Свернуть ‹"}
+.invbox[open]{display:flex;flex-direction:column;gap:10px}
+
 /* Section filter */
 .viewbar{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .vb-top{display:flex;flex-direction:column;gap:2px}
@@ -883,6 +900,13 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
             <div class="dlist" id="dictList"></div>
           </div>
         </details>
+        <details id="voiceBox">
+          <summary>🔊 Голос озвучки</summary>
+          <div class="voicebox">
+            <div class="row"><select id="voicePick" style="flex:1 1 200px" aria-label="Голос озвучки"></select><button class="btn sm" type="button" id="voiceTest">▶ Проверить</button></div>
+            <p class="mhint" id="voiceHint"></p>
+          </div>
+        </details>
         <button class="btn sm ghost" type="button" id="langChange" style="align-self:flex-start">Сменить язык или цель</button>
       </div>
     </section>
@@ -987,8 +1011,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         </form>
       </div>
 
-      <div class="finsec">
-        <h3 class="finh">📈 Инвестиции <span id="invMeta"></span></h3>
+      <details class="finsec invbox" id="invBox">
+        <summary class="finh">📈 Инвестиции <span id="invMeta"></span></summary>
         <div class="tinv" id="tinv"></div>
         <h4 class="finh4">Учёт вложений из конвертов</h4>
         <div class="invsum" id="invSum"></div>
@@ -999,7 +1023,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
           <button class="btn fin" type="submit">Вложить</button>
         </form>
         <p class="mhint">Деньги на вложения берутся из конверта «Инвестиции». Текущую стоимость активов обновляй сам, когда смотришь своё приложение брокера или банка: так будет видна прибыль.</p>
-      </div>
+      </details>
 
       <div class="finsec">
         <div class="finh-row"><h3 class="finh">🗓 История</h3>
@@ -1742,8 +1766,9 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const known = words.filter(w => w.k).length;
     $("dictInfo").textContent = words.length ? "выучено " + known + " из " + words.length : "";
     $("quizStart").hidden = !words.length;
-    $("dictList").innerHTML = words.length ? words.slice().reverse().map(w => `<div class="item"><span class="name">${esc(w.w)}</span><span class="tr">${esc(w.t)}</span>${w.k ? '<span class="known">✓ знаю</span>' : ""}<button class="x" type="button" data-wdel="${w.id}" aria-label="Удалить слово ${esc(w.w)}">×</button></div>`).join("") : `<div class="empty">Добавляй новые слова с переводом. Потом их можно повторять карточками.</div>`;
+    $("dictList").innerHTML = words.length ? words.slice().reverse().map(w => `<div class="item"><span class="name">${esc(w.w)}${trOf(w.w) ? `<small class="trs">[${stressHtml(trOf(w.w))}]</small>` : ""}</span><span class="tr">${esc(w.t)}</span>${w.k ? '<span class="known">✓ знаю</span>' : ""}<button class="x" type="button" data-wdel="${w.id}" aria-label="Удалить слово ${esc(w.w)}">×</button></div>`).join("") : `<div class="empty">Добавляй новые слова с переводом. Потом их можно повторять карточками.</div>`;
     renderQuiz();
+    renderVoicePick();
     renderCourse();
     renderLevel();
     renderLangChart();
@@ -1761,6 +1786,24 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       (quiz.shown ? `<div class="row"><button class="btn lang" type="button" data-quiz="yes">Знаю</button><button class="btn" type="button" data-quiz="no">Не знаю</button></div>`
                   : `<button class="btn lang" type="button" data-quiz="show">Показать перевод</button>`) +
       `<button class="btn sm ghost" type="button" data-quiz="close">Закончить</button>`;
+  }
+  function renderVoicePick(){
+    const sel = $("voicePick"); if (!sel || document.activeElement === sel) return;
+    const list = courseVoices(), cur0 = chosenVoice();
+    if (!list.length){
+      sel.innerHTML = `<option>Голоса для этого языка нет</option>`; sel.disabled = true; $("voiceTest").disabled = true;
+      $("voiceHint").textContent = COURSE.id === "az" ? "На iPhone обычно нет азербайджанского голоса, поэтому задания на слух скрыты. Читай по транскрипции." : "На этом устройстве не найден голос для языка курса.";
+      return;
+    }
+    sel.disabled = false; $("voiceTest").disabled = false;
+    sel.innerHTML = list.map(v => `<option value="${esc(v.voiceURI || v.name)}" ${cur0 && (v.voiceURI || v.name) === (cur0.voiceURI || cur0.name) ? "selected" : ""}>${esc(v.name)}${/premium|enhanced|улучш|высок/i.test(v.name) ? " ★" : ""} · ${esc(v.lang)}</option>`).join("");
+    const good = list.some(v => /premium|enhanced|улучш|высок/i.test(v.name));
+    $("voiceHint").innerHTML = good ? "★ — улучшенный голос, он звучит естественнее всего." :
+      "Чтобы голос звучал естественно, скачай улучшенный голос на iPhone: <b>Настройки → Универсальный доступ → Устный контент → Голоса → Английский</b> → выбери, например, <b>Samantha (улучшенный)</b> или <b>Ava (высокое качество)</b> и загрузи. Потом перезапусти приложение и выбери его здесь.";
+  }
+  if ($("voicePick")){
+    $("voicePick").addEventListener("change", e => { try { localStorage.setItem("moy-den-voice-" + (COURSE.id || "x"), e.target.value); } catch (er) {} speak(COURSE.id === "az" ? "Salam, necəsən?" : "Hello! How are you today?"); });
+    $("voiceTest").onclick = () => speak(COURSE.id === "az" ? "Salam, necəsən?" : "Hello! How are you today?");
   }
   function startQuiz(){
     const words = myWords().slice();
@@ -1982,17 +2025,68 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   if (hasTTS) try { speechSynthesis.getVoices(); speechSynthesis.addEventListener && speechSynthesis.addEventListener("voiceschanged", () => {}); } catch (e) {}
   // listening tasks need a voice for the course language; English falls back to the default voice
   const canSpeakNow = () => hasTTS && (!COURSE.voiceRequired || !!voiceFor(COURSE.voice));
-  function speak(text){
+  // novelty and robotic voices that come with iPhone/Mac: never pick them automatically
+  const BAD_VOICES = /albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley|junior|ralph|fred|kathy|princess|hysterical|deranged|pipe organ/i;
+  const GOOD_VOICES = /samantha|ava|allison|susan|zoe|evan|nathan|tom|alex|daniel|karen|moira|serena|kate|oliver|tessa|fiona|veena|nicky|aaron|google|microsoft|siri|natural|neural/i;
+  function voiceScore(v){
+    let s = 0; const n = v.name || "";
+    if (/premium|высок/i.test(n)) s += 60;
+    if (/enhanced|улучш/i.test(n)) s += 45;
+    if (GOOD_VOICES.test(n)) s += 20;
+    if (BAD_VOICES.test(n)) s -= 200;
+    if ((v.lang || "").replace("_", "-").toLowerCase() === (COURSE.voice || "").toLowerCase()) s += 5;
+    if (v.localService) s += 1;
+    return s;
+  }
+  function courseVoices(){
+    if (!hasTTS) return [];
+    const pref = (COURSE.voice || "en-US").slice(0, 2).toLowerCase();
+    return speechSynthesis.getVoices().filter(v => v.lang && v.lang.toLowerCase().replace("_", "-").startsWith(pref)).sort((a, b) => voiceScore(b) - voiceScore(a));
+  }
+  function chosenVoice(){
+    const list = courseVoices(); if (!list.length) return null;
+    let want = null; try { want = localStorage.getItem("moy-den-voice-" + (COURSE.id || "x")); } catch (e) {}
+    return (want && list.find(v => v.voiceURI === want || v.name === want)) || list[0];
+  }
+  function speak(text, slow){
     if (!canSpeakNow() || !text) return;
     try {
       speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text); u.lang = COURSE.voice || "en-US"; u.rate = 0.9;
-      const pref = (COURSE.voice || "en-US").slice(0, 2);
-      const v = speechSynthesis.getVoices().find(v => v.lang && v.lang.toLowerCase().startsWith(pref));
-      if (v) u.voice = v;
+      const u = new SpeechSynthesisUtterance(text); u.lang = COURSE.voice || "en-US";
+      u.rate = slow ? 0.6 : 0.85; u.pitch = 1;
+      const v = chosenVoice(); if (v){ u.voice = v; u.lang = v.lang; }
       speechSynthesis.speak(u);
     } catch (e) {}
   }
+  if (hasTTS) try { speechSynthesis.onvoiceschanged = () => { if (typeof renderVoicePick === "function") renderVoicePick(); }; } catch (e) {}
+
+  // ---- transcription (Russian letters, stressed vowel gets an accent) ----
+  const AZ_MAP = { a: "а", b: "б", c: "дж", ç: "ч", d: "д", e: "е", ə: "э", f: "ф", g: "г", ğ: "г", h: "х", x: "х", ı: "ы", i: "и", j: "ж", k: "к", q: "г", l: "л", m: "м", n: "н", o: "о", ö: "ё", p: "п", r: "р", s: "с", ş: "ш", t: "т", u: "у", ü: "ю", v: "в", y: "й", z: "з" };
+  const AZ_Y = { a: "я", u: "ю", o: "ё", e: "е" };
+  function azToRu(t){
+    const s0 = String(t).toLocaleLowerCase("az");
+    let out = "", prevLetter = false;
+    for (let i = 0; i < s0.length; i++){
+      const ch = s0[i], nx = s0[i + 1];
+      if (ch === "y" && AZ_Y[nx]){ out += AZ_Y[nx]; i++; prevLetter = true; continue; }
+      if (ch === "e" && !prevLetter){ out += "э"; prevLetter = true; continue; }
+      if (AZ_MAP[ch] !== undefined){ out += AZ_MAP[ch]; prevLetter = true; continue; }
+      out += ch; prevLetter = /[a-zа-я0-9]/i.test(ch);
+    }
+    return out;
+  }
+  function stressHtml(t){ return esc(t).replace(/[АЕЁИОУЫЭЮЯ]/g, c => `<b>${c.toLowerCase()}\u0301</b>`); }
+  function trOf(text){
+    if (!text) return "";
+    if (COURSE.id === "az") return azToRu(text);
+    const map = COURSE.tr || {}; if (map[text]) return map[text];
+    // build a phrase from known words when the whole phrase is not in the list
+    const words = String(text).replace(/[.,!?]/g, "").split(/\s+/).filter(Boolean);
+    const lower = {}; Object.keys(map).forEach(k => { lower[k.toLowerCase()] = map[k]; });
+    const parts = words.map(w => lower[w.toLowerCase()]);
+    return parts.every(Boolean) ? parts.join(" ") : "";
+  }
+  function trHtml(text){ const t = trOf(text); return t ? `<div class="tr">[${stressHtml(t)}]</div>` : ""; }
 
   // ---- lesson building ----
   const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -2071,13 +2165,13 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("lsCount").textContent = (L.i + 1) + " / " + L.q.length;
     const q = L.q[L.i]; L.state = "ask"; L.pick = null; L.built = [];
     body.scrollTop = 0;
-    const sayBtn = t => canSpeakNow() ? `<button class="say" type="button" data-say="${esc(t)}">🔊 Послушать</button>` : "";
+    const sayBtn = t => canSpeakNow() ? `<span class="sayrow"><button class="say" type="button" data-say="${esc(t)}">🔊 Послушать</button><button class="say" type="button" data-say="${esc(t)}" data-slow="1">🐢 Медленно</button></span>` : "";
     if (q.type === "intro"){
-      body.innerHTML = `<span class="ls-kind">${q.phrase ? "Новая фраза" : "Новое слово"}</span><h2 class="ls-q" id="lsTitle">${esc(q.en)}</h2>${sayBtn(q.en)}<div class="ls-sub">${esc(q.ru)}</div>`;
+      body.innerHTML = `<span class="ls-kind">${q.phrase ? "Новая фраза" : "Новое слово"}</span><h2 class="ls-q" id="lsTitle">${esc(q.en)}</h2>${trHtml(q.en)}${sayBtn(q.en)}<div class="ls-sub">${esc(q.ru)}</div><div class="mhint">Произнеси вслух 2–3 раза, глядя на транскрипцию.</div>`;
       foot.innerHTML = `<button class="btn primary" type="button" data-ls="next">Дальше</button>`;
       speak(q.en);
     } else if (q.type === "rule"){
-      body.innerHTML = `<span class="ls-kind">Правило</span><h2 class="ls-q" id="lsTitle">${esc(q.g.title)}</h2><div class="rule"><div>${esc(q.g.text)}</div>${q.g.examples.map(([en, ru]) => `<div class="ex"><b>${esc(en)}</b><span>${esc(ru)}</span></div>`).join("")}</div>`;
+      body.innerHTML = `<span class="ls-kind">Правило</span><h2 class="ls-q" id="lsTitle">${esc(q.g.title)}</h2><div class="rule"><div>${esc(q.g.text)}</div>${q.g.examples.map(([en, ru]) => `<div class="ex"><span class="exl"><b>${esc(en)}</b>${trHtml(en)}</span><span>${esc(ru)}</span>${canSpeakNow() ? `<button class="say sm" type="button" data-say="${esc(en)}" aria-label="Послушать">🔊</button>` : ""}</div>`).join("")}</div>`;
       foot.innerHTML = `<button class="btn primary" type="button" data-ls="next">Понятно</button>`;
     } else if (q.type === "mc" || q.type === "listen"){
       const head = q.type === "listen"
@@ -2124,8 +2218,9 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     L.state = "checked";
     const foot = $("lsFoot");
     foot.className = "ls-foot " + (ok ? "ok" : "bad");
-    foot.innerHTML = `<div class="ls-fb">${ok ? "✓ Правильно!" : "Почти. Правильный ответ:"}${ok ? "" : `<small>${esc(correctText)}</small>`}</div><button class="btn primary" type="button" data-ls="next">Дальше</button>`;
-    const sayText = q.type === "listen" ? q.say : q.type === "tiles" ? q.en : q.type === "type" ? q.answer : (q.speak || (/[a-z]/i.test(q.answer) ? q.answer : null));
+    const sayText = q.type === "listen" ? q.say : q.type === "tiles" ? q.en : q.type === "type" ? q.answer : (q.speak || (/[a-zəğışöüç]/i.test(q.answer) ? q.answer : null));
+    const trT = sayText ? trOf(sayText) : "";
+    foot.innerHTML = `<div class="ls-fb">${ok ? "✓ Правильно!" : "Почти. Правильный ответ:"}${ok ? "" : `<small>${esc(correctText)}</small>`}${sayText ? `<small class="trf">${esc(sayText)}${trT ? " — [" + stressHtml(trT) + "]" : ""} ${canSpeakNow() ? `<button class="say sm" type="button" data-say="${esc(sayText)}" data-slow="1" aria-label="Послушать медленно">🐢</button>` : ""}</small>` : ""}</div><button class="btn primary" type="button" data-ls="next">Дальше</button>`;
     speak(sayText);
   }
   function finishLesson(){
@@ -2552,7 +2647,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   };
   $("lesson").addEventListener("click", e => {
     if (!L) return;
-    const say = e.target.closest("[data-say]"); if (say){ speak(say.dataset.say); return; }
+    const say = e.target.closest("[data-say]"); if (say){ speak(say.dataset.say, !!say.dataset.slow); return; }
     const ls = e.target.closest("[data-ls]");
     if (ls){
       const a = ls.dataset.ls;
@@ -3128,6 +3223,9 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   $("finPrev").onclick = () => { const [y, m] = finMonth.split("-").map(Number); const d = new Date(y, m - 2, 1); finMonth = d.getFullYear() + "-" + pad(d.getMonth() + 1); renderFin(); };
   $("finNext").onclick = () => { const [y, m] = finMonth.split("-").map(Number); const d = new Date(y, m, 1); const k = d.getFullYear() + "-" + pad(d.getMonth() + 1); if (k <= todayKey().slice(0, 7)){ finMonth = k; renderFin(); } };
   $("finCur").addEventListener("change", e => { FIN.cur = e.target.value; saveFin(); renderFin(); });
+  // the investments block stays folded until opened; remember the choice on this phone
+  try { if (localStorage.getItem("moy-den-inv-open") === "1") $("invBox").open = true; } catch (e) {}
+  $("invBox").addEventListener("toggle", () => { try { localStorage.setItem("moy-den-inv-open", $("invBox").open ? "1" : "0"); } catch (e) {} });
 
   // ---------- homemade dish ----------
   let DISH = { name: "", ing: [], weight: "", eat: 300, editId: null };
@@ -3577,7 +3675,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.06-2";
+const APP_VERSION = "2026.11.06-3";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

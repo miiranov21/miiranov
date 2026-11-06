@@ -870,22 +870,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         </details>
         <div class="pbar" aria-hidden="true"><i id="langBar" style="background:var(--lang)"></i></div>
         <div class="row" id="langChips"></div>
-        <form class="manual" id="langMinForm" autocomplete="off">
-          <label for="langMin">Сколько минут занимался</label>
-          <div class="row">
-            <input type="number" id="langMin" placeholder="минут" min="1" max="600" inputmode="numeric">
-            <button class="btn lang" type="submit">Добавить</button>
-            <button class="btn ghost" type="button" id="langMinSet">Это итог за день</button>
-          </div>
-        </form>
-        <div class="field">
-          <label>Чем занимался</label>
-          <div class="acts" id="langActs"></div>
-        </div>
-        <div class="field">
-          <label for="langNote">Что выучил сегодня</label>
-          <textarea id="langNote" maxlength="500" placeholder="Например: Present Perfect, 10 слов про еду, посмотрел серию с субтитрами" style="min-height:60px"></textarea>
-        </div>
+        <p class="mhint">Минуты считаются сами: по времени в уроках и в повторении слов.</p>
         <details id="dictBox">
           <summary id="dictSum">📒 Мой словарь</summary>
           <div class="dict">
@@ -1523,9 +1508,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const wkTable = (title, val, total) => `<table><caption>${title}</caption><thead><tr><th></th>${wk.map(k => { const d = parseKey(k); return `<th>${WD[d.getDay()]} ${d.getDate()}</th>`; }).join("")}<th>Всего</th></tr></thead><tbody>` +
       players.map(pl => `<tr><td>${esc(pl.label)}</td>${wk.map(k => k > today ? `<td class="c fut">·</td>` : `<td class="c">${val((pl.days && pl.days[k]) || {})}</td>`).join("")}<td class="c">${total(pl)}</td></tr>`).join("") + `</tbody></table>`;
     const sum = (pl, f) => wk.reduce((a, k) => a + (((pl.days && pl.days[k]) || {})[f] || 0), 0);
-    $("h2h").innerHTML = wkTable("Страницы за 7 дней", d => d.p || 0, pl => sum(pl, "p")) +
-      wkTable("Вода за 7 дней, л", d => L(d.w), pl => L(sum(pl, "w"))) +
-      (players.some(pl => pl.lang) ? wkTable("Язык за 7 дней, мин", d => d.lm || 0, pl => sum(pl, "lm")) : "");
+    $("h2h").innerHTML = "";
     pl_updated(players);
     j.hidden = false;
     const codeLine = `<div class="row"><span>Код пары: <b class="num">${prettyCode(pair.code)}</b></span><button class="btn sm" type="button" id="pairCopy">Скопировать</button><button class="btn sm ghost" type="button" id="pairLeave">Отключить этот телефон</button></div>`;
@@ -1778,9 +1761,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <span class="chip">За 7 дней: <span class="num">${wkMin}</span> мин</span>
       <span class="chip ok">Слов в словаре: <span class="num">${words.length}</span></span>
       ${lg.words ? `<span class="chip">Новых слов сегодня: <span class="num">${lg.words}</span></span>` : ""}`;
-    $("langActs").innerHTML = LANG_ACTS.map(a => `<button type="button" data-act="${a}" aria-pressed="${!!(lg.acts && lg.acts.includes(a))}">${a}</button>`).join("");
-    const ta = $("langNote");
-    if (document.activeElement !== ta || ta.dataset.day !== cur){ ta.value = lg.note || ""; ta.dataset.day = cur; }
     $("dictSum").textContent = "📒 Мой словарь · " + words.length + " " + plural(words.length, "слово", "слова", "слов");
     const known = words.filter(w => w.k).length;
     $("dictInfo").textContent = words.length ? "выучено " + known + " из " + words.length : "";
@@ -1797,6 +1777,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (!quiz){ q.hidden = true; return; }
     q.hidden = false;
     if (quiz.i >= quiz.list.length){
+      logQuizTime();
       q.innerHTML = `<div class="qw">Готово!</div><div class="qt">Знаешь ${quiz.ok} из ${quiz.list.length}</div><div class="row"><button class="btn lang" type="button" data-quiz="again">Ещё раз</button><button class="btn ghost" type="button" data-quiz="close">Закрыть</button></div>`;
       return;
     }
@@ -1830,8 +1811,21 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const unknown = words.filter(w => !w.k).sort(() => Math.random() - .5);
     const knownW = words.filter(w => w.k).sort(() => Math.random() - .5);
     const list = unknown.concat(knownW).slice(0, 15);
-    quiz = { list, i: 0, ok: 0, shown: false, flip: false };
+    quiz = { list, i: 0, ok: 0, shown: false, flip: false, start: Date.now() };
     renderQuiz();
+  }
+  // time spent reviewing words goes into today's language minutes
+  function logQuizTime(){
+    if (!quiz || quiz.logged || !quiz.start) return;
+    const min = Math.round((Date.now() - quiz.start) / 60000);
+    quiz.logged = true;
+    if (min >= 1 || quiz.i >= 3){
+      const k = todayKey(), d = clone(day(k));
+      d.lang = Object.assign({ min: 0, words: 0, acts: [], note: "" }, d.lang || {});
+      const add = Math.max(1, min);
+      d.lang.min = Math.min(1440, d.lang.min + add); d.lang.xp = (d.lang.xp || 0) + quiz.ok;
+      commitDay(k, d, 0);
+    }
   }
   function updateLang(fn, delay = 0){
     const d = clone(day(cur)); d.lang = Object.assign({ min: 0, words: 0, acts: [], note: "" }, d.lang || {});
@@ -2658,27 +2652,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   });
   $("langChange").onclick = () => { langEditing = true; render(); $("langCourse").focus(); };
   $("langCourse").addEventListener("change", () => { $("langNameWrap").hidden = $("langCourse").value !== "other"; if ($("langCourse").value === "other") $("langName").focus(); });
-  $("langMinForm").addEventListener("submit", e => {
-    e.preventDefault();
-    const n = parseInt($("langMin").value, 10);
-    if (!(n > 0)){ toast("Впиши, сколько минут занимался"); return; }
-    updateLang(l => { l.min = Math.min(1440, l.min + n); l.xp = (l.xp || 0) + n; }); $("langMin").value = ""; toast("+" + n + " мин · +" + n + " XP");
-  });
-  $("langMinSet").onclick = () => {
-    const n = parseInt($("langMin").value, 10);
-    if (isNaN(n) || n < 0){ toast("Впиши, сколько всего минут за день"); return; }
-    updateLang(l => { l.min = Math.min(1440, n); }); $("langMin").value = ""; toast("Итог за день: " + n + " мин");
-  };
-  $("langActs").addEventListener("click", e => {
-    const b = e.target.closest("[data-act]"); if (!b) return;
-    const a = b.dataset.act;
-    updateLang(l => { l.acts = l.acts || []; const i = l.acts.indexOf(a); if (i >= 0) l.acts.splice(i, 1); else l.acts.push(a); }, 300);
-  });
-  $("langNote").addEventListener("input", e => {
-    const v = e.target.value;
-    const d = clone(day(cur)); d.lang = Object.assign({ min: 0, words: 0, acts: [], note: "" }, d.lang || {}); d.lang.note = v;
-    S.days[cur] = d; persist(docId(cur), d, 900);
-  });
   $("dictForm").addEventListener("submit", e => {
     e.preventDefault();
     const w = $("dW").value.trim(), t = $("dT").value.trim();
@@ -2749,8 +2722,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       if (x && x.k !== (a === "yes")){ x.k = a === "yes"; S.dict = dict; persist("dict", dict, 1500); }
       quiz.i++; quiz.shown = false; quiz.flip = Math.random() < .3;
     }
-    else if (a === "again"){ startQuiz(); return; }
-    else if (a === "close"){ quiz = null; }
+    else if (a === "again"){ logQuizTime(); startQuiz(); return; }
+    else if (a === "close"){ logQuizTime(); quiz = null; }
     render();
   });
 
@@ -3743,7 +3716,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.06-4";
+const APP_VERSION = "2026.11.06-5";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

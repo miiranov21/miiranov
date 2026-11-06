@@ -527,6 +527,14 @@ body.hide-p-water #p-kcal, body.hide-p-kcal #p-water{grid-column:1/-1}
 #repPair{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px}
 #repPair:empty{display:none}
 
+.p100bar,.p100res,.p100save{grid-column:1/-1}
+.p100tg{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;border:1px dashed var(--kcal);border-radius:999px;padding:6px 12px}
+.p100tg:has(input:checked){background:var(--kcal-soft);border-style:solid}
+.p100res{font-family:var(--f-num);font-size:14px;background:var(--kcal-soft);border-radius:10px;padding:8px 12px}
+.p100res b{font-size:16px}
+.p100save{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2)}
+.addmeal [hidden]{display:none!important}
+
 /* Food lookup */
 .foodfield{position:relative}
 .sugg{position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:15;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(15,25,45,.16);max-height:340px;overflow-y:auto;padding:4px}
@@ -755,13 +763,17 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div class="macros" id="macros"></div>
       <div class="meals" id="meals"></div>
       <form class="addmeal" id="mealForm" autocomplete="off">
+        <div class="p100bar"><label class="p100tg"><input type="checkbox" id="m100"> <span>Ввести с упаковки: <b>на 100 г</b></span></label></div>
         <div class="field wide foodfield"><label for="mName">Что съел</label><input type="text" id="mName" placeholder="Начни вводить: бургер, яблоко, гречка…" required maxlength="80" role="combobox" aria-autocomplete="list" aria-controls="sugg" aria-expanded="false" autocomplete="off">
           <div class="sugg" id="sugg" role="listbox" hidden></div></div>
         <div class="portion" id="portion" hidden></div>
-        <div class="field"><label for="mKcal">Ккал</label><input type="number" id="mKcal" placeholder="350" min="1" max="5000" required inputmode="numeric"></div>
-        <div class="field"><label for="mP">Белки, г</label><input type="number" id="mP" placeholder="12" min="0" max="500" step="0.1" inputmode="decimal"></div>
-        <div class="field"><label for="mF">Жиры, г</label><input type="number" id="mF" placeholder="8" min="0" max="500" step="0.1" inputmode="decimal"></div>
-        <div class="field"><label for="mC">Углеводы, г</label><input type="number" id="mC" placeholder="55" min="0" max="1000" step="0.1" inputmode="decimal"></div>
+        <div class="field" id="mGramsWrap" hidden><label for="mGrams">Сколько съел, г</label><input type="number" id="mGrams" min="1" max="5000" step="1" inputmode="numeric" placeholder="например 150"></div>
+        <div class="field"><label for="mKcal" id="lKcal">Ккал</label><input type="number" id="mKcal" placeholder="350" min="0" max="5000" step="any" required inputmode="decimal"></div>
+        <div class="field"><label for="mP" id="lP">Белки, г</label><input type="number" id="mP" placeholder="12" min="0" max="500" step="any" inputmode="decimal"></div>
+        <div class="field"><label for="mF" id="lF">Жиры, г</label><input type="number" id="mF" placeholder="8" min="0" max="500" step="any" inputmode="decimal"></div>
+        <div class="field"><label for="mC" id="lC">Углеводы, г</label><input type="number" id="mC" placeholder="55" min="0" max="1000" step="any" inputmode="decimal"></div>
+        <div class="p100res" id="m100res" hidden></div>
+        <label class="p100save" id="m100saveWrap" hidden><input type="checkbox" id="m100save" checked> Запомнить продукт: в следующий раз найдётся по названию</label>
         <button class="btn primary" type="submit">Добавить</button>
       </form>
       <button class="libbtn" type="button" id="dishOpen"><span style="font-size:24px" aria-hidden="true">🍲</span><span><b>Домашнее блюдо</b><small>посчитать КБЖУ по продуктам: мамин борщ, плов, запеканка</small></span><span aria-hidden="true">›</span></button>
@@ -2599,7 +2611,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   FOODS.forEach(f => { f._n = nz(f.name); f._a = nz(f.name + " " + f.alias).split(" "); });
   let FSEL = null, webSeq = 0, suggItems = [], suggAct = -1;
   function myDishes(){
-    return (S.recipes.list || []).map(r => ({ name: r.name, k: r.k, p: r.p, f: r.f, c: r.c, unit: "порция", g: r.portion || 300, src: "mine", brand: "моё блюдо",
+    return (S.recipes.list || []).map(r => ({ name: r.name, k: r.k, p: r.p, f: r.f, c: r.c, unit: r.product ? (r.portion || 100) + " г" : "порция", g: r.portion || 300, src: "mine", brand: r.product ? "мой продукт" : "моё блюдо",
       _n: nz(r.name), _a: nz(r.name + " моё блюдо домашнее").split(" ") }));
   }
   function searchLocal(q){
@@ -2656,6 +2668,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     } finally { clearTimeout(tm); }
   }
   function pickFood(f){
+    if ($("m100").checked){ $("m100").checked = false; renderPer100(); }
     FSEL = Object.assign({}, f, { grams: f.g || 100 });
     $("mName").value = f.name; $("sugg").hidden = true; $("mName").setAttribute("aria-expanded", "false");
     renderPortion(); applyPortion();
@@ -3135,7 +3148,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   function renderDish(){ renderDishList(); renderDishResult(); }
   function renderDishList(){
-    const saved = S.recipes.list || [];
+    const saved = (S.recipes.list || []).filter(r => !r.product);
     $("dishSaved").innerHTML = saved.length ? `<span class="mhint">Сохранённые блюда:</span>` + saved.map(r => `<button type="button" class="chip" data-dload="${r.id}">🍲 ${esc(r.name)}</button>`).join("") : "";
     $("dList").innerHTML = DISH.ing.length ? DISH.ing.map((i, n) => `<div class="item"><span class="name">${esc(i.name)}</span>
       <input type="number" min="1" max="20000" inputmode="numeric" value="${i.g}" data-dg="${n}" aria-label="Граммов: ${esc(i.name)}"><span class="ig">г · ${Math.round(i.k * i.g / 100)} ккал</span>
@@ -3183,7 +3196,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   function showDSugg(q){
     const box = $("dSugg");
     if (!q || q.length < 2){ box.hidden = true; return; }
-    dSuggItems = searchLocal(q).filter(f => f.src !== "mine");
+    dSuggItems = searchLocal(q).filter(f => f.src !== "mine" || f.brand === "мой продукт");
     box.innerHTML = (dSuggItems.length ? dSuggItems.map(suggRow).join("") : `<div class="sg-note">В справочнике такого нет.</div>`) + `<button type="button" class="sg web" data-dweb="1">🔎 Найти «${esc(q)}» в интернете</button>`;
     box.hidden = false;
   }
@@ -3236,9 +3249,48 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
   });
 
+  // ---- "per 100 g" entry from the package label ----
+  const pv = id => { const v = parseFloat(String($(id).value).replace(",", ".")); return v > 0 ? v : 0; };
+  function per100On(){ return $("m100").checked; }
+  function renderPer100(){
+    const on = per100On();
+    $("mGramsWrap").hidden = !on; $("m100res").hidden = !on; $("m100saveWrap").hidden = !on;
+    $("lKcal").textContent = on ? "Ккал на 100 г" : "Ккал";
+    $("lP").textContent = on ? "Белки на 100 г" : "Белки, г";
+    $("lF").textContent = on ? "Жиры на 100 г" : "Жиры, г";
+    $("lC").textContent = on ? "Углеводы на 100 г" : "Углеводы, г";
+    $("mGrams").required = on;
+    if (!on) return;
+    const g = pv("mGrams"), m = g / 100;
+    $("m100res").innerHTML = g && pv("mKcal")
+      ? `Ты съел ${g} г: <b>${Math.round(pv("mKcal") * m)} ккал</b> · Б ${fmt1(pv("mP") * m)} · Ж ${fmt1(pv("mF") * m)} · У ${fmt1(pv("mC") * m)}`
+      : `Впиши цифры с упаковки (на 100 г) и сколько граммов съел — итог посчитается сам.`;
+  }
+  $("m100").addEventListener("change", () => { if (per100On()) closeFood(); renderPer100(); ($("mGrams")).focus(); });
+  ["mGrams", "mKcal", "mP", "mF", "mC"].forEach(id => $(id).addEventListener("input", () => { if (per100On()) renderPer100(); }));
+
   $("mealForm").addEventListener("submit", e => {
     e.preventDefault();
-    const name = $("mName").value.trim(), kcal = parseInt($("mKcal").value, 10);
+    if (per100On()){
+      const name = $("mName").value.trim(), g = pv("mGrams"), k100 = pv("mKcal");
+      if (!name){ toast("Напиши, что съел"); return; }
+      if (!g){ toast("Впиши, сколько граммов съел"); return; }
+      if (!k100){ toast("Впиши калории на 100 г с упаковки"); return; }
+      const m = g / 100, r1 = v => Math.round(v * 10) / 10;
+      const d = clone(day(cur));
+      d.meals.push({ id: uid(), name: (name + ", " + Math.round(g) + " г").slice(0, 80), kcal: Math.max(1, Math.round(k100 * m)), p: r1(pv("mP") * m), f: r1(pv("mF") * m), c: r1(pv("mC") * m), time: nowHM() });
+      commitDay(cur, d, 0);
+      if ($("m100save").checked){
+        const rs = clone(S.recipes); rs.list = (rs.list || []).filter(r => r.name.toLowerCase() !== name.toLowerCase());
+        rs.list.push({ id: uid(), name: name.slice(0, 50), k: k100, p: pv("mP"), f: pv("mF"), c: pv("mC"), portion: Math.round(g), ing: [], w: "", product: true });
+        S.recipes = rs; persist("recipes", rs, 0);
+      }
+      toast(`Добавлено: ${Math.round(k100 * m)} ккал`);
+      ["mName", "mKcal", "mP", "mF", "mC", "mGrams"].forEach(id => { $(id).value = ""; });
+      $("m100").checked = false; renderPer100(); $("mName").focus();
+      return;
+    }
+    const name = $("mName").value.trim(), kcal = Math.round(parseFloat(String($("mKcal").value).replace(",", ".")));
     if (!name || !(kcal > 0)) return;
     const g1 = id => { const v = parseFloat(String($(id).value).replace(",", ".")); return v > 0 ? Math.round(v * 10) / 10 : 0; };
     let mealName = name;

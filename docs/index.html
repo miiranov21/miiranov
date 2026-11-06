@@ -505,6 +505,16 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .invbox[open] summary::after{content:"Свернуть ‹"}
 .invbox[open]{display:flex;flex-direction:column;gap:10px}
 
+.reptabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:4px}
+.reptabs button{border:0;background:transparent;border-radius:9px;padding:8px 4px;font-size:13px;font-weight:700;color:var(--ink-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reptabs button[aria-selected="true"]{background:var(--surface);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.reppane{display:flex;flex-direction:column;gap:14px}
+.reppane[hidden]{display:none}
+.vsin{border:1px solid var(--line)}
+.ptlist{display:flex;flex-direction:column;gap:6px}
+.pthead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.pthead b{font-family:var(--f-display);font-size:18px}
+
 /* Section filter */
 .viewbar{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .vb-top{display:flex;flex-direction:column;gap:2px}
@@ -764,17 +774,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 
   <section class="summary" id="summary" aria-label="Сводка дня"></section>
   <button class="reportbtn" type="button" id="reportOpen"><span aria-hidden="true">📊</span><span><b>Отчёт за неделю</b><small>калории, вода, чтение, привычки, язык</small></span><span aria-hidden="true">›</span></button>
-
-  <section class="panel" aria-labelledby="h-vs" id="vsPanel">
-    <div class="panel-head">
-      <h2 id="h-vs"><span class="dot" style="background:var(--accent)"></span>Прогресс пары</h2>
-      <span class="meta" id="vsMeta"></span>
-    </div>
-    <div class="vs" id="vs"></div>
-    <div class="h2h" id="h2h"></div>
-    <div class="nick"><label for="nick" style="font-size:12.5px;color:var(--ink-3);font-weight:600">Твоё имя</label><input type="text" id="nick" maxlength="24" placeholder="Например, Миша"><button class="btn sm" type="button" id="nickSave">Сохранить</button></div>
-    <div class="join" id="join" hidden></div>
-  </section>
 
   <div class="grid">
     <section class="panel" id="p-kcal" aria-labelledby="h-kcal">
@@ -1097,7 +1096,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 <nav class="bnav" aria-label="Разделы">
   <div class="bnav-in" id="bnav">
     <button type="button" data-go="summary"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg></span><span class="tx">День</span></button>
-    <button type="button" data-go="vsPanel"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17" cy="9.5" r="2.6"/><path d="M16.5 14.3c2.8.2 4.5 2.2 4.5 5.2"/></svg></span><span class="tx">Пара</span></button>
     <button type="button" data-go="p-kcal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 7.5c-1.4-1.5-3.9-1.9-5.6-.6-2.4 1.9-2.1 6.1-.4 9.2 1.3 2.4 3 4.7 4.6 4.2.6-.2.9-.4 1.4-.4s.8.2 1.4.4c1.6.5 3.3-1.8 4.6-4.2 1.7-3.1 2-7.3-.4-9.2-1.7-1.3-4.2-.9-5.6.6z"/><path d="M12 7.5c0-2 .9-3.4 2.8-4"/></svg></span><span class="tx">Еда</span></button>
     <button type="button" data-go="p-water"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3.5s6 6.4 6 10.7a6 6 0 0 1-12 0C6 9.9 12 3.5 12 3.5z"/><path d="M9.2 14.6a2.9 2.9 0 0 0 2.6 2.6"/></svg></span><span class="tx">Вода</span></button>
     <button type="button" data-go="p-lang"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.3 2.5 3.5 5.3 3.5 8.5s-1.2 6-3.5 8.5c-2.3-2.5-3.5-5.3-3.5-8.5s1.2-6 3.5-8.5z"/></svg></span><span class="tx">Язык</span></button>
@@ -1133,11 +1131,31 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   </div>
   <div class="lib-body">
     <div class="repnav"><button type="button" id="repPrev" aria-label="Предыдущая неделя">‹</button><span id="repRange" class="num"></span><button type="button" id="repNext" aria-label="Следующая неделя">›</button></div>
-    <div class="repstats" id="repStats"></div>
-    <div class="charts" id="charts"></div>
-    <div class="heat" id="heat"></div>
-    <div id="repPair"></div>
-    <p class="mhint">Пунктир на графиках — твоя цель на день.</p>
+    <div class="reptabs" role="tablist" aria-label="Чей отчёт">
+      <button type="button" role="tab" data-rtab="me" aria-selected="true">Мой отчёт</button>
+      <button type="button" role="tab" data-rtab="pt" aria-selected="false" id="rtabPt">Отчёт партнёра</button>
+      <button type="button" role="tab" data-rtab="both" aria-selected="false">Совместный</button>
+    </div>
+    <div id="repMe" class="reppane">
+      <div class="repstats" id="repStats"></div>
+      <div class="charts" id="charts"></div>
+      <div class="heat" id="heat"></div>
+      <p class="mhint">Пунктир на графиках — твоя цель на день.</p>
+    </div>
+    <div id="repPt" class="reppane" hidden></div>
+    <div id="repBoth" class="reppane" hidden>
+      <div id="repPair"></div>
+  <section class="panel vsin" aria-labelledby="h-vs" id="vsPanel">
+    <div class="panel-head">
+      <h2 id="h-vs"><span class="dot" style="background:var(--accent)"></span>Прогресс пары</h2>
+      <span class="meta" id="vsMeta"></span>
+    </div>
+    <div class="vs" id="vs"></div>
+    <div class="h2h" id="h2h"></div>
+    <div class="nick"><label for="nick" style="font-size:12.5px;color:var(--ink-3);font-weight:600">Твоё имя</label><input type="text" id="nick" maxlength="24" placeholder="Например, Миша"><button class="btn sm" type="button" id="nickSave">Сохранить</button></div>
+    <div class="join" id="join" hidden></div>
+  </section>
+    </div>
   </div>
 </div>
 
@@ -1447,6 +1465,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     return out;
   }
   function renderBoard(){
+    if (!$("report").hidden && typeof renderPartnerReport === "function"){ const e0 = repEnd || todayKey(); const ks = []; for (let i = 6; i >= 0; i--) ks.push(shift(e0, -i)); renderPartnerReport(ks, e0); }
     const panel = $("vsPanel");
     if (document.activeElement !== $("nick")) $("nick").value = S.settings.nick || "";
     const j = $("join");
@@ -1470,7 +1489,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       }
       return;
     }
-    const today = todayKey(), k0 = cur;
+    const today = todayKey(), k0 = (!$("report").hidden && repEnd) ? repEnd : cur;
     const wk = []; for (let i = 6; i >= 0; i--) wk.push(shift(k0, -i));
     // me: always from live local data; partner: from the cloud
     const meDoc = Object.assign({ id: pair.pid }, buildSummary());
@@ -2334,6 +2353,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   function renderWeek(){
     const end = repEnd || todayKey();
     const keys = []; for (let i = 6; i >= 0; i--) keys.push(shift(end, -i));
+    renderPartnerReport(keys, end);
+    if (repTab === "both") setTimeout(renderBoard, 0);
     const a = parseKey(keys[0]), b = parseKey(end);
     $("repRange").textContent = a.getDate() + " " + MONTHS[a.getMonth()].slice(0, 3) + " — " + b.getDate() + " " + MONTHS[b.getMonth()].slice(0, 3);
     $("repNext").disabled = end >= todayKey();
@@ -2387,8 +2408,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (partner.length){
       const sumP = (pl, f) => keys.reduce((a, k) => a + (((pl.days || {})[k] || {})[f] || 0), 0);
       const me = buildSummary();
-      const rows = [Object.assign({ label: (S.settings.nick || "Я") + " (я)" }, me)].concat(partner.map(x => Object.assign({ label: x.nick || "Партнёр" }, x)));
-      $("repPair").innerHTML = `<h3 class="rep-h">👫 Мы вдвоём за неделю</h3><div class="h2h"><table><thead><tr><th></th><th>Страниц</th><th>Воды, л</th><th>Привычек</th><th>Язык, мин</th></tr></thead><tbody>` +
+      const rows = [Object.assign({ label: S.settings.nick ? S.settings.nick + " (я)" : "Я" }, me)].concat(partner.map(x => Object.assign({ label: x.nick || "Партнёр" }, x)));
+      $("repPair").innerHTML = `<h3 class="rep-h">👫 Итоги недели вдвоём</h3><div class="h2h"><table><thead><tr><th></th><th>Страниц</th><th>Воды, л</th><th>Привычек</th><th>Язык, мин</th></tr></thead><tbody>` +
         rows.map(r => `<tr><td>${esc(r.label)}</td><td class="c">${sumP(r, "p")}</td><td class="c">${(sumP(r, "w") / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}</td><td class="c">${sumP(r, "h")} из ${sumP(r, "ht")}</td><td class="c">${sumP(r, "lm")}</td></tr>`).join("") +
         `</tbody></table></div>`;
     } else $("repPair").innerHTML = "";
@@ -2406,7 +2427,54 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       `</tbody></table><p class="mhint">Зелёный — сделал или продержался, красный — вредная привычка: не продержался.</p>` : "";
   }
 
-  $("reportOpen").onclick = () => { repEnd = todayKey(); $("report").hidden = false; document.body.style.overflow = "hidden"; renderWeek(); };
+  let repTab = "me";
+  try { repTab = localStorage.getItem("moy-den-reptab") || "me"; } catch (e) {}
+  function setRepTab(t){
+    repTab = t; try { localStorage.setItem("moy-den-reptab", t); } catch (e) {}
+    document.querySelectorAll(".reptabs [data-rtab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.rtab === t)));
+    $("repMe").hidden = t !== "me"; $("repPt").hidden = t !== "pt"; $("repBoth").hidden = t !== "both";
+    if (t === "both") renderBoard();
+  }
+  document.querySelector(".reptabs").addEventListener("click", e => { const b = e.target.closest("[data-rtab]"); if (b) setRepTab(b.dataset.rtab); });
+  function partnerDoc(){ return (typeof pair !== "undefined" && pair) ? boardDocs.find(x => x.id !== pair.pid && x.updated) : null; }
+  function renderPartnerReport(keys, end){
+    const box = $("repPt"), pd = partnerDoc();
+    $("rtabPt").textContent = pd && pd.nick ? "Отчёт: " + pd.nick : "Отчёт партнёра";
+    if (!pd){
+      box.innerHTML = `<div class="empty">Отчёт партнёра появится, когда вы подключитесь парой. Открой вкладку «Совместный»: там можно создать пару или ввести код.</div>`;
+      return;
+    }
+    const today = todayKey(), past = keys.filter(k => k <= today);
+    const D = k => (pd.days || {})[k] || {};
+    const sum = f => past.reduce((a, k) => a + (D(k)[f] || 0), 0);
+    const daysWith = f => past.filter(k => D(k)[f] > 0);
+    const goalDays = (v, g) => past.filter(k => D(k)[g] && (D(k)[v] || 0) >= D(k)[g]).length;
+    const L1 = v => (v / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 });
+    const wD = daysWith("w"); const avgW = wD.length ? sum("w") / wD.length : 0;
+    const hT = sum("ht"), hD = sum("h"), vN = sum("vn"), vT = sum("vt");
+    const lessons = past.reduce((a, k) => a + ((D(k).ll || []).length), 0);
+    let html = `<div class="pthead"><b>${esc(pd.nick || "Партнёр")}</b><span class="mhint">обновлено ${ago(pd.updated)}</span></div><div class="repstats">
+      <div><span>📖 Прочитано</span><b>${sum("p")} стр.</b><small>цель выполнена ${goalDays("p", "pg")} из ${past.length} дн.</small></div>
+      <div><span>💧 Вода в среднем</span><b>${L1(avgW)} л</b><small>цель выполнена ${goalDays("w", "wg")} из ${past.length} дн.</small></div>
+      <div><span>✅ Привычки</span><b>${hT ? Math.round(hD / hT * 100) : 0}%</b><small>отмечено ${hD} из ${hT}</small></div>
+      <div><span>🌍 Язык</span><b>${sum("lm")} мин</b><small>${pd.lang ? esc(pd.lang) : "язык не выбран"}${lessons ? " · уроков " + lessons : ""}${sum("lw") ? " · +" + sum("lw") + " слов" : ""}</small></div>`;
+    if (vN) html += `<div><span>💊 Витамины</span><b>${Math.round(vT / vN * 100)}%</b><small>выпито ${vT} из ${vN} приёмов</small></div>`;
+    if (pd.lvl) html += `<div><span>🎓 Уровень языка</span><b style="font-size:15px">${esc(pd.lvl)}</b><small>пройдено тем: ${pd.units || 0}</small></div>`;
+    html += `<div><span>📚 Книги</span><b>${pd.books || 0}</b><small>${pd.book ? "читает «" + esc(pd.book.t) + "», " + pd.book.r + " из " + pd.book.n + " стр." : "прочитано всего"}</small></div>`;
+    (pd.quit || []).forEach(q => { html += `<div><span>🚭 ${esc(q.n)}</span><b>${q.d} ${plural(q.d, "день", "дня", "дней")}</b><small>держится сейчас · рекорд ${q.b != null ? q.b : q.d}</small></div>`; });
+    html += `</div>`;
+    if ((pd.habStreaks || []).length) html += `<div class="pquit">${pd.habStreaks.map(h => `<span class="chip fire">🔥 ${esc(h.n)}: ${h.s} ${plural(h.s, "день", "дня", "дней")}</span>`).join("")}</div>`;
+    const lab = k => { const d = parseKey(k); return WD[d.getDay()] + " " + d.getDate(); };
+    const row = (name, f, fmtv) => `<tr><td>${name}</td>${keys.map(k => k > today ? `<td class="c fut">·</td>` : `<td class="c">${fmtv(D(k)[f] || 0, D(k))}</td>`).join("")}</tr>`;
+    html += `<div class="h2h"><table><caption>По дням</caption><thead><tr><th></th>${keys.map(k => `<th>${lab(k)}</th>`).join("")}</tr></thead><tbody>` +
+      row("📖 стр.", "p", v => v) + row("💧 л", "w", v => L1(v)) + row("✅ привычки", "h", (v, d) => d.ht ? v + "/" + d.ht : "—") +
+      row("🌍 мин", "lm", v => v) + (vN ? row("💊 витамины", "vt", (v, d) => d.vn ? v + "/" + d.vn : "—") : "") + `</tbody></table></div>`;
+    if ((pd.shelf || []).length) html += `<div><h3 class="rep-h">📚 Последние прочитанные</h3><div class="mhint">${pd.shelf.slice(0, 8).map(b => "«" + esc(b.t) + "»" + (b.r ? " " + "★".repeat(b.r) : "")).join(" · ")}</div></div>`;
+    html += `<p class="mhint">Калории, еда, заметки и финансы партнёра не показываются: они личные.</p>`;
+    box.innerHTML = html;
+  }
+
+  $("reportOpen").onclick = () => { repEnd = todayKey(); $("report").hidden = false; document.body.style.overflow = "hidden"; renderWeek(); setRepTab(repTab); if (CLOUD && pair) pollBoard(); };
   $("repClose").onclick = () => { $("report").hidden = true; document.body.style.overflow = ""; };
   $("repPrev").onclick = () => { repEnd = shift(repEnd || todayKey(), -7); renderWeek(); };
   $("repNext").onclick = () => { const n = shift(repEnd || todayKey(), 7); repEnd = n > todayKey() ? todayKey() : n; renderWeek(); };
@@ -3639,7 +3707,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   setActive("summary");
 
   // ---------- section filter (per phone, easy to undo) ----------
-  const SECTIONS = [["vsPanel", "👫 Пара"], ["p-kcal", "🍎 Питание"], ["p-water", "💧 Вода и чтение"], ["p-lang", "🌍 Язык"], ["p-hab", "✅ Привычки"], ["p-vit", "💊 Витамины"], ["p-cal", "📅 Календарь привычек"], ["p-fin", "💰 Финансы"], ["report", "📊 Отчёт за неделю"]];
+  const SECTIONS = [["p-kcal", "🍎 Питание"], ["p-water", "💧 Вода и чтение"], ["p-lang", "🌍 Язык"], ["p-hab", "✅ Привычки"], ["p-vit", "💊 Витамины"], ["p-cal", "📅 Календарь привычек"], ["p-fin", "💰 Финансы"], ["report", "📊 Отчёт за неделю"]];
   let hiddenSecs = [];
   try { hiddenSecs = JSON.parse(localStorage.getItem("moy-den-hidden") || "[]"); } catch (e) { hiddenSecs = []; }
   function applyView(){
@@ -3675,7 +3743,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.06-3";
+const APP_VERSION = "2026.11.06-4";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

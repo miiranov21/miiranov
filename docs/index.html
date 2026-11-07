@@ -565,6 +565,17 @@ body[data-view="ideas"] .datenav,body[data-view="account"] .datenav,body[data-vi
 .dr-head{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 8px}
 .dr-head b{font-family:var(--f-display);font-size:18px}
 .dr-acc{font-size:13px;color:var(--ink-2);padding:0 6px 6px}
+.dr-me{display:flex;align-items:center;gap:10px;width:100%;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:8px 10px;margin-bottom:6px;text-align:left;color:var(--ink)}
+.dr-me .accav{width:34px;height:34px;font-size:15px;flex:none}
+.dr-me b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ucode{font-family:var(--f-num);font-size:12px;color:var(--ink-3);font-weight:600;letter-spacing:.02em}
+.profcard{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:12px;padding:12px}
+.profcard .accme b{font-size:16px}
+.profcard .row{display:flex;gap:8px;align-items:center}
+.profcard input{flex:1 1 auto;min-width:0}
+.profcard .row .btn{flex:none}
+.codebox{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface-2);border-radius:10px;padding:8px 10px}
+.codebox .num{font-size:18px;font-weight:800;letter-spacing:.04em;flex:1;white-space:nowrap}
 .dr-acc button{border:0;background:transparent;color:var(--accent);font-weight:700;padding:0}
 .dr-list{display:flex;flex-direction:column;gap:2px}
 .dr-list button{display:flex;align-items:center;gap:12px;border:0;background:transparent;border-radius:12px;padding:11px 10px;font-size:15px;font-weight:600;text-align:left;color:var(--ink)}
@@ -1342,7 +1353,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     </div>
     <div class="vs" id="vs"></div>
     <div class="h2h" id="h2h"></div>
-    <div class="nick"><label for="nick" style="font-size:12.5px;color:var(--ink-3);font-weight:600">Твоё имя</label><input type="text" id="nick" maxlength="24" placeholder="Например, Миша"><button class="btn sm" type="button" id="nickSave">Сохранить</button></div>
+    <div class="nick"><label for="nick" style="font-size:12.5px;color:var(--ink-3);font-weight:600">Никнейм</label><input type="text" id="nick" maxlength="24" placeholder="Придумай никнейм"><button class="btn sm" type="button" id="nickSave">Сохранить</button></div>
     <div class="join" id="join" hidden></div>
   </section>
     </div>
@@ -1667,10 +1678,52 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     return "p" + [...a].map(n => CODE_ABC[n % CODE_ABC.length]).join("").toLowerCase();
   }
   function prettyCode(c){ return c.replace(/(.{4})(?=.)/g, "$1-"); }
+  // personal code: one per person. With an account it comes from the account id, so it is the same on every phone.
+  function myCode(){
+    if (AUTH && AUTH.uid){
+      let h1 = 2166136261, h2 = 5381;
+      for (const ch of AUTH.uid){ const c = ch.charCodeAt(0); h1 = Math.imul(h1 ^ c, 16777619) >>> 0; h2 = (Math.imul(h2, 33) + c) >>> 0; }
+      let out = "", a = h1, b = h2;
+      for (let i = 0; i < 8; i++){ const n = i < 4 ? a : b; out += CODE_ABC[n % CODE_ABC.length]; if (i < 4) a = Math.floor(a / CODE_ABC.length); else b = Math.floor(b / CODE_ABC.length); }
+      return out;
+    }
+    if (!loaded) return S.settings.ucode || "";
+    if (!S.settings.ucode){
+      const r = new Uint32Array(8); crypto.getRandomValues(r);
+      const st = clone(S.settings); st.ucode = [...r].map(n => CODE_ABC[n % CODE_ABC.length]).join(""); S.settings = st; persist("settings", st, 0);
+    }
+    return S.settings.ucode;
+  }
+  const fmtCode = c => c ? "#" + prettyCode(c) : "";
+  const NICK_A = ["Смелый", "Тихий", "Быстрый", "Мудрый", "Солнечный", "Звёздный", "Добрый", "Ловкий", "Весёлый", "Ясный", "Лунный", "Бодрый"];
+  const NICK_B = ["Лис", "Кот", "Тигр", "Филин", "Ёж", "Дельфин", "Волк", "Панда", "Сокол", "Енот", "Бобр", "Кит"];
+  function randomNick(){ const r = new Uint32Array(3); crypto.getRandomValues(r); return NICK_A[r[0] % NICK_A.length] + " " + NICK_B[r[1] % NICK_B.length] + (r[2] % 3 ? "" : " " + (r[2] % 90 + 10)); }
+  function cleanNick(v){ return String(v || "").replace(/[<>"'`\\]/g, "").replace(/\s+/g, " ").trim().slice(0, 24); }
+  function setNick(v){
+    v = cleanNick(v);
+    if (v && v.length < 2){ toast("Никнейм — минимум 2 символа"); return false; }
+    if (v === (S.settings.nick || "")) return true;
+    const st = clone(S.settings); st.nick = v; S.settings = st; persist("settings", st, 0);
+    if (AUTH) fsSet("users/" + AUTH.uid + "/data/profile", { pair: pair ? pair.code : null, nick: v }).catch(() => {});
+    render(); if (typeof renderDrawerAcc === "function") renderDrawerAcc();
+    toast(v ? "Никнейм сохранён: " + v : "Никнейм убран");
+    return true;
+  }
+  function profileCard(){
+    const nick = S.settings.nick || "";
+    return `<div class="profcard">
+      <div class="accme"><div class="accav">${esc((nick || "?")[0].toUpperCase())}</div><div><b>${esc(nick || "Без никнейма")}</b><div class="ucode">${fmtCode(myCode())}</div></div></div>
+      <label class="mhint" for="pNick">Никнейм — так тебя увидит партнёр в отчёте и в «Ваших идеях»</label>
+      <div class="row"><input type="text" id="pNick" maxlength="24" autocomplete="nickname" value="${esc(nick)}" placeholder="Придумай никнейм"><button class="btn" type="button" data-prof="rnd" title="Придумать случайный">🎲</button><button class="btn primary" type="button" data-prof="save">Сохранить</button></div>
+      <div class="codebox"><span class="mhint">Твой код</span><span class="num">${fmtCode(myCode())}</span><button class="btn sm" type="button" data-prof="copy">Скопировать</button></div>
+      <p class="mhint">Код у каждого свой и не меняется. Никнеймы могут совпасть, а по коду всегда понятно, кто есть кто. ${AUTH ? "Код привязан к аккаунту и одинаковый на всех телефонах." : "Войди в аккаунт, чтобы код был одинаковым на всех твоих телефонах."}</p>
+    </div>`;
+  }
   function normCode(v){ return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
 
   async function connect(){
     store = localStore; localStore.load(); resolveStore(); loaded = true; migrateBad(); render();
+    if (document.body.dataset.view === "account" && typeof renderAccount === "function") setTimeout(renderAccount, 0);
     setSync("ok");
     if (!syncOn()) return;
     if (AUTH && !pair){ try { await loadProfile(); } catch (e) {} }
@@ -1698,6 +1751,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const cb = S.books.list.find(b => b.id === S.books.current);
     return {
       nick: (S.settings.nick || "").slice(0, 24),
+      uc: myCode(),
       days,
       books: S.books.list.filter(b => b.done).length,
       book: cb ? { t: cb.title, r: cb.read, n: cb.total } : null,
@@ -1778,7 +1832,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const dt = parseKey(k0);
     $("vsMeta").textContent = k0 === today ? "сегодня" : dt.getDate() + " " + MONTHS[dt.getMonth()];
     const L = v => ((v || 0) / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
-    const who = pl => `<span class="cw">${esc(pl.label)}${pl.me && pl.nick ? " (я)" : ""}</span>`;
+    const who = pl => `<span class="cw">${esc(pl.label)}${pl.me && pl.nick ? " (я)" : ""}${pl.uc ? ` <span class="ucode">${fmtCode(pl.uc)}</span>` : ""}</span>`;
     const bar = (v, g, color) => `<div class="pbar"><i style="width:${g ? Math.min(100, v / g * 100) : 0}%;background:${color}"></i></div>`;
     const block = (title, color, lineFn) => `<div class="cmp"><h3>${title}</h3>${players.map(pl => `<div class="cl">${lineFn(pl)}</div>`).join("")}</div>`;
     let html = "";
@@ -2741,7 +2795,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const wD = daysWith("w"); const avgW = wD.length ? sum("w") / wD.length : 0;
     const hT = sum("ht"), hD = sum("h"), vN = sum("vn"), vT = sum("vt");
     const lessons = past.reduce((a, k) => a + ((D(k).ll || []).length), 0);
-    let html = `<div class="pthead"><b>${esc(pd.nick || "Партнёр")}</b><span class="mhint">обновлено ${ago(pd.updated)}</span></div><div class="repstats">
+    let html = `<div class="pthead"><b>${esc(pd.nick || "Партнёр")}${pd.uc ? ` <span class="ucode">${fmtCode(pd.uc)}</span>` : ""}</b><span class="mhint">обновлено ${ago(pd.updated)}</span></div><div class="repstats">
       <div><span>📖 Прочитано</span><b>${sum("p")} стр.</b><small>цель выполнена ${goalDays("p", "pg")} из ${past.length} дн.</small></div>
       <div><span>💧 Вода в среднем</span><b>${L1(avgW)} л</b><small>цель выполнена ${goalDays("w", "wg")} из ${past.length} дн.</small></div>
       <div><span>✅ Привычки</span><b>${hT ? Math.round(hD / hT * 100) : 0}%</b><small>отмечено ${hD} из ${hT}</small></div>
@@ -3110,11 +3164,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   });
   $("join").addEventListener("keydown", e => { if (e.target.id === "pairCode" && e.key === "Enter"){ e.preventDefault(); $("pairJoin").click(); } });
 
-  function saveNick(){
-    const v = $("nick").value.trim().slice(0, 24);
-    if (v === (S.settings.nick || "")) return;
-    const st = clone(S.settings); st.nick = v; S.settings = st; persist("settings", st, 0); render(); toast("Имя сохранено");
-  }
+  function saveNick(){ setNick($("nick").value); }
   $("nickSave").onclick = saveNick;
   $("nick").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); saveNick(); } });
 
@@ -4406,18 +4456,23 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   };
   const authErr = e => { const c = String(e && e.code || ""); if (c.startsWith("WEAK_PASSWORD")) return "Пароль слишком простой: нужно минимум 6 символов."; return AUTH_ERR[c] || (c.startsWith("API_KEY") || c.includes("API key") ? "Неверный ключ Firebase в настройках сайта." : "Не получилось. Проверь интернет и попробуй ещё раз."); };
   function renderDrawerAcc(){
-    $("drAcc").innerHTML = AUTH ? `👤 ${esc(AUTH.email || "")}` : AUTH_ON ? `Без аккаунта · <button type="button" data-dview="account">Войти</button>` : "";
+    const nick = S.settings.nick || "";
+    $("drAcc").innerHTML = `<button type="button" class="dr-me" data-dview="account"><span class="accav">${esc((nick || "?")[0].toUpperCase())}</span><span style="min-width:0"><b>${esc(nick || "Придумай никнейм")}</b><span class="ucode">${fmtCode(myCode())}</span></span></button>` + (AUTH ? `👤 ${esc(AUTH.email || "")}` : AUTH_ON ? `Без аккаунта · <button type="button" data-dview="account">Войти</button>` : "");
   }
   function renderAccount(){
     const box = $("accBox");
     $("accMeta").textContent = AUTH ? "вход выполнен" : "";
+    renderAccountInner(box);
+    box.insertAdjacentHTML("afterbegin", profileCard());
+  }
+  function renderAccountInner(box){
     if (!AUTH_ON){
       box.innerHTML = `<p class="mhint">С аккаунтом все записи хранятся в облаке и открываются на любом телефоне: вошёл по почте и паролю — и всё на месте. У каждого свой аккаунт.</p>
         <div class="note">Аккаунты пока не включены в настройках приложения. Их включает владелец (тот, кто настраивал Firebase): нужно включить вход по почте и вписать ключ в config.js. Пока приложение работает без аккаунта, записи хранятся на телефоне.</div>`;
       return;
     }
     if (AUTH){
-      box.innerHTML = `<div class="accme"><div class="accav">${esc((S.settings.nick || AUTH.email || "?")[0].toUpperCase())}</div><div><b>${esc(S.settings.nick || "Без имени")}</b><div class="mhint">${esc(AUTH.email || "")}</div></div></div>
+      box.innerHTML = `<p class="mhint">👤 Вход: <b>${esc(AUTH.email || "")}</b></p>
         <p class="mhint">✓ Записи сохраняются в аккаунт и появятся на любом телефоне после входа. ${pair ? "Пара подключена, код: <b class='num'>" + prettyCode(pair.code) + "</b>." : "Пара не подключена: это можно сделать в «Отчёте за неделю» → «Совместный»."}</p>
         <p class="mhint">💰 Финансы и токен Т-Инвестиций по-прежнему хранятся только на этом телефоне и в аккаунт не попадают.</p>
         <div class="row"><button class="btn" type="button" data-acc="reset">Сменить пароль</button><button class="btn" type="button" data-acc="logout" style="color:var(--warn);border-color:var(--warn)">Выйти из аккаунта</button></div>
@@ -4430,7 +4485,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div class="ordiv"><span>или по почте</span></div>
       <div class="reptabs" style="grid-template-columns:1fr 1fr"><button type="button" data-accmode="login" aria-selected="${!reg}">Войти</button><button type="button" data-accmode="signup" aria-selected="${reg}">Создать аккаунт</button></div>
       <form class="accform" id="accForm" autocomplete="on">
-        ${reg ? `<div class="field"><label for="aName">Как тебя зовут</label><input type="text" id="aName" maxlength="24" autocomplete="nickname" value="${esc(S.settings.nick || "")}" placeholder="Миша"></div>` : ""}
+        ${reg ? `<div class="field"><label for="aName">Никнейм</label><input type="text" id="aName" maxlength="24" autocomplete="nickname" value="${esc(S.settings.nick || "")}" placeholder="Миша"></div>` : ""}
         <div class="field"><label for="aEmail">Почта</label><input type="email" id="aEmail" required autocomplete="email" inputmode="email" placeholder="name@example.com"></div>
         <div class="field"><label for="aPass">Пароль</label><input type="password" id="aPass" required minlength="6" autocomplete="${reg ? "new-password" : "current-password"}" placeholder="${reg ? "минимум 6 символов" : ""}"></div>
         <div class="terr" id="accErr" hidden></div>
@@ -4439,6 +4494,13 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       </form>
       <p class="mhint">${reg ? "Всё, что уже записано на этом телефоне, перенесётся в новый аккаунт." : "После входа записи из аккаунта загрузятся на этот телефон и объединятся с тем, что уже есть на нём."} Финансы остаются только на телефоне.</p>`;
   }
+  $("accBox").addEventListener("click", async e => {
+    const b = e.target.closest("[data-prof]"); if (!b) return;
+    if (b.dataset.prof === "rnd"){ $("pNick").value = randomNick(); $("pNick").focus(); }
+    else if (b.dataset.prof === "save"){ if (setNick($("pNick").value)) renderAccount(); }
+    else if (b.dataset.prof === "copy"){ const t = fmtCode(myCode()); try { await navigator.clipboard.writeText(t); toast("Код скопирован"); } catch (er) { toast("Твой код: " + t); } }
+  });
+  $("accBox").addEventListener("keydown", e => { if (e.target.id === "pNick" && e.key === "Enter"){ e.preventDefault(); if (setNick(e.target.value)) renderAccount(); } });
   // Google sign-in uses the official Firebase script only for the sign-in window; tokens then work like email accounts
   const FB_VER = "10.12.2";
   function loadScript(src){ return new Promise((ok, bad) => { if (document.querySelector('script[src="' + src + '"]')) return ok(); const el = document.createElement("script"); el.src = src; el.onload = ok; el.onerror = () => bad(new Error("load")); document.head.appendChild(el); }); }
@@ -4498,7 +4560,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     try {
       const j = await authCall(reg ? "signUp" : "signInWithPassword", { email, password: pass, returnSecureToken: true });
       takeTokens(j, email);
-      if (reg){ const nm = ($("aName") && $("aName").value.trim()) || ""; if (nm){ const st = clone(S.settings); st.nick = nm.slice(0, 24); S.settings = st; persist("settings", st, 0); } }
+      if (reg){ const nm = ($("aName") && $("aName").value.trim()) || ""; if (nm){ const st = clone(S.settings); st.nick = cleanNick(nm); S.settings = st; persist("settings", st, 0); } }
       await afterLogin(reg);
       toast(reg ? "Аккаунт создан. Записи сохраняются в облако" : "Вход выполнен");
     } catch (er) {
@@ -4622,7 +4684,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         const t = IDEA_TYPES.find(y => y[0] === x.type) || IDEA_TYPES[0];
         const liked = (x.likes || []).includes(me);
         return `<div class="idea ${x.st === "done" ? "done" : ""}" data-iid="${esc(x.id)}">
-          <div class="ihd"><span class="chip">${t[1]} ${t[2]}</span>${x.sec ? `<span class="chip">${esc(secName[x.sec] || x.sec)}</span>` : ""}<span>${esc(x.by || "")}${x.by ? " · " : ""}${ideaDate(x.at)}</span></div>
+          <div class="ihd"><span class="chip">${t[1]} ${t[2]}</span>${x.sec ? `<span class="chip">${esc(secName[x.sec] || x.sec)}</span>` : ""}<span>${esc(x.by || "")}${x.uc ? ` <span class="ucode">${fmtCode(x.uc)}</span>` : ""}${x.by || x.uc ? " · " : ""}${ideaDate(x.at)}</span></div>
           <div class="itx">${esc(x.t)}</div>
           <div class="ift"><button type="button" class="chip ist ${x.st || "new"}" data-iact="st" title="Нажми, чтобы сменить статус">${IDEA_ST[x.st || "new"]}</button>
             <button type="button" class="btn ghost ilk ${liked ? "on" : ""}" data-iact="like" aria-pressed="${liked}">👍 ${(x.likes || []).length || ""}</button>
@@ -4636,7 +4698,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     e.preventDefault();
     const t = $("ideaText").value.trim(); if (!t) return;
     const type = (document.querySelector('[name="itype"]:checked') || {}).value || "idea";
-    FB.list.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t, type, sec: $("ideaSec").value, by: S.settings.nick || "", byId: ideaMe(), at: Date.now(), st: "new", likes: [], _u: Date.now() });
+    FB.list.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t, type, sec: $("ideaSec").value, by: S.settings.nick || "", uc: myCode(), byId: ideaMe(), at: Date.now(), st: "new", likes: [], _u: Date.now() });
     if (ideaFil === "done") ideaFil = "open";
     saveIdeasLocal(); renderIdeas(); syncIdeas(); toast("Идея записана 💡");
   });
@@ -4680,7 +4742,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.08-5";
+const APP_VERSION = "2026.11.08-6";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

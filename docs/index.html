@@ -809,6 +809,53 @@ body.hide-p-water #p-kcal, body.hide-p-kcal #p-water{grid-column:1/-1}
 .lchart .seg2 button[aria-pressed="true"]{background:var(--lang);border-color:var(--lang);color:#fff}
 
 /* Course */
+.progbox{display:flex;flex-direction:column;gap:12px}
+.pghead{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pghead > div{border:1px solid var(--line);border-radius:12px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.pghead b{font-size:18px;color:var(--lang)}
+.pghead b.none{color:var(--ink-3);font-size:15px}
+.pghead small{font-size:11.5px;color:var(--ink-3);overflow-wrap:anywhere}
+.pgbar{display:flex;flex-direction:column;gap:4px}
+.tl-parts{margin:0;padding-left:18px;font-size:13.5px;color:var(--ink-2);display:flex;flex-direction:column;gap:2px}
+.pgprac{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:13.5px}
+.pgprac label{display:flex;gap:8px;align-items:flex-start}
+.pgprac input{width:18px;height:18px;flex:none;margin-top:1px;accent-color:var(--lang)}
+.pgsec{border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.pgsec summary{cursor:pointer;font-weight:700}
+.pgmon,.pgall,.pgrules{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.pgrules p{margin:0;font-size:13.5px;color:var(--ink-2)}
+.pgwt{font-weight:700;font-size:13.5px;margin-bottom:6px}
+.pgds{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.pgds button{border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:6px 2px;font-size:13px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:1px}
+.pgds button.done{background:var(--lang-soft);border-color:var(--lang);color:var(--lang)}
+.pgds small{font-size:10px;font-weight:600}
+.pgexam{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border:1px dashed var(--lang);border-radius:12px;padding:10px 12px}
+.pgexam.ok{border-style:solid;background:var(--lang-soft)}
+.pglv{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+.pglvh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pglvh b{font-size:17px;color:var(--lang)}
+.pgcan{display:grid;gap:3px;font-size:12.5px;color:var(--ink-2)}
+.pgm{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:3px;font-size:13.5px}
+.pgm.cur{border-color:var(--lang)}
+.pgm.ok{background:var(--lang-soft)}
+.rtext{font-size:16px;line-height:1.6;background:var(--surface-2);border-radius:12px;padding:12px 14px;white-space:pre-wrap}
+.rtext.dlg{display:flex;flex-direction:column;gap:6px;white-space:normal}
+.gloss{display:flex;flex-wrap:wrap;gap:6px}
+.psg{margin-bottom:6px}
+.psg summary{cursor:pointer;font-weight:600;color:var(--ink-2);margin-bottom:6px}
+.psg .rtext{font-size:14px;max-height:34vh;overflow:auto}
+#lsWrite{width:100%;font-size:16px;line-height:1.5}
+.mic{align-self:flex-start}
+.heard{font-size:14px;color:var(--ink-2);min-height:20px}
+[data-pgself].sel{border-color:var(--lang);background:var(--lang-soft)}
+.exsec{display:flex;flex-direction:column;gap:6px;width:100%;align-self:stretch;text-align:left}
+.exsec .pbar{width:100%;margin:0}
+.exsec > div{display:grid;grid-template-columns:110px 1fr 48px;gap:8px;align-items:center;font-size:13.5px}
+.exsec .pbar i{background:var(--habit)}
+.exsec .bad .pbar i{background:var(--warn)}
+.exsec .bad b{color:var(--warn)}
+.adv{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:13.5px;text-align:left}
+@media (max-width:420px){.pghead b{font-size:16px}}
 .today-lesson{border:1px solid var(--lang);background:var(--lang-soft);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
 .today-lesson .tl-day{font-size:12px;font-weight:700;color:var(--lang);text-transform:uppercase;letter-spacing:.06em}
 .today-lesson .tl-what{font-family:var(--f-display);font-size:17px;font-weight:700;overflow-wrap:anywhere}
@@ -1051,6 +1098,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <datalist id="langList"><option value="Английский"><option value="Испанский"><option value="Немецкий"><option value="Французский"><option value="Итальянский"><option value="Китайский"><option value="Корейский"><option value="Японский"><option value="Турецкий"><option value="Арабский"></datalist>
       </form>
       <div class="langbox" id="langBox" hidden>
+        <div class="progbox" id="progBox" hidden></div>
         <div class="lvl" id="langLevel"></div>
         <div class="lchart" id="langChart"></div>
         <div class="today-lesson" id="todayLesson"></div>
@@ -1442,6 +1490,10 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 <script src="config.js"></script>
 <script src="course-en.js"></script>
 <script src="course-az.js"></script>
+<script src="program-en.js"></script>
+<script src="program-en-m1.js"></script>
+<script src="program-en-m2.js"></script>
+<script src="program-en-m3.js"></script>
 <script src="foods-ru.js"></script>
 <script src="fin-lessons.js"></script>
 <script src="books-ru.js"></script>
@@ -1867,8 +1919,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       })(),
       lang: S.settings.lang ? S.settings.lang.name : "",
       dictN: myWords().length,
-      units: courseUnitsDone(),
-      lvl: S.settings.lang ? LEVELS[currentLevel()].name + " (" + LEVELS[currentLevel()].cefr + ")" : "",
+      units: PROG() ? pgMonthsPassed(pgState()) : courseUnitsDone(),
+      lvl: S.settings.lang ? (PROG() ? pgLabel() : LEVELS[currentLevel()].name + " (" + LEVELS[currentLevel()].cefr + ")") : "",
       xpT: totalXp(),
       quit: S.settings.habits.filter(h => h.type === "bad").map(h => ({ n: h.name, d: habitStreak(h.id), b: bestStreak(h.id) }))
     };
@@ -2224,6 +2276,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     renderCourse();
     renderLevel();
     renderLangChart();
+    renderProgram();
   }
   function renderQuiz(){
     const q = $("quiz");
@@ -2545,7 +2598,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   function trOf(text){
     if (!text) return "";
     if (COURSE.id === "az") return azToRu(text);
-    const map = COURSE.tr || {}; if (map[text]) return map[text];
+    const map = Object.assign({}, pgTr(), COURSE.tr || {}); if (map[text]) return map[text];
     // build a phrase from known words when the whole phrase is not in the list
     const words = String(text).replace(/[.,!?]/g, "").split(/\s+/).filter(Boolean);
     const lower = {}; Object.keys(map).forEach(k => { lower[k.toLowerCase()] = map[k]; });
@@ -2627,10 +2680,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const body = $("lsBody"), foot = $("lsFoot");
     foot.className = "ls-foot";
     $("lsProg").style.width = Math.min(100, L.i / L.q.length * 100) + "%";
-    if (L.i >= L.q.length) return L.kind === "test" ? finishTest() : finishLesson();
+    if (L.i >= L.q.length) return L.kind === "test" ? finishTest() : L.kind === "pg" ? pgFinish() : L.kind === "exam" ? pgExamFinish() : L.kind === "pgsrs" ? pgSrsFinish() : finishLesson();
     $("lsCount").textContent = (L.i + 1) + " / " + L.q.length;
     const q = L.q[L.i]; L.state = "ask"; L.pick = null; L.built = [];
     body.scrollTop = 0;
+    if (PG_SHOW[q.type]){ PG_SHOW[q.type](q, body, foot); return; }
     const sayBtn = t => canSpeakNow() ? `<span class="sayrow"><button class="say" type="button" data-say="${esc(t)}">🔊 Послушать</button><button class="say" type="button" data-say="${esc(t)}" data-slow="1">🐢 Медленно</button></span>` : "";
     if (q.type === "intro"){
       body.innerHTML = `<span class="ls-kind">${q.phrase ? "Новая фраза" : "Новое слово"}</span><h2 class="ls-q" id="lsTitle">${esc(q.en)}</h2>${trHtml(q.en)}${sayBtn(q.en)}<div class="ls-sub">${esc(q.ru)}</div><div class="mhint">Произнеси вслух 2–3 раза, глядя на транскрипцию.</div>`;
@@ -2646,6 +2700,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       body.innerHTML = head + `<div class="opts">${q.options.map((o, i) => `<button class="opt" type="button" data-opt="${i}">${esc(o)}</button>`).join("")}</div>`;
       foot.innerHTML = `<button class="btn primary" type="button" data-ls="check" disabled>Проверить</button>`;
       if (q.type === "listen") speak(q.say);
+      if (q.passage || q.dialog) body.insertAdjacentHTML("afterbegin", pgCtx(q));
     } else if (q.type === "type"){
       body.innerHTML = `<span class="ls-kind">Напиши ${esc(COURSE.target || "по-английски")}</span><h2 class="ls-q" id="lsTitle">${esc(q.ru)}</h2><input type="text" id="lsInput" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="ответ ${esc(COURSE.target || "по-английски")}" style="font-size:18px;padding:12px">${COURSE.fold ? `<span class="mhint">Буквы ə, ı, ş, ç, ğ, ö, ü можно писать как e, i, s, c, g, o, u.</span>` : ""}`;
       foot.innerHTML = `<button class="btn primary" type="button" data-ls="check">Проверить</button>`;
@@ -2662,8 +2717,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("lsFoot").querySelector('[data-ls="check"]').disabled = !L.built.length;
   }
   function check(){
-    const q = L.q[L.i]; let ok = false, correctText = "";
-    if (q.type === "mc" || q.type === "listen"){
+    const q = L.q[L.i]; let ok = false, correctText = "", pgr = null;
+    if (PG_CHECK[q.type]){
+      pgr = PG_CHECK[q.type](q); if (!pgr) return;
+      ok = pgr.ok; correctText = pgr.correct;
+    } else if (q.type === "mc" || q.type === "listen"){
       if (L.pick === null) return;
       ok = norm(q.options[L.pick]) === norm(q.answer); correctText = q.answer;
       document.querySelectorAll("#lsBody .opt").forEach((b, i) => { if (norm(q.options[i]) === norm(q.answer)) b.classList.add("right"); else if (i === L.pick) b.classList.add("wrong"); b.disabled = true; });
@@ -2679,12 +2737,15 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       correctText = q.en;
     }
     L.asked++; if (ok) L.right++;
-    if (L.kind === "test"){ L.i++; showQ(); return; }
-    if (!ok && !L.retried.has(L.i)){ L.retried.add(L.q.length); L.q.push(Object.assign({}, q, { options: q.options ? shuffle(q.options) : undefined, pool: q.pool ? shuffle(q.pool) : undefined })); }
+    if (!q.retry){ L.ft = (L.ft || 0) + 1; if (ok) L.fr = (L.fr || 0) + 1; }
+    if (q.srs && L.srsRes && !(q.srs in L.srsRes)) L.srsRes[q.srs] = ok;
+    if (q.sec && L.secs){ const sc = L.secs[q.sec] = L.secs[q.sec] || { r: 0, t: 0 }; const pts = q.pts || 1; sc.t += pts; sc.r += q.pts ? (q.score || 0) : (ok ? 1 : 0); }
+    if (L.kind === "test" || L.kind === "exam"){ L.i++; showQ(); return; }
+    if (!ok && !q.noRetry && !L.retried.has(L.i)){ L.retried.add(L.q.length); L.q.push(Object.assign({}, q, { retry: true, options: q.options ? shuffle(q.options) : undefined, pool: q.pool ? shuffle(q.pool) : undefined })); }
     L.state = "checked";
     const foot = $("lsFoot");
     foot.className = "ls-foot " + (ok ? "ok" : "bad");
-    const sayText = q.type === "listen" ? q.say : q.type === "tiles" ? q.en : q.type === "type" ? q.answer : (q.speak || (/[a-zəğışöüç]/i.test(q.answer) ? q.answer : null));
+    const sayText = pgr ? (pgr.say || null) : q.type === "listen" ? q.say : q.type === "tiles" ? q.en : q.type === "type" ? q.answer : (q.speak || (/[a-zəğışöüç]/i.test(q.answer) ? q.answer : null));
     const trT = sayText ? trOf(sayText) : "";
     foot.innerHTML = `<div class="ls-fb">${ok ? "✓ Правильно!" : "Почти. Правильный ответ:"}${ok ? "" : `<small>${esc(correctText)}</small>`}${sayText ? `<small class="trf">${esc(sayText)}${trT ? " — [" + stressHtml(trT) + "]" : ""} ${canSpeakNow() ? `<button class="say sm" type="button" data-say="${esc(sayText)}" data-slow="1" aria-label="Послушать медленно">🐢</button>` : ""}</small>` : ""}</div><button class="btn primary" type="button" data-ls="next">Дальше</button>`;
     speak(sayText);
@@ -2722,6 +2783,462 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("lsFoot").innerHTML = `<button class="btn primary" type="button" data-ls="close">Готово</button>`;
     L.finished = true;
     render();
+  }
+
+  // =================== Programme: month by month, exams decide the level ===================
+  function PROG(){ const all = window.MD_PROGRAM || {}; return COURSE && COURSE.id && all[COURSE.id] && all[COURSE.id].months ? all[COURSE.id] : null; }
+  function pgState(){ const P = PROG(); const all = (S.course && S.course.pg) || {}; return Object.assign({ done: {}, ex: {}, srs: {}, prac: {} }, clone(all[P.id] || {})); }
+  function pgSave(st){ const c = clone(S.course); c.pg = Object.assign({}, c.pg || {}); c.pg[PROG().id] = st; S.course = c; persist("course", c, 0); }
+  const PG_DAYS = [
+    { icon: "🔤", t: "Новые слова, часть 1", min: 25 },
+    { icon: "📐", t: "Грамматика", min: 30 },
+    { icon: "💬", t: "Новые слова, часть 2 и фразы", min: 30 },
+    { icon: "📖", t: "Чтение", min: 30 },
+    { icon: "🎧", t: "Аудирование и говорение", min: 35 },
+    { icon: "✍️", t: "Слова, часть 3, письмо и проверка недели", min: 35 }
+  ];
+  const SEC_NAMES = { voc: "Слова", gram: "Грамматика", read: "Чтение", listen: "Аудирование", write: "Письмо", speak: "Говорение" };
+  const pgKey = (m, w, d) => m + "." + w + "." + d;
+  function pgMonth(m){ return PROG().months[m - 1]; }
+  function pgReady(m){ const M = pgMonth(m); return !!(M && M.weeks && M.weeks.length && M.exam); }
+  function pgPassed(st, m){ return (st.ex[m] || []).some(r => r.pass); }
+  function pgNext(st){
+    const P = PROG();
+    for (let m = 1; m <= P.months.length; m++){
+      if (pgPassed(st, m)) continue;
+      if (!pgReady(m)) return { kind: "soon", m };
+      const M = pgMonth(m);
+      for (let w = 1; w <= M.weeks.length; w++) for (let d = 1; d <= 6; d++) if (!st.done[pgKey(m, w, d)]) return { kind: "day", m, w, d };
+      return { kind: "exam", m };
+    }
+    return { kind: "end", m: P.months.length };
+  }
+  function pgLevel(st){
+    const P = PROG(); let lv = "";
+    Object.entries(P.levelExams).forEach(([m, name]) => { if (pgPassed(st, +m)) lv = name; });
+    return lv;
+  }
+  function pgLabel(){
+    if (!PROG()) return "";
+    const st = pgState(), nx = pgNext(st), lv = pgLevel(st);
+    return (lv ? "уровень " + lv + " подтверждён" : "уровень ещё не подтверждён") + " · месяц " + nx.m;
+  }
+  function pgMonthsPassed(st){ return PROG().months.filter(M => pgPassed(st, M.n)).length; }
+  function pgWords(m){ const M = pgMonth(m); return M && M.weeks ? M.weeks.flatMap(w => w.words) : []; }
+  function pgAllWords(){ const P = PROG(); return P ? P.months.filter(M => M.weeks).flatMap(M => M.weeks.flatMap(w => w.words)) : []; }
+  let pgTrCache = null, pgTrN = -1;
+  function pgTr(){
+    const all = window.MD_PROGRAM || {}; let n = 0; const out = {};
+    Object.values(all).forEach(P => (P.months || []).forEach(M => (M.weeks || []).forEach(w => w.words.forEach(x => { n++; if (x[2]) out[x[0]] = x[2]; }))));
+    if (n !== pgTrN){ pgTrCache = out; pgTrN = n; }
+    return pgTrCache;
+  }
+  function pgWordInfo(en){ return pgAllWords().find(x => x[0] === en) || null; }
+
+  // ---- spaced repetition: a word comes back after 1, 2, 4, 7, 15, 30, 60 days ----
+  const SRS_DAYS = [1, 2, 4, 7, 15, 30, 60];
+  function srsAdd(st, words){ words.forEach(x => { if (!st.srs[x[0]]) st.srs[x[0]] = { b: 0, due: shift(todayKey(), 1) }; }); }
+  function srsDue(st){ const t = todayKey(); return Object.entries(st.srs).filter(([, v]) => v.due <= t).sort((a, b) => a[1].due.localeCompare(b[1].due) || a[1].b - b[1].b).map(([w]) => w); }
+  function srsMark(st, en, ok){
+    const v = st.srs[en] || { b: 0 };
+    v.b = ok ? Math.min(SRS_DAYS.length - 1, (v.b || 0) + (v.due && v.due <= todayKey() ? 1 : 0)) : 0;
+    v.due = shift(todayKey(), SRS_DAYS[ok ? v.b : 0]);
+    st.srs[en] = v;
+  }
+  function srsLearned(st){ return Object.values(st.srs).filter(v => v.b >= 3).length; }
+
+  // ---- English answers: contractions and numbers do not count as mistakes ----
+  const NUMW = { 0: "zero", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen", 14: "fourteen", 15: "fifteen", 16: "sixteen", 17: "seventeen", 18: "eighteen", 19: "nineteen", 20: "twenty", 30: "thirty", 40: "forty", 50: "fifty", 60: "sixty", 70: "seventy", 80: "eighty", 90: "ninety", 100: "hundred" };
+  function normEn(t){
+    let s = norm(String(t).replace(/(\d+):00/g, "$1 o'clock").replace(/-/g, " "));
+    [[/\bi'm\b/g, "i am"], [/\b(he|she|it|that|what|where|who|there|here|name)'s\b/g, "$1 is"], [/\b(you|we|they|there)'re\b/g, "$1 are"],
+     [/\bisn't\b/g, "is not"], [/\baren't\b/g, "are not"], [/\bdon't\b/g, "do not"], [/\bdoesn't\b/g, "does not"], [/\bdidn't\b/g, "did not"],
+     [/\bcan't\b/g, "can not"], [/\bcannot\b/g, "can not"], [/\bwasn't\b/g, "was not"], [/\bweren't\b/g, "were not"], [/\bwon't\b/g, "will not"],
+     [/\b(i|you|we|they)'ve\b/g, "$1 have"], [/\b(i|you|he|she|it|we|they)'ll\b/g, "$1 will"], [/\b(i|you|he|she|we|they)'d\b/g, "$1 would"],
+     [/\bapartment\b/g, "flat"], [/\bmom\b/g, "mum"], [/\bdad\b/g, "father"]].forEach(([a, b]) => { s = s.replace(a, b); });
+    s = s.replace(/\b\d+\b/g, n => NUMW[n] || n);
+    return s.replace(/\s+/g, " ").trim();
+  }
+  const wordsOf = t => String(t).trim().split(/\s+/).filter(Boolean);
+
+  // ---- speech: dialogues with two voices, and speech recognition for speaking ----
+  const SRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  function pgPlay(lines, slow){
+    if (!canSpeakNow()) return;
+    try {
+      speechSynthesis.cancel();
+      const who = [...new Set(lines.map(l => l[0]))];
+      const v = chosenVoice();
+      const en = speechSynthesis.getVoices().filter(x => /^en/i.test(x.lang));
+      const other = en.find(x => x !== v && x.name !== (v && v.name));
+      lines.forEach(([w, t]) => {
+        const u = new SpeechSynthesisUtterance(t); const i = who.indexOf(w) % 2;
+        const voice = i === 0 ? v : (other || v);
+        u.lang = (voice && voice.lang) || COURSE.voice || "en-US"; if (voice) u.voice = voice;
+        u.rate = slow ? 0.62 : 0.86; u.pitch = i === 1 && !other ? 0.8 : 1;
+        speechSynthesis.speak(u);
+      });
+    } catch (e) {}
+  }
+  function listenOnce(){
+    return new Promise((ok, bad) => {
+      if (!SRec) return bad("nosr");
+      try {
+        const r = new SRec(); r.lang = COURSE.voice || "en-US"; r.interimResults = false; r.maxAlternatives = 3;
+        let got = false;
+        r.onresult = e => { got = true; ok([...e.results[0]].map(a => a.transcript)); };
+        r.onerror = e => { if (!got) bad(e.error || "error"); };
+        r.onend = () => { if (!got) bad("no-speech"); };
+        r.start();
+      } catch (e) { bad("nosr"); }
+    });
+  }
+  function speechScore(expected, heard){
+    const exp = normEn(expected).split(" ").filter(Boolean);
+    return Math.max(0, ...heard.map(h => { const hs = new Set(normEn(h).split(" ")); return exp.filter(w => hs.has(w)).length / exp.length; }));
+  }
+
+  // ---- question builders ----
+  function pgOpts(correct, pool){ return optionsFor(correct, pool); }
+  function pgWordQs(group, pool, intro){
+    const Q = [], ru = pool.map(w => w[1]), en = pool.map(w => w[0]);
+    if (intro) group.forEach(([e, r]) => Q.push({ type: "intro", en: e, ru: r }));
+    const ws = shuffle(group);
+    ws.forEach(([e, r], i) => {
+      const k = i % 4;
+      if (k === 0) Q.push({ type: "mc", kind: "Выбери перевод", prompt: e, speak: e, options: pgOpts(r, ru), answer: r });
+      else if (k === 1) Q.push({ type: "mc", kind: "Как это по-английски?", prompt: r, options: pgOpts(e, en), answer: e });
+      else if (k === 2) Q.push({ type: "type", ru: r, answer: e });
+      else Q.push(canSpeakNow() ? { type: "listen", say: e, options: pgOpts(r, ru), answer: r } : { type: "type", ru: r, answer: e });
+    });
+    return Q;
+  }
+  function pgSrsQs(list){
+    const pool = pgAllWords();
+    return list.map((en, i) => {
+      const x = pgWordInfo(en); if (!x) return null;
+      const k = i % 3, q = k === 0 ? { type: "mc", kind: "Повторение · выбери перевод", prompt: x[0], speak: x[0], options: pgOpts(x[1], pool.map(w => w[1])), answer: x[1] }
+        : k === 1 ? { type: "type", ru: x[1], answer: x[0] }
+        : { type: "mc", kind: "Повторение · как это по-английски?", prompt: x[1], options: pgOpts(x[0], pool.map(w => w[0])), answer: x[0] };
+      q.srs = en; return q;
+    }).filter(Boolean);
+  }
+  function pgTiles(en, ru, words){ return tilesQ(en, ru, { words }); }
+  function pgDayQs(m, w, d, st){
+    const M = pgMonth(m), W = M.weeks[w - 1], pool = pgWords(m).concat(pgAllWords()).slice(0, 400);
+    const g = [W.words.slice(0, 10), W.words.slice(10, 20), W.words.slice(20, 30)];
+    const due = srsDue(st).slice(0, 15);
+    const Q = pgSrsQs(due);
+    let fresh = [];
+    if (d === 1){ fresh = g[0]; Q.push(...pgWordQs(g[0], pool, true)); }
+    else if (d === 2){
+      Q.push({ type: "rule", g: W.grammar });
+      W.grammar.examples.filter(([e]) => !e.includes("—")).forEach(([e, r]) => Q.push(pgTiles(e, r, W.words)));
+      shuffle(W.grammar.quiz).forEach(q => Q.push({ type: "mc", kind: "Выбери правильный вариант", prompt: q.q, options: shuffle(q.a), answer: q.a[q.c] }));
+    } else if (d === 3){
+      fresh = g[1]; Q.push(...pgWordQs(g[1], pool, true));
+      W.phrases.forEach(([e, r]) => Q.push({ type: "intro", en: e, ru: r, phrase: true }));
+      shuffle(W.phrases).forEach(([e, r]) => Q.push(pgTiles(e, r, W.words)));
+    } else if (d === 4){
+      Q.push({ type: "read", r: W.read });
+      W.read.qs.forEach(q => Q.push({ type: "mc", kind: "Вопрос по тексту", prompt: q.q, options: shuffle(q.a), answer: q.a[q.c], passage: W.read }));
+      W.phrases.slice(0, 3).forEach(([e, r]) => Q.push({ type: "trans", ru: r, acc: [e] }));
+    } else if (d === 5){
+      Q.push({ type: "dialog", lines: W.listen.lines, noRetry: true });
+      W.listen.qs.forEach(q => Q.push({ type: "mc", kind: "Вопрос по диалогу", prompt: q.q, options: shuffle(q.a), answer: q.a[q.c], dialog: W.listen.lines }));
+      Q.push({ type: "script", lines: W.listen.lines });
+      W.speak.forEach(t => Q.push({ type: "speak", text: t, noRetry: true }));
+    } else if (d === 6){
+      fresh = g[2]; Q.push(...pgWordQs(g[2], pool, true));
+      W.write.trans.forEach(([r, acc]) => Q.push({ type: "trans", ru: r, acc }));
+      Q.push({ type: "write", w: W.write, noRetry: true });
+      // weekly check: words of the whole week and the grammar
+      const wk = shuffle(W.words).slice(0, 6), gq = shuffle(W.grammar.quiz).slice(0, 4);
+      Q.push({ type: "note", title: "Проверка недели", text: "10 вопросов по словам и грамматике этой недели. Ошибки попадут в повторение." });
+      wk.forEach(([e, r], i) => Q.push(i % 2 ? { type: "type", ru: r, answer: e, srs: e } : { type: "mc", kind: "Проверка недели", prompt: e, options: pgOpts(r, pool.map(x => x[1])), answer: r, srs: e }));
+      gq.forEach(q => Q.push({ type: "mc", kind: "Проверка недели · грамматика", prompt: q.q, options: shuffle(q.a), answer: q.a[q.c] }));
+    }
+    return { Q, fresh };
+  }
+  function pgExamMonths(m){
+    const P = PROG(); const lvl = P.levelExams[m];
+    if (!lvl) return [m];
+    const from = P.levels[lvl].months[0]; const out = []; for (let i = from; i <= m; i++) if (pgReady(i)) out.push(i); return out;
+  }
+  function pgExamQs(m){
+    const P = PROG(), M = pgMonth(m), E = M.exam, ms = pgExamMonths(m);
+    const words = shuffle(ms.flatMap(pgWords)), pool = words.map(w => w), Q = [];
+    const sec = (q, s) => Object.assign(q, { sec: s });
+    Q.push({ type: "note", title: "Часть 1 из 6 · Слова", text: "20 вопросов. Подсказок и второй попытки на экзамене нет." });
+    words.slice(0, 20).forEach(([e, r], i) => Q.push(sec(i < 8 ? { type: "mc", kind: "Слова · выбери перевод", prompt: e, options: pgOpts(r, pool.map(x => x[1])), answer: r }
+      : i < 14 ? { type: "mc", kind: "Слова · как это по-английски?", prompt: r, options: pgOpts(e, pool.map(x => x[0])), answer: e }
+      : { type: "type", ru: r, answer: e }, "voc")));
+    Q.push({ type: "note", title: "Часть 2 из 6 · Грамматика", text: "12 вопросов." });
+    const gpool = shuffle(ms.flatMap(i => pgMonth(i).weeks.flatMap(w => w.grammar.quiz)));
+    E.grammar.concat(gpool.slice(0, 12 - E.grammar.length)).forEach(q => Q.push(sec({ type: "mc", kind: "Грамматика", prompt: q.q, options: shuffle(q.a), answer: q.a[q.c] }, "gram")));
+    Q.push({ type: "note", title: "Часть 3 из 6 · Чтение", text: "Новый текст, которого не было в уроках. Прочитай и ответь на 5 вопросов." });
+    Q.push({ type: "read", r: E.read, exam: true });
+    E.read.qs.forEach(q => Q.push(sec({ type: "mc", kind: "Чтение", prompt: q.q, options: shuffle(q.a), answer: q.a[q.c], passage: E.read }, "read")));
+    Q.push({ type: "note", title: "Часть 4 из 6 · Аудирование", text: "Новый диалог. Текст не показывается. Можно прослушать не больше 3 раз." });
+    Q.push({ type: "dialog", lines: E.listen.lines, exam: true, noRetry: true });
+    E.listen.qs.forEach(q => Q.push(sec({ type: "mc", kind: "Аудирование", prompt: q.q, options: shuffle(q.a), answer: q.a[q.c], dialog: E.listen.lines, exam: true }, "listen")));
+    Q.push({ type: "note", title: "Часть 5 из 6 · Письмо", text: "Переведи 5 предложений и напиши связный текст." });
+    E.write.trans.forEach(([r, acc]) => Q.push(sec({ type: "trans", ru: r, acc }, "write")));
+    Q.push(sec({ type: "write", w: E.write, pts: 2, noRetry: true }, "write"));
+    Q.push({ type: "note", title: "Часть 6 из 6 · Говорение", text: SRec ? "Нажми 🎤 и произнеси фразу. Приложение распознает речь и сравнит." : "Распознавание речи на этом телефоне недоступно: оценишь себя сам, честно. В результате будет пометка «самооценка»." });
+    E.speak.forEach(t => Q.push(sec({ type: "speak", text: t, noRetry: true }, "speak")));
+    return Q;
+  }
+
+  // ---- extra question types for the lesson runner ----
+  const pgSay = t => canSpeakNow() ? `<span class="sayrow"><button class="say" type="button" data-say="${esc(t)}">🔊 Послушать</button><button class="say" type="button" data-say="${esc(t)}" data-slow="1">🐢 Медленно</button></span>` : "";
+  function pgPlayBtns(exam){
+    const left = exam ? Math.max(0, 3 - (L.plays || 0)) : null;
+    if (!canSpeakNow()) return `<div class="mhint">Озвучка на этом телефоне недоступна.</div>`;
+    return `<span class="sayrow"><button class="say" type="button" data-pgplay="1" ${left === 0 ? "disabled" : ""}>▶ Слушать${left !== null ? " (осталось " + left + ")" : ""}</button>${exam ? "" : `<button class="say" type="button" data-pgplay="1" data-slow="1">🐢 Медленно</button>`}</span>`;
+  }
+  function pgCtx(q){
+    if (q.passage) return `<details class="psg" ${q.exam || L.kind === "exam" ? "open" : ""}><summary>Текст «${esc(q.passage.title)}»</summary><div class="rtext">${esc(q.passage.text)}</div></details>`;
+    if (q.dialog) return `<div class="psg">${pgPlayBtns(L.kind === "exam")}</div>`;
+    return "";
+  }
+  const PG_SHOW = {
+    note(q, body, foot){ body.innerHTML = `<span class="ls-kind">${L.kind === "exam" ? "Экзамен" : "Урок"}</span><h2 class="ls-q" id="lsTitle">${esc(q.title)}</h2><div class="ls-sub">${esc(q.text)}</div>`; foot.innerHTML = `<button class="btn primary" type="button" data-ls="next">Начать</button>`; },
+    read(q, body, foot){
+      const r = q.r;
+      body.innerHTML = `<span class="ls-kind">Чтение</span><h2 class="ls-q" id="lsTitle">${esc(r.title)}</h2>${q.exam ? "" : pgSay(r.text)}<div class="rtext">${esc(r.text)}</div>` +
+        (r.gloss && r.gloss.length ? `<div class="gloss">${r.gloss.map(([e, t]) => `<span class="chip"><b>${esc(e)}</b> — ${esc(t)}</span>`).join("")}</div>` : "") +
+        `<div class="mhint">${q.exam ? "Текст будет виден и во время вопросов." : "Прочитай сначала сам, потом послушай и прочитай вслух вместе с диктором."}</div>`;
+      foot.innerHTML = `<button class="btn primary" type="button" data-ls="next">Прочитал(а), к вопросам</button>`;
+    },
+    dialog(q, body, foot){
+      body.innerHTML = `<span class="ls-kind">Аудирование</span><h2 class="ls-q" id="lsTitle">Послушай диалог</h2><div class="ls-sub">Текст пока скрыт: постарайся понять на слух. ${q.exam ? "" : "Если сложно, послушай медленно."}</div>${pgPlayBtns(q.exam)}`;
+      foot.innerHTML = `<button class="btn primary" type="button" data-ls="next">К вопросам</button>`;
+    },
+    script(q, body, foot){
+      body.innerHTML = `<span class="ls-kind">Текст диалога</span><h2 class="ls-q" id="lsTitle">Проверь себя</h2>${pgPlayBtns(false)}<div class="rtext dlg">${q.lines.map(([w, t]) => `<div><b>${esc(w)}:</b> ${esc(t)}</div>`).join("")}</div><div class="mhint">Послушай ещё раз и повтори каждую реплику за диктором.</div>`;
+      foot.innerHTML = `<button class="btn primary" type="button" data-ls="next">Дальше</button>`;
+    },
+    speak(q, body, foot){
+      L.heard = null; L.self = null;
+      body.innerHTML = `<span class="ls-kind">Говорение · скажи вслух</span><h2 class="ls-q" id="lsTitle">${esc(q.text)}</h2>${trHtml(q.text)}${L.kind === "exam" ? "" : pgSay(q.text)}
+        ${SRec ? `<button class="btn primary mic" type="button" data-pgmic="1">🎤 Нажми и скажи</button><div class="heard" id="pgHeard"></div>`
+               : `<div class="mhint">Распознавание речи на этом телефоне недоступно. Скажи фразу вслух 2–3 раза и честно оцени себя.</div><div class="row"><button class="btn" type="button" data-pgself="1">✓ Сказал(а) уверенно</button><button class="btn" type="button" data-pgself="0">✕ Пока не получается</button></div>`}`;
+      foot.innerHTML = `<button class="btn primary" type="button" data-ls="check" disabled>Проверить</button>`;
+    },
+    trans(q, body, foot){
+      body.innerHTML = `<span class="ls-kind">Переведи на английский</span><h2 class="ls-q" id="lsTitle">${esc(q.ru)}</h2><input type="text" id="lsInput" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" placeholder="Напиши предложение по-английски">`;
+      foot.innerHTML = `<button class="btn primary" type="button" data-ls="check">Проверить</button>`;
+      setTimeout(() => { const i = $("lsInput"); if (i) i.focus(); }, 50);
+    },
+    write(q, body, foot){
+      const w = q.w;
+      body.innerHTML = `<span class="ls-kind">Письмо</span><h2 class="ls-q" id="lsTitle">${esc(w.prompt)}</h2>
+        <div class="mhint">Минимум ${w.minWords} слов. Используй: ${w.use.map(x => `<b>${esc(x)}</b>`).join(", ")}.</div>
+        <textarea id="lsWrite" rows="7" autocapitalize="sentences" spellcheck="false" placeholder="Пиши по-английски…"></textarea><div class="mhint" id="lsWc">0 слов</div>`;
+      foot.innerHTML = `<button class="btn primary" type="button" data-ls="check">Проверить</button>`;
+    }
+  };
+  function pgWriteEval(q){
+    const txt = ($("lsWrite") || {}).value || "";
+    const n = wordsOf(txt).length, low = " " + normEn(txt) + " ";
+    const used = q.w.use.filter(u => low.includes(" " + normEn(u) + " "));
+    const latin = /[a-z]/i.test(txt) && !/[а-яё]/i.test(txt);
+    const okLen = n >= q.w.minWords && latin, okUse = used.length >= Math.ceil(q.w.use.length * 0.75);
+    return { n, used, okLen, okUse };
+  }
+  const PG_CHECK = {
+    trans(q){
+      const v = normEn(($("lsInput") || {}).value || ""); if (!v) return null;
+      $("lsInput").disabled = true;
+      return { ok: q.acc.some(a => normEn(a) === v), correct: q.acc[0], say: q.acc[0] };
+    },
+    write(q){
+      const r = pgWriteEval(q); if (!r.n) return null;
+      $("lsWrite").disabled = true;
+      q.score = (r.okLen ? 1 : 0) + (r.okUse ? 1 : 0);
+      const msg = `${r.okLen ? "✓" : "✕"} ${r.n} слов из ${q.w.minWords} · ${r.okUse ? "✓" : "✕"} использовано ${r.used.length} из ${q.w.use.length}. Пример: ${q.w.model}`;
+      return { ok: r.okLen && r.okUse, correct: msg, partial: q.score };
+    },
+    speak(q){
+      if (SRec){ if (!L.heard) return null; const sc = speechScore(q.text, L.heard); return { ok: sc >= 0.75, correct: q.text + (L.heard ? " · услышано: «" + L.heard[0] + "»" : ""), say: q.text }; }
+      if (L.self === null) return null;
+      L.selfSpeak = true; return { ok: !!L.self, correct: q.text, say: q.text };
+    }
+  };
+
+  function pgStartDay(m, w, d){
+    const st = pgState(); const { Q, fresh } = pgDayQs(m, w, d, st);
+    L = { kind: "pg", pg: { m, w, d }, fresh, q: Q, i: 0, right: 0, asked: 0, fr: 0, ft: 0, srsRes: {}, start: Date.now(), retried: new Set(), state: "ask", pick: null, built: [] };
+    $("lesson").hidden = false; document.body.style.overflow = "hidden"; showQ();
+  }
+  function pgExamLock(st, m){
+    const tries = st.ex[m] || [], last = tries[tries.length - 1];
+    if (last && !last.pass){ const until = last.at + PROG().retakeHours * 3600000; if (Date.now() < until) return until; }
+    return 0;
+  }
+  function pgStartExam(m){
+    const st = pgState(); const lock = pgExamLock(st, m);
+    if (lock){ toast("Пересдача будет доступна " + new Date(lock).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })); return; }
+    L = { kind: "exam", pg: { m }, q: pgExamQs(m), i: 0, right: 0, asked: 0, fr: 0, ft: 0, srsRes: {}, secs: {}, plays: 0, start: Date.now(), retried: new Set(), state: "ask", pick: null, built: [] };
+    $("lesson").hidden = false; document.body.style.overflow = "hidden"; showQ();
+  }
+  function pgLogTime(label, xp, added){
+    const minutes = Math.max(1, Math.round((Date.now() - L.start) / 60000));
+    const k = todayKey(); const d = clone(day(k));
+    d.lang = Object.assign({ min: 0, words: 0, acts: [], note: "" }, d.lang || {});
+    d.lang.min = Math.min(1440, d.lang.min + minutes);
+    d.lang.words = (d.lang.words || 0) + added;
+    d.lang.lessons = (d.lang.lessons || []).concat(label);
+    d.lang.xp = (d.lang.xp || 0) + xp;
+    ["Приложение"].forEach(a => { if (!d.lang.acts.includes(a)) d.lang.acts.push(a); });
+    commitDay(k, d, 0);
+    return minutes;
+  }
+  function pgFinish(){
+    const st = pgState(), { m, w, d } = L.pg, key = pgKey(m, w, d);
+    const acc = L.ft ? Math.round(L.fr / L.ft * 100) : 100;
+    Object.entries(L.srsRes).forEach(([en, ok]) => srsMark(st, en, ok));
+    const pass = acc >= 60, again = !!st.done[key];
+    if (pass){ st.done[key] = { s: Math.max(acc, (st.done[key] || {}).s || 0), at: todayKey() }; srsAdd(st, L.fresh || []); }
+    pgSave(st);
+    let added = 0;
+    if (pass && (L.fresh || []).length){
+      const dict = clone(S.dict); dict.words = dict.words || [];
+      L.fresh.forEach(([wd, t]) => { if (!dict.words.some(x => x.lang === dictLang() && x.w.toLowerCase() === wd.toLowerCase())){ dict.words.push({ id: uid(), w: wd, t, k: false, d: todayKey(), lang: dictLang() }); added++; } });
+      if (added){ S.dict = dict; persist("dict", dict, 0); }
+    }
+    const P0 = PG_DAYS[d - 1], label = `Месяц ${m}, неделя ${w}, день ${d}: ${P0.t}`;
+    const xp = pass ? 15 + L.fr : 5;
+    const minutes = pgLogTime(label, xp, added);
+    $("lsProg").style.width = "100%"; $("lsCount").textContent = "";
+    const nx = pgNext(st);
+    $("lsBody").innerHTML = `<div class="ls-done" style="display:flex;flex-direction:column;gap:14px;flex:1">
+      <div class="big">${pass ? (acc >= 85 ? "🎉" : "💪") : "🔁"}</div><h2 class="ls-q" id="lsTitle">${pass ? (again ? "Урок повторён" : "Урок пройден!") : "Урок не засчитан"}</h2><div class="ls-sub">${esc(label)}</div>
+      <div class="ls-stats"><span class="chip ${pass ? "ok" : ""}">Верно с первого раза: <span class="num">${acc}%</span></span><span class="chip">+<span class="num">${minutes}</span> мин</span>${Object.keys(L.srsRes).length ? `<span class="chip">Повторено слов: ${Object.keys(L.srsRes).length}</span>` : ""}${added ? `<span class="chip">+${added} слов в словаре</span>` : ""}</div>
+      <div class="ls-sub">${pass ? (nx.kind === "exam" ? "Все уроки месяца пройдены. Дальше — экзамен месяца." : "Новые слова вернутся в повторение завтра, потом через 2, 4, 7 дней и дальше.") : "Чтобы урок засчитался, нужно не меньше 60% правильных ответов с первой попытки. Повтори его: вопросы будут в другом порядке."}</div></div>`;
+    $("lsFoot").className = "ls-foot";
+    $("lsFoot").innerHTML = pass ? `<button class="btn primary" type="button" data-ls="close">Готово</button>` : `<button class="btn primary" type="button" data-pgagain="1">Повторить урок</button><button class="btn" type="button" data-ls="close">Позже</button>`;
+    L.finished = true; render();
+  }
+  function pgExamFinish(){
+    const P = PROG(), st = pgState(), m = L.pg.m;
+    const sec = {}; Object.entries(L.secs).forEach(([k, v]) => { sec[k] = v.t ? Math.round(v.r / v.t * 100) : 0; });
+    const totR = Object.values(L.secs).reduce((a, v) => a + v.r, 0), totT = Object.values(L.secs).reduce((a, v) => a + v.t, 0);
+    const pct = totT ? Math.round(totR / totT * 100) : 0;
+    const weak = Object.entries(sec).filter(([, v]) => v < P.passSection).map(([k]) => k);
+    const pass = pct >= P.passTotal && !weak.length;
+    st.ex[m] = (st.ex[m] || []).concat({ at: Date.now(), d: todayKey(), pct, sec, pass, self: !!L.selfSpeak });
+    // a passed exam counts the month's lessons as done (also when taken early)
+    if (pass){ const M = pgMonth(m); M.weeks.forEach((wk, wi) => { for (let d = 1; d <= 6; d++){ const k = pgKey(m, wi + 1, d); if (!st.done[k]) st.done[k] = { s: 0, at: todayKey(), ex: 1 }; } }); srsAdd(st, pgWords(m)); }
+    pgSave(st);
+    const lvl = P.levelExams[m];
+    pgLogTime("Экзамен месяца " + m, pass ? 100 : 20, 0);
+    $("lsProg").style.width = "100%"; $("lsCount").textContent = "";
+    const ADV = { voc: "Повтори слова месяца: раздел «Мой словарь» → «Повторить слова» и уроки «Новые слова».", gram: "Перепройди уроки «Грамматика» этого месяца и сделай ошибки ещё раз.", read: "Перечитай тексты уроков «Чтение», читай вслух вместе с диктором.", listen: "Слушай диалоги уроков «Аудирование» без текста, потом с текстом, повторяй за диктором.", write: "Напиши ещё раз тексты из уроков «Письмо», сверяйся с примером.", speak: "Повторяй вслух фразы уроков «Говорение», записывай себя на диктофон." };
+    $("lsBody").innerHTML = `<div class="ls-done" style="display:flex;flex-direction:column;gap:12px;flex:1">
+      <div class="big">${pass ? "🏆" : "📚"}</div><h2 class="ls-q" id="lsTitle">${pass ? (lvl ? "Уровень " + lvl + " подтверждён!" : "Экзамен сдан!") : "Экзамен не сдан"}</h2>
+      <div class="ls-sub">Экзамен месяца ${m}${lvl ? " · экзамен уровня " + lvl : ""}: <b>${pct}%</b> (нужно ${P.passTotal}% и не меньше ${P.passSection}% в каждом навыке)</div>
+      <div class="exsec">${Object.entries(sec).map(([k, v]) => `<div class="${v >= P.passSection ? "ok" : "bad"}"><span>${SEC_NAMES[k]}</span><div class="pbar"><i style="width:${v}%"></i></div><b class="num">${v}%</b></div>`).join("")}</div>
+      ${L.selfSpeak ? `<div class="mhint">Говорение оценено по самооценке: распознавание речи на этом телефоне недоступно.</div>` : ""}
+      ${pass ? `<div class="ls-sub">${m < P.months.length ? "Открыт месяц " + (m + 1) + ": «" + esc(pgMonth(m + 1).title) + "»." : "Программа пройдена!"}</div>`
+             : `<div class="ls-sub">Что подтянуть:</div><ul class="adv">${(weak.length ? weak : Object.keys(sec)).map(k => `<li><b>${SEC_NAMES[k]}.</b> ${ADV[k]}</li>`).join("")}</ul><div class="mhint">Пересдача — не раньше чем через ${P.retakeHours} часа. Вопросы будут другими.</div>`}</div>`;
+    $("lsFoot").className = "ls-foot";
+    $("lsFoot").innerHTML = `<button class="btn primary" type="button" data-ls="close">Готово</button>`;
+    L.finished = true; render();
+  }
+
+  // ---- the programme screen inside «Язык» ----
+  function pgDayList(st, m){
+    const M = pgMonth(m);
+    return M.weeks.map((W, wi) => `<div class="pgw"><div class="pgwt">Неделя ${wi + 1}: ${esc(W.t)} <span class="mhint">· ${esc(W.grammar.title)}</span></div><div class="pgds">${PG_DAYS.map((D, di) => {
+      const r = st.done[pgKey(m, wi + 1, di + 1)];
+      return `<button type="button" class="${r ? "done" : ""}" data-pgday="${m}.${wi + 1}.${di + 1}" title="${esc(D.t)}">${r ? "✓" : D.icon} ${di + 1}${r && r.s ? `<small>${r.s}%</small>` : ""}</button>`;
+    }).join("")}</div></div>`).join("");
+  }
+  function pgExamRow(st, m){
+    const tries = st.ex[m] || [], best = tries.reduce((a, r) => Math.max(a, r.pct), 0), passed = pgPassed(st, m), lock = pgExamLock(st, m);
+    const P = PROG(), lvl = P.levelExams[m];
+    return `<div class="pgexam ${passed ? "ok" : ""}"><div><b>📝 ${lvl ? "Экзамен уровня " + lvl : "Экзамен месяца " + m}</b><div class="mhint">${passed ? "Сдан: " + best + "%" : tries.length ? "Попыток: " + tries.length + ", лучший результат " + best + "%" : "Слова, грамматика, чтение, аудирование, письмо и говорение"}</div></div>
+      ${passed ? `<span class="chip ok">✓ сдан</span>` : lock ? `<span class="mhint">Пересдача: ${new Date(lock).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>` : `<button class="btn sm" type="button" data-pgexam="${m}">Сдать${pgNext(st).kind === "exam" ? "" : " досрочно"}</button>`}</div>`;
+  }
+  function renderProgram(){
+    const P = PROG(), box = $("progBox");
+    const on = !!P && !!S.settings.lang;
+    box.hidden = !on;
+    ["todayLesson", "planBox", "unitsBox", "langLevel"].forEach(id => { $(id).hidden = on || (id !== "langLevel" && !COURSE.units.length); });
+    if (!on) return;
+    const st = pgState(), nx = pgNext(st), lv = pgLevel(st), M = pgMonth(nx.m), total = P.months.length;
+    const due = srsDue(st).length;
+    const doneM = M && M.weeks ? M.weeks.reduce((a, W, wi) => a + [1, 2, 3, 4, 5, 6].filter(d => st.done[pgKey(nx.m, wi + 1, d)]).length, 0) : 0;
+    const allM = M && M.weeks ? M.weeks.length * 6 : 24;
+    const todayDone = Object.entries(st.done).filter(([, r]) => r.at === todayKey() && !r.ex).length;
+    let today = "";
+    if (nx.kind === "day"){
+      const D = PG_DAYS[nx.d - 1], W = M.weeks[nx.w - 1];
+      today = `<span class="tl-day">${todayDone ? "Следующий урок" : "Урок на сегодня"} · неделя ${nx.w}, день ${nx.d} из 6</span>
+        <div class="tl-what">${D.icon} ${D.t}</div><div class="tl-sub">Тема недели: ${esc(W.t)}${nx.d === 2 ? " · " + esc(W.grammar.title) : ""}</div>
+        <ul class="tl-parts">${due ? `<li>🔁 Повторение слов: ${Math.min(due, 15)} · ≈${Math.min(15, Math.ceil(Math.min(due, 15) * 0.7))} мин</li>` : ""}<li>${D.icon} ${D.t} · ≈${D.min} мин</li><li>🎧 Практика вне приложения (ниже) · ≈10 мин</li></ul>
+        <button class="btn primary" type="button" data-pgday="${nx.m}.${nx.w}.${nx.d}">Начать урок</button>
+        ${todayDone ? `<div class="tl-sub">✓ Сегодня пройдено уроков: ${todayDone}. Один урок в день — норма, больше — по желанию.</div>` : ""}`;
+    } else if (nx.kind === "exam"){
+      const lock = pgExamLock(st, nx.m);
+      today = `<span class="tl-day">Конец месяца ${nx.m}</span><div class="tl-what">📝 ${P.levelExams[nx.m] ? "Экзамен уровня " + P.levelExams[nx.m] : "Экзамен месяца"}</div>
+        <div class="tl-sub">6 частей: слова, грамматика, чтение, аудирование, письмо, говорение. Чтобы сдать, нужно ${P.passTotal}% в сумме и не меньше ${P.passSection}% в каждой части. Около 40 минут.</div>
+        ${lock ? `<div class="tl-sub">Пересдача будет доступна ${new Date(lock).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}. Пока повтори слабые темы.</div>` : `<button class="btn primary" type="button" data-pgexam="${nx.m}">Начать экзамен</button>`}`;
+    } else if (nx.kind === "soon"){
+      today = `<span class="tl-day">Месяц ${nx.m}: ${esc(M.title)}</span><div class="tl-what">🛠 Материалы месяца готовятся</div><div class="tl-sub">Пока повторяй слова: ${due ? "сегодня к повторению " + due + " " + plural(due, "слово", "слова", "слов") + "." : "на сегодня повторение пройдено."}</div>${due ? `<button class="btn primary" type="button" data-pgsrs="1">Повторить слова</button>` : ""}`;
+    } else today = `<div class="tl-what">🎓 Программа пройдена</div><div class="tl-sub">Поддерживай уровень: повторяй слова, смотри фильмы, говори.</div>`;
+    const wkKey = nx.m + "." + (nx.w || 1), prac = (P.practice[M ? M.level : "A1"] || []), pdone = st.prac[wkKey] || [];
+    const lvls = Object.entries(P.levels);
+    box.innerHTML = `<div class="pghead">
+        <div><span class="mhint">Уровень</span><b class="${lv ? "" : "none"}">${lv || "нет"}</b><small>${lv ? "подтверждён экзаменом" : "только после экзамена"}</small></div>
+        <div><span class="mhint">Месяц</span><b>${nx.m} из ${total}</b><small>${M ? M.level + " · " + esc(M.title) : ""}</small></div>
+        <div><span class="mhint">Слова</span><b>${Object.keys(st.srs).length}</b><small>прочно выучено ${srsLearned(st)}</small></div>
+      </div>
+      ${M && M.weeks ? `<div class="pgbar"><div class="pbar"><i style="width:${Math.round(doneM / allM * 100)}%;background:var(--lang)"></i></div><span class="mhint">Уроки месяца: ${doneM} из ${allM}${pgPassed(st, nx.m) ? " · экзамен сдан" : " · потом экзамен"}</span></div>` : ""}
+      <div class="today-lesson">${today}</div>
+      ${due && nx.kind === "day" ? `<div class="mhint">🔁 Слова на повторение входят в начало урока. Если урока сегодня не будет, их можно повторить отдельно: <button class="btn sm ghost" type="button" data-pgsrs="1">Повторить ${due}</button></div>` : ""}
+      ${prac.length ? `<div class="pgprac"><b>Практика вне приложения на эту неделю</b>${prac.map((t, i) => `<label><input type="checkbox" data-pgprac="${i}" ${pdone[i] ? "checked" : ""}> ${esc(t)}</label>`).join("")}</div>` : ""}
+      ${M && M.weeks ? `<details class="pgsec"><summary>🗓 План месяца ${nx.m}: ${esc(M.title)}</summary><div class="pgmon">${pgDayList(st, nx.m)}${pgExamRow(st, nx.m)}
+        <div class="mhint">День 1 — слова, 2 — грамматика, 3 — слова и фразы, 4 — чтение, 5 — аудирование и говорение, 6 — слова, письмо и проверка недели. Седьмой день — отдых или практика вне приложения. Пройденный урок можно повторить.</div></div></details>` : ""}
+      <details class="pgsec"><summary>🧭 Вся программа: A0 → B2 за ${total} месяцев</summary><div class="pgall">
+        ${lvls.map(([name, Lv]) => `<div class="pglv"><div class="pglvh"><b>${name}</b><span class="mhint">месяцы ${Lv.months[0]}–${Lv.months[1]}</span>${lv && Object.keys(P.levels).indexOf(name) <= Object.keys(P.levels).indexOf(lv) ? `<span class="chip ok">✓ подтверждён</span>` : ""}</div>
+          <div class="pgcan"><div>🎧 ${esc(Lv.can.listen)}</div><div>📖 ${esc(Lv.can.read)}</div><div>🗣 ${esc(Lv.can.speak)}</div><div>✍️ ${esc(Lv.can.write)}</div></div>
+          ${P.months.filter(x => x.n >= Lv.months[0] && x.n <= Lv.months[1]).map(x => `<div class="pgm ${pgPassed(st, x.n) ? "ok" : x.n === nx.m ? "cur" : ""}"><div><b>${x.n}. ${esc(x.title)}</b>${pgPassed(st, x.n) ? ` <span class="chip ok">✓ ${Math.max(...(st.ex[x.n] || []).map(r => r.pct))}%</span>` : x.n === nx.m ? ` <span class="chip">сейчас</span>` : ""}${x.examTitle ? ` <span class="chip fire">${esc(x.examTitle)}</span>` : ""}</div><div class="mhint">Темы: ${x.topics.map(esc).join(", ")}</div><div class="mhint">Грамматика: ${x.grammar.map(esc).join("; ")}</div></div>`).join("")}</div>`).join("")}
+      </div></details>
+      <details class="pgsec"><summary>📏 Как считается уровень</summary><div class="pgrules">
+        <p>Уровень нельзя получить, просто проходя уроки. Каждый месяц заканчивается экзаменом из 6 частей: слова, грамматика, чтение, аудирование, письмо и говорение. Тексты и диалоги на экзамене новые, их не было в уроках.</p>
+        <p>Экзамен сдан, если в сумме набрано ${P.passTotal}% и в каждой части не меньше ${P.passSection}%. Провал в одном навыке не перекрывается другими. Пересдать можно через ${P.retakeHours} часа, вопросы будут другими.</p>
+        <p>Уровень подтверждается только экзаменом уровня в конце ${Object.keys(P.levelExams).join(", ")} месяца: он проверяет всё, что пройдено на этом уровне.</p>
+        <p>Если уже знаешь материал, экзамен месяца можно сдать досрочно: при успехе месяц засчитывается.</p>
+        <p>${esc(P.honesty)}</p>
+      </div></details>`;
+  }
+  $("progBox").addEventListener("click", e => {
+    const t = e.target.closest("[data-pgday],[data-pgexam],[data-pgsrs]"); if (!t) return;
+    if (t.dataset.pgday){ const [m, w, d] = t.dataset.pgday.split(".").map(Number); pgStartDay(m, w, d); }
+    else if (t.dataset.pgexam) pgStartExam(+t.dataset.pgexam);
+    else if (t.dataset.pgsrs){
+      const st = pgState(), Q = pgSrsQs(srsDue(st).slice(0, 30));
+      if (!Q.length){ toast("На сегодня повторять нечего"); return; }
+      L = { kind: "pgsrs", q: Q, i: 0, right: 0, asked: 0, fr: 0, ft: 0, srsRes: {}, start: Date.now(), retried: new Set(), state: "ask", pick: null, built: [] };
+      $("lesson").hidden = false; document.body.style.overflow = "hidden"; showQ();
+    }
+  });
+  $("progBox").addEventListener("change", e => {
+    const c = e.target.closest("[data-pgprac]"); if (!c) return;
+    const st = pgState(), nx = pgNext(st), k = nx.m + "." + (nx.w || 1);
+    const arr = (st.prac[k] || []).slice(); arr[+c.dataset.pgprac] = c.checked; st.prac[k] = arr; pgSave(st);
+  });
+  function pgSrsFinish(){
+    const st = pgState(); Object.entries(L.srsRes).forEach(([en, ok]) => srsMark(st, en, ok)); pgSave(st);
+    const n = Object.keys(L.srsRes).length, ok = Object.values(L.srsRes).filter(Boolean).length;
+    const minutes = pgLogTime("Повторение слов", 5 + ok, 0);
+    $("lsProg").style.width = "100%"; $("lsCount").textContent = "";
+    $("lsBody").innerHTML = `<div class="ls-done" style="display:flex;flex-direction:column;gap:14px;flex:1"><div class="big">🔁</div><h2 class="ls-q" id="lsTitle">Повторение готово</h2><div class="ls-stats"><span class="chip ok">Помнишь ${ok} из ${n}</span><span class="chip">+${minutes} мин</span></div><div class="ls-sub">Забытые слова вернутся завтра, остальные — позже.</div></div>`;
+    $("lsFoot").className = "ls-foot"; $("lsFoot").innerHTML = `<button class="btn primary" type="button" data-ls="close">Готово</button>`;
+    L.finished = true; render();
   }
 
 
@@ -3379,6 +3896,23 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   $("lesson").addEventListener("click", e => {
     if (!L) return;
     const say = e.target.closest("[data-say]"); if (say){ speak(say.dataset.say, !!say.dataset.slow); return; }
+    const pp = e.target.closest("[data-pgplay]");
+    if (pp){
+      const q = L.q[L.i], lines = q.lines || q.dialog; if (!lines) return;
+      if (L.kind === "exam"){ L.plays = (L.plays || 0) + 1; if (L.plays > 3) return; document.querySelectorAll("[data-pgplay]").forEach(b => { b.textContent = "▶ Слушать (осталось " + Math.max(0, 3 - L.plays) + ")"; b.disabled = L.plays >= 3; }); }
+      pgPlay(lines, !!pp.dataset.slow); return;
+    }
+    const mic = e.target.closest("[data-pgmic]");
+    if (mic){
+      mic.disabled = true; mic.textContent = "🎙 Слушаю…"; const hd = $("pgHeard");
+      listenOnce().then(alts => { L.heard = alts; if (hd) hd.textContent = "Услышано: «" + alts[0] + "»"; $("lsFoot").querySelector('[data-ls="check"]').disabled = false; })
+        .catch(err => { if (hd) hd.textContent = err === "not-allowed" || err === "service-not-allowed" ? "Нет доступа к микрофону. Разреши его в настройках Safari или включи Siri и диктовку." : "Не расслышал. Попробуй ещё раз, говори чётко."; })
+        .finally(() => { mic.disabled = false; mic.textContent = "🎤 Сказать ещё раз"; });
+      return;
+    }
+    const self = e.target.closest("[data-pgself]");
+    if (self){ L.self = self.dataset.pgself === "1"; document.querySelectorAll("[data-pgself]").forEach(b => b.classList.toggle("sel", b === self)); $("lsFoot").querySelector('[data-ls="check"]').disabled = false; return; }
+    if (e.target.closest("[data-pgagain]")){ const { m, w, d } = L.pg; closeLesson(); pgStartDay(m, w, d); return; }
     const ls = e.target.closest("[data-ls]");
     if (ls){
       const a = ls.dataset.ls;
@@ -3395,6 +3929,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const un = e.target.closest("[data-unbuild]");
     if (un){ L.built.splice(+un.dataset.unbuild, 1); renderTiles(); }
   });
+  $("lesson").addEventListener("input", e => { if (e.target.id === "lsWrite"){ const n = wordsOf(e.target.value).length; $("lsWc").textContent = n + " " + plural(n, "слово", "слова", "слов"); } });
   $("lesson").addEventListener("keydown", e => {
     if (e.target.id !== "lsInput" || e.key !== "Enter" || !L) return;
     e.preventDefault();
@@ -4878,7 +5413,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.08-7";
+const APP_VERSION = "2026.11.08-8";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

@@ -566,7 +566,9 @@ body:not([data-view="widget"]) [data-v="widget"]{display:none!important}
 .dr-acc button{border:0;background:transparent;color:var(--accent);font-weight:700;padding:0}
 .dr-list{display:flex;flex-direction:column;gap:2px}
 .dr-list button{display:flex;align-items:center;gap:12px;border:0;background:transparent;border-radius:12px;padding:11px 10px;font-size:15px;font-weight:600;text-align:left;color:var(--ink)}
-.dr-list button span{width:24px;text-align:center;font-size:18px}
+.dr-list button .dri{width:24px;height:24px;flex:none;display:block;color:var(--ink-2)}
+.dr-list button .dri svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.dr-list button.on .dri{color:var(--accent)}
 .dr-list button:hover{background:var(--surface-2)}
 .dr-list button.on{background:var(--surface-2);color:var(--accent)}
 .dr-tools{border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
@@ -590,6 +592,9 @@ body:not([data-view="widget"]) [data-v="widget"]{display:none!important}
 .ordiv::before,.ordiv::after{content:"";flex:1;height:1px;background:var(--line)}
 .accav{width:48px;height:48px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-size:20px}
 .accform .terr,.accbox .terr{color:var(--warn);font-size:13px}
+.widopts{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:12px;padding:12px}
+.widopts > label{display:flex;align-items:center;gap:10px;font-size:14px;padding:4px 0}
+.widopts input[type=checkbox]{width:19px;height:19px;accent-color:var(--accent)}
 .widsteps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px}
 
 .pageat{border:1px solid var(--read);background:var(--read-soft);border-radius:12px;padding:10px 12px}
@@ -602,6 +607,13 @@ body:not([data-view="widget"]) [data-v="widget"]{display:none!important}
 .note1 .x{width:26px;height:26px;font-size:17px;border:0;background:transparent;color:var(--ink-3);border-radius:8px;flex:none}
 .note1 .x:hover{background:var(--surface);color:var(--warn)}
 .sheet .snotes{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto}
+
+.menuchk{display:flex;flex-direction:column;gap:4px}
+.menuchk label{display:flex;align-items:center;gap:12px;padding:10px 8px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}
+.menuchk label:hover{background:var(--surface-2)}
+.menuchk input{width:20px;height:20px;accent-color:var(--accent)}
+.menuchk .dri{width:22px;height:22px;color:var(--ink-2)}
+.menuchk .dri svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
 /* Section filter */
 .viewbar{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
@@ -851,11 +863,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <button class="iconbtn" id="openSettings" hidden>⚙ Цели</button>
     </div>
   </header>
-  <div class="viewbar" id="viewBar" hidden>
-    <div class="vb-top"><b>Какие разделы показывать в меню</b><span class="mhint">Скрытое никуда не пропадает: данные сохраняются, вернуть можно в любой момент.</span></div>
-    <div class="vb-chips" id="viewChips"></div>
-  </div>
-  <div class="viewnote" id="viewNote" hidden></div>
+  <div id="viewBar" hidden></div><div id="viewChips" hidden></div><div id="viewNote" hidden></div>
   <div class="updbar" id="updBar" hidden><span>✨ Вышла новая версия приложения</span><button class="btn sm primary" type="button" id="updNow">Обновить сейчас</button></div>
 
   <div class="note" id="syncNote" hidden></div>
@@ -870,6 +878,24 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   <button class="reportbtn" type="button" id="reportOpen" data-v="home"><span aria-hidden="true">📊</span><span><b>Отчёт за неделю</b><small>калории, вода, чтение, привычки, язык</small></span><span aria-hidden="true">›</span></button>
 
   <div class="grid">
+    <section class="panel" id="p-water" data-v="food" aria-labelledby="h-water">
+      <div class="panel-head">
+        <h2 id="h-water"><span class="dot" style="background:var(--water)"></span>Вода</h2>
+        <span class="meta num" id="waterMeta"></span>
+      </div>
+      <div class="pbar water-bar" aria-hidden="true"><i id="waterBar"></i></div>
+      <form class="manual" id="waterForm" autocomplete="off">
+        <label for="waterIn">Сколько выпил</label>
+        <div class="row">
+          <input type="text" id="waterIn" inputmode="decimal" placeholder="например 300 мл или 0,5 л" aria-describedby="waterHint">
+          <button class="btn water" type="submit" data-mode="add">Добавить</button>
+          <button class="btn ghost" type="button" id="waterSet">Это итог за день</button>
+        </div>
+        <span class="mhint" id="waterHint">Число до 10 считается в литрах, больше — в миллилитрах.</span>
+      </form>
+
+    </section>
+
     <section class="panel" id="p-kcal" data-v="food" aria-labelledby="h-kcal">
       <div class="panel-head">
         <h2 id="h-kcal"><span class="dot" style="background:var(--kcal)"></span>Питание</h2>
@@ -895,23 +921,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div id="recentWrap" hidden><div id="recent"></div></div>
     </section>
 
-    <section class="panel" id="p-water" data-v="water" aria-labelledby="h-water">
-      <div class="panel-head">
-        <h2 id="h-water"><span class="dot" style="background:var(--water)"></span>Вода</h2>
-        <span class="meta num" id="waterMeta"></span>
-      </div>
-      <div class="pbar water-bar" aria-hidden="true"><i id="waterBar"></i></div>
-      <form class="manual" id="waterForm" autocomplete="off">
-        <label for="waterIn">Сколько выпил</label>
-        <div class="row">
-          <input type="text" id="waterIn" inputmode="decimal" placeholder="например 300 мл или 0,5 л" aria-describedby="waterHint">
-          <button class="btn water" type="submit" data-mode="add">Добавить</button>
-          <button class="btn ghost" type="button" id="waterSet">Это итог за день</button>
-        </div>
-        <span class="mhint" id="waterHint">Число до 10 считается в литрах, больше — в миллилитрах.</span>
-      </form>
 
-    </section>
 
     <section class="panel" id="p-read" data-v="read" aria-labelledby="h-read">
       <div class="panel-head">
@@ -1224,7 +1234,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   <div class="bnav-in" id="bnav">
     <button type="button" data-go="summary"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg></span><span class="tx">День</span></button>
     <button type="button" data-go="p-kcal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 7.5c-1.4-1.5-3.9-1.9-5.6-.6-2.4 1.9-2.1 6.1-.4 9.2 1.3 2.4 3 4.7 4.6 4.2.6-.2.9-.4 1.4-.4s.8.2 1.4.4c1.6.5 3.3-1.8 4.6-4.2 1.7-3.1 2-7.3-.4-9.2-1.7-1.3-4.2-.9-5.6.6z"/><path d="M12 7.5c0-2 .9-3.4 2.8-4"/></svg></span><span class="tx">Еда</span></button>
-    <button type="button" data-go="p-water"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3.5s6 6.4 6 10.7a6 6 0 0 1-12 0C6 9.9 12 3.5 12 3.5z"/><path d="M9.2 14.6a2.9 2.9 0 0 0 2.6 2.6"/></svg></span><span class="tx">Вода</span></button>
     <button type="button" data-go="p-read"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 6.5c-1.8-1.3-4.3-2-7.5-2v13c3.2 0 5.7.7 7.5 2 1.8-1.3 4.3-2 7.5-2v-13c-3.2 0-5.7.7-7.5 2z"/><path d="M12 6.5v13"/></svg></span><span class="tx">Чтение</span></button>
     <button type="button" data-go="p-lang"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.3 2.5 3.5 5.3 3.5 8.5s-1.2 6-3.5 8.5c-2.3-2.5-3.5-5.3-3.5-8.5s1.2-6 3.5-8.5z"/></svg></span><span class="tx">Язык</span></button>
     <button type="button" data-go="p-hab"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.2 12.4 2.6 2.6 5-5.4"/></svg></span><span class="tx">Привычки</span></button>
@@ -1316,18 +1325,30 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   </div>
 </div>
 
+<dialog id="menuDlg" aria-labelledby="menuDlgT">
+  <form class="dlg" method="dialog" id="menuForm">
+    <h2 id="menuDlgT" style="font-size:18px">Настроить меню</h2>
+    <p class="mhint" style="margin:0">Отметь разделы, которые нужны тебе сейчас. Остальные исчезнут из меню и нижней панели. Данные в скрытых разделах сохраняются, вернуть их можно в любой момент.</p>
+    <div class="menuchk" id="menuChk"></div>
+    <div class="row" style="justify-content:space-between">
+      <button class="btn ghost" type="button" id="menuAll">Отметить все</button>
+      <span class="row"><button class="btn ghost" type="button" id="menuCancel">Отмена</button><button class="btn primary" type="submit">Сохранить</button></span>
+    </div>
+  </form>
+</dialog>
+
 <div class="drawer-bg" id="drawerBg" hidden></div>
 <nav class="drawer" id="drawer" aria-label="Меню" hidden>
   <div class="dr-head"><b>Мой день</b><button class="ls-close" type="button" id="menuClose" aria-label="Закрыть меню">×</button></div>
   <div class="dr-acc" id="drAcc"></div>
   <div class="dr-list" id="drList"></div>
   <div class="dr-list dr-tools">
-    <button type="button" data-dtool="report"><span>📊</span>Отчёт за неделю</button>
-    <button type="button" data-dtool="settings"><span>⚙</span>Цели и норма</button>
-    <button type="button" data-dview="widget"><span>📲</span>Виджет на экран</button>
-    <button type="button" data-dview="account"><span>👤</span>Аккаунт</button>
-    <button type="button" data-dtool="menu"><span>☰</span>Настроить меню</button>
-    <button type="button" data-dtool="update"><span>↻</span>Обновить приложение</button>
+    <button type="button" data-dtool="report"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M3 20.5h18"/></svg></span>Отчёт за неделю</button>
+    <button type="button" data-dtool="settings"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg></span>Цели и норма</button>
+    <button type="button" data-dview="widget"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><rect x="9" y="6" width="6" height="5" rx="1"/><path d="M11 18.5h2"/></svg></span>Виджет на экран</button>
+    <button type="button" data-dview="account"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5"/></svg></span>Аккаунт</button>
+    <button type="button" data-dtool="menu"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 17h6M18 7h2M14 17h6"/><circle cx="16" cy="7" r="2"/><circle cx="12" cy="17" r="2"/></svg></span>Настроить меню</button>
+    <button type="button" data-dtool="update"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4.5v4.2h-4.2"/></svg></span>Обновить приложение</button>
   </div>
 </nav>
 
@@ -1871,7 +1892,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const key = m.name.trim().toLowerCase();
       if (!seen.has(key) && seen.size < 8) seen.set(key, m);
     }));
-    $("recentWrap").hidden = !seen.size;
+    $("recentWrap").hidden = true;
     $("recent").innerHTML = [...seen.values()].map((m, i) => `<button type="button" data-recent="${i}">${esc(m.name)} · <span class="num">${fmt(m.kcal)}</span></button>`).join("");
     $("recent")._items = [...seen.values()];
 
@@ -4021,17 +4042,19 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   });
 
   // ---------- screens and menu ----------
+  const DR_ICONS = {"home": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3.5 11 12 4l8.5 7\"/><path d=\"M5.5 9.5V20h13V9.5\"/><path d=\"M10 20v-5h4v5\"/></svg>", "food": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 7.5c-1.4-1.5-3.9-1.9-5.6-.6-2.4 1.9-2.1 6.1-.4 9.2 1.3 2.4 3 4.7 4.6 4.2.6-.2.9-.4 1.4-.4s.8.2 1.4.4c1.6.5 3.3-1.8 4.6-4.2 1.7-3.1 2-7.3-.4-9.2-1.7-1.3-4.2-.9-5.6.6z\"/><path d=\"M12 7.5c0-2 .9-3.4 2.8-4\"/></svg>", "read": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 6.5c-1.8-1.3-4.3-2-7.5-2v13c3.2 0 5.7.7 7.5 2 1.8-1.3 4.3-2 7.5-2v-13c-3.2 0-5.7.7-7.5 2z\"/><path d=\"M12 6.5v13\"/></svg>", "lang": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M3.5 12h17\"/><path d=\"M12 3.5c2.3 2.5 3.5 5.3 3.5 8.5s-1.2 6-3.5 8.5c-2.3-2.5-3.5-5.3-3.5-8.5s1.2-6 3.5-8.5z\"/></svg>", "habits": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"m8.2 12.4 2.6 2.6 5-5.4\"/></svg>", "vit": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"3.2\" y=\"8.6\" width=\"17.6\" height=\"6.8\" rx=\"3.4\" transform=\"rotate(-40 12 12)\"/><path d=\"m9.3 9.4 5.3 5.2\"/></svg>", "fin": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"3.5\" y=\"6.5\" width=\"17\" height=\"13\" rx=\"2.5\"/><path d=\"M3.5 10.5h17\"/><path d=\"M15.5 15h2\"/><path d=\"M7 6.5 15.5 4l1 2.5\"/></svg>", "report": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 20V10\"/><path d=\"M10 20V4\"/><path d=\"M16 20v-7\"/><path d=\"M3 20.5h18\"/></svg>", "settings": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7\"/></svg>", "widget": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"6.5\" y=\"2.5\" width=\"11\" height=\"19\" rx=\"2.5\"/><rect x=\"9\" y=\"6\" width=\"6\" height=\"5\" rx=\"1\"/><path d=\"M11 18.5h2\"/></svg>", "account": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"8.5\" r=\"3.8\"/><path d=\"M4.5 20.5c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5\"/></svg>", "menu": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 7h10M4 17h6M18 7h2M14 17h6\"/><circle cx=\"16\" cy=\"7\" r=\"2\"/><circle cx=\"12\" cy=\"17\" r=\"2\"/></svg>", "update": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 12a8 8 0 1 1-2.3-5.7\"/><path d=\"M20 4.5v4.2h-4.2\"/></svg>"};
   const VIEWS = [
-    ["home", "🏠", "Главная", "Мой день"], ["food", "🍎", "Питание", "Питание"], ["water", "💧", "Вода", "Вода"], ["read", "📖", "Чтение", "Чтение"],
+    ["home", "🏠", "Главная", "Мой день"], ["food", "🍎", "Питание", "Питание и вода"], ["read", "📖", "Чтение", "Чтение"],
     ["lang", "🌍", "Язык", "Иностранный язык"], ["habits", "✅", "Привычки", "Привычки"], ["vit", "💊", "Витамины", "Витамины"],
     ["fin", "💰", "Финансы", "Финансы"]
   ];
   const EXTRA_VIEWS = { account: "Аккаунт", widget: "Виджет" };
-  const NAV_TO_VIEW = { summary: "home", "p-kcal": "food", "p-water": "water", "p-read": "read", "p-lang": "lang", "p-hab": "habits", "p-vit": "vit", "p-fin": "fin" };
-  const VIEW_SEC = { food: "p-kcal", water: "p-water", read: "p-read", lang: "p-lang", habits: "p-hab", vit: "p-vit", fin: "p-fin" };
+  const NAV_TO_VIEW = { summary: "home", "p-kcal": "food", "p-water": "food", "p-read": "read", "p-lang": "lang", "p-hab": "habits", "p-vit": "vit", "p-fin": "fin" };
+  const VIEW_SEC = { food: "p-kcal", read: "p-read", lang: "p-lang", habits: "p-hab", vit: "p-vit", fin: "p-fin" };
   const navBtns = [...document.querySelectorAll("#bnav [data-go]")];
   let view = "home";
   function setView(v, opts){
+    if (v === "water") v = "food";
     if (!VIEWS.some(x => x[0] === v) && !EXTRA_VIEWS[v]) v = "home";
     view = v; document.body.dataset.view = v;
     const meta = VIEWS.find(x => x[0] === v);
@@ -4046,7 +4069,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   navBtns.forEach(bt => bt.addEventListener("click", () => setView(NAV_TO_VIEW[bt.dataset.go] || "home")));
   function renderDrawer(){
-    $("drList").innerHTML = VIEWS.filter(([v]) => !VIEW_SEC[v] || !hiddenSecs.includes(VIEW_SEC[v])).map(([v, ic, name]) => `<button type="button" data-dview="${v}" class="${v === view ? "on" : ""}"><span>${ic}</span>${name}</button>`).join("");
+    $("drList").innerHTML = VIEWS.filter(([v]) => !VIEW_SEC[v] || !hiddenSecs.includes(VIEW_SEC[v])).map(([v, ic, name]) => `<button type="button" data-dview="${v}" class="${v === view ? "on" : ""}"><span class="dri">${DR_ICONS[v] || ""}</span>${name}</button>`).join("");
   }
   function openDrawer(){ renderDrawer(); if (typeof renderDrawerAcc === "function") renderDrawerAcc(); $("drawer").hidden = false; $("drawerBg").hidden = false; $("menuOpen").setAttribute("aria-expanded", "true"); }
   function closeDrawer(){ $("drawer").hidden = true; $("drawerBg").hidden = true; $("menuOpen").setAttribute("aria-expanded", "false"); }
@@ -4062,18 +4085,18 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (a === "report") $("reportOpen").click();
     else if (a === "settings") $("openSettings").click();
     else if (a === "update") $("updBtn").click();
-    else if (a === "menu"){ setView("home"); $("viewBar").hidden = false; }
+    else if (a === "menu") openMenuDlg();
   });
   window.addEventListener("hashchange", () => setView((location.hash || "").slice(1) || "home", { noHash: true }));
   // tapping a ring on the home screen opens its section
-  $("summary").addEventListener("click", e => { const c = e.target.closest("[data-sec]"); if (c){ const v = { "p-kcal": "food", "p-water": "water", "p-read": "read", "p-hab": "habits" }[c.dataset.sec]; if (v) setView(v); } });
+  $("summary").addEventListener("click", e => { const c = e.target.closest("[data-sec]"); if (c){ const v = { "p-kcal": "food", "p-water": "food", "p-read": "read", "p-hab": "habits" }[c.dataset.sec]; if (v) setView(v); } });
 
   // ---------- "Сегодня": the day's to-do list on the home screen ----------
   function renderToday(){
     const k = cur, d = day(k), g = goals(), t = totals(k);
     const items = [];
     const L1 = v => (v / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 });
-    items.push({ sec: "Главное", icon: "💧", name: "Выпить воду", sub: t.waterOk ? `выпито ${L1(d.water)} л` : `ещё ${L1(g.water - d.water)} л из ${L1(g.water)}`, done: t.waterOk, go: "water" });
+    items.push({ sec: "Главное", icon: "💧", name: "Выпить воду", sub: t.waterOk ? `выпито ${L1(d.water)} л` : `ещё ${L1(g.water - d.water)} л из ${L1(g.water)}`, done: t.waterOk, go: "food" });
     items.push({ sec: "Главное", icon: "📖", name: "Почитать", sub: t.readOk ? `прочитано ${d.pages} стр.` : `ещё ${g.pages - d.pages} стр.`, done: t.readOk, go: "read" });
     if (S.settings.lang && COURSE && COURSE.units && COURSE.units.length){
       const wd = parseKey(k).getDay(), kind = plan()[wd];
@@ -4108,16 +4131,12 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   });
 
   // ---------- section filter (per phone, easy to undo) ----------
-  const SECTIONS = [["p-kcal", "🍎 Питание"], ["p-water", "💧 Вода"], ["p-read", "📖 Чтение"], ["p-lang", "🌍 Язык"], ["p-hab", "✅ Привычки"], ["p-vit", "💊 Витамины"], ["p-cal", "📅 Календарь привычек"], ["p-fin", "💰 Финансы"], ["report", "📊 Отчёт за неделю"]];
+  const SECTIONS = [["p-kcal", "🍎 Питание и вода"], ["p-read", "📖 Чтение"], ["p-lang", "🌍 Язык"], ["p-hab", "✅ Привычки"], ["p-vit", "💊 Витамины"], ["p-cal", "📅 Календарь привычек"], ["p-fin", "💰 Финансы"], ["report", "📊 Отчёт за неделю"]];
   let hiddenSecs = [];
   try { hiddenSecs = JSON.parse(localStorage.getItem("moy-den-hidden") || "[]"); } catch (e) { hiddenSecs = []; }
   function applyView(){
     SECTIONS.forEach(([id]) => document.body.classList.toggle("hide-" + id, hiddenSecs.includes(id)));
-    $("viewChips").innerHTML = SECTIONS.map(([id, name]) => `<button type="button" data-sec-t="${id}" aria-pressed="${!hiddenSecs.includes(id)}">${name}</button>`).join("") +
-      (hiddenSecs.length ? `<button type="button" data-sec-all="1" aria-pressed="false">Показать всё</button>` : "");
-    const n = hiddenSecs.length;
-    $("viewNote").hidden = !n;
-    $("viewNote").innerHTML = n ? `<span>Скрыто разделов: ${n}</span><button type="button" data-sec-all="1">Показать всё</button><button type="button" data-sec-open="1">Настроить</button>` : "";
+
     try { localStorage.setItem("moy-den-hidden", JSON.stringify(hiddenSecs)); } catch (e) {}
     if (typeof renderDrawer === "function") renderDrawer();
   }
@@ -4128,6 +4147,20 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (t.dataset.secAll) hiddenSecs = [];
     else { const id = t.dataset.secT; hiddenSecs = hiddenSecs.includes(id) ? hiddenSecs.filter(x => x !== id) : hiddenSecs.concat(id); }
     applyView();
+  });
+  const SEC_ICON = { "p-kcal": "food", "p-read": "read", "p-lang": "lang", "p-hab": "habits", "p-vit": "vit", "p-cal": "habits", "p-fin": "fin", report: "report" };
+  function openMenuDlg(){
+    $("menuChk").innerHTML = SECTIONS.map(([id, name]) => `<label><input type="checkbox" value="${id}" ${hiddenSecs.includes(id) ? "" : "checked"}><span class="dri">${DR_ICONS[SEC_ICON[id]] || ""}</span>${esc(name.replace(/^\S+\s/, ""))}</label>`).join("");
+    $("menuDlg").showModal();
+  }
+  $("menuAll").onclick = () => $("menuChk").querySelectorAll("input").forEach(i => { i.checked = true; });
+  $("menuCancel").onclick = () => $("menuDlg").close();
+  $("menuForm").addEventListener("submit", e => {
+    e.preventDefault();
+    hiddenSecs = [...$("menuChk").querySelectorAll("input")].filter(i => !i.checked).map(i => i.value);
+    applyView(); $("menuDlg").close();
+    const v = VIEW_SEC[view]; if (v && hiddenSecs.includes(v)) setView("home");
+    toast(hiddenSecs.length ? "Меню сохранено. Скрыто разделов: " + hiddenSecs.length : "Меню сохранено: показаны все разделы");
   });
   applyView();
   setView((location.hash || "").slice(1) || "home", { noHash: true });
@@ -4248,9 +4281,12 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   });
 
   // ---------- home-screen widget (Scriptable) ----------
-  const WIDGET_TPL = "// Виджет «Мой день» для приложения Scriptable (iPhone).\n// Показывает, сколько воды осталось выпить, и список дел на сегодня.\nconst PROJECT = \"%PROJECT%\", CODE = \"%CODE%\", PID = \"%PID%\";\nconst APP = \"%APP%\";\nconst url = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/pairs/${CODE}/players/${PID}`;\nlet s = null;\ntry { const j = await new Request(url).loadJSON(); s = JSON.parse(j.fields.json.stringValue); } catch (e) {}\nconst pad = n => String(n).padStart(2, \"0\");\nconst now = new Date();\nconst today = now.getFullYear() + \"-\" + pad(now.getMonth() + 1) + \"-\" + pad(now.getDate());\nconst big = config.widgetFamily === \"large\";\nconst w = new ListWidget();\nw.backgroundColor = new Color(\"#161D29\");\nw.url = APP;\nw.setPadding(14, 14, 12, 14);\nconst title = w.addText(\"☀️ Мой день\");\ntitle.font = Font.boldSystemFont(15);\ntitle.textColor = Color.white();\nw.addSpacer(6);\nfunction line(text, color, size) {\n  const t = w.addText(text);\n  t.font = Font.systemFont(size || 13);\n  t.textColor = new Color(color || \"#E8EDF5\");\n  t.lineLimit = 1;\n}\nif (!s || !s.todo) {\n  line(\"Открой приложение, чтобы появились данные\", \"#AEB8C8\");\n} else {\n  const t = s.todo, fresh = t.date === today;\n  const L = v => (v / 1000).toFixed(1).replace(\".\", \",\");\n  const water = fresh ? (t.w || 0) : 0, pages = fresh ? (t.p || 0) : 0;\n  line(water >= t.wg ? \"💧 Вода: выполнено\" : `💧 Выпить ещё ${L(t.wg - water)} л`, water >= t.wg ? \"#3CC79A\" : \"#4DB0F5\");\n  line(pages >= t.pg ? \"📖 Чтение: выполнено\" : `📖 Прочитать ещё ${t.pg - pages} стр.`, pages >= t.pg ? \"#3CC79A\" : \"#A585F0\");\n  const todo = [];\n  const lesson = (t.plan || {})[now.getDay()];\n  if (lesson && !(fresh && (t.lessonsDone || []).includes(lesson))) todo.push(\"🌍 Урок: \" + lesson);\n  (t.habits || []).forEach(h => { if (!(fresh && h.d)) todo.push((h.b ? \"🚭 \" : \"✅ \") + h.n); });\n  (t.vits || []).forEach(v => { if (!(fresh && v.d)) todo.push(\"💊 \" + v.n); });\n  if (!todo.length) line(\"🎉 Всё на сегодня сделано\", \"#3CC79A\");\n  const max = big ? 12 : 3;\n  todo.slice(0, max).forEach(x => line(x, \"#E8EDF5\", 12));\n  if (todo.length > max) line(`и ещё ${todo.length - max}…`, \"#7D899C\", 11);\n}\nw.addSpacer();\nconst f = w.addText(\"нажми, чтобы открыть приложение\");\nf.font = Font.systemFont(9);\nf.textColor = new Color(\"#7D899C\");\nw.refreshAfterDate = new Date(Date.now() + 30 * 60000);\nScript.setWidget(w);\nif (config.runsInApp) await w.presentMedium();\nScript.complete();\n";
+  const WIDGET_TPL = "// Виджет «Мой день» для приложения Scriptable (iPhone).\n// Что показывать, выбрано в приложении «Мой день» → Виджет на экран.\nconst PROJECT = \"%PROJECT%\", CODE = \"%CODE%\", PID = \"%PID%\";\nconst APP = \"%APP%\";\nconst SHOW = %SHOW%;\nconst url = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/pairs/${CODE}/players/${PID}`;\nlet s = null;\ntry { const j = await new Request(url).loadJSON(); s = JSON.parse(j.fields.json.stringValue); } catch (e) {}\nconst pad = n => String(n).padStart(2, \"0\");\nconst now = new Date();\nconst today = now.getFullYear() + \"-\" + pad(now.getMonth() + 1) + \"-\" + pad(now.getDate());\nconst big = config.widgetFamily === \"large\";\nconst dark = SHOW.theme !== \"light\";\nconst C = dark\n  ? { bg: \"#161D29\", title: \"#FFFFFF\", text: \"#E8EDF5\", muted: \"#7D899C\", ok: \"#3CC79A\", water: \"#4DB0F5\", read: \"#A585F0\" }\n  : { bg: \"#FFFFFF\", title: \"#152033\", text: \"#152033\", muted: \"#7C879A\", ok: \"#12A37A\", water: \"#1D8FE1\", read: \"#7A4FD6\" };\nconst w = new ListWidget();\nw.backgroundColor = new Color(C.bg);\nw.url = APP;\nw.setPadding(14, 14, 12, 14);\nfunction line(text, color, size, bold) {\n  const t = w.addText(text);\n  t.font = bold ? Font.boldSystemFont(size || 13) : Font.systemFont(size || 13);\n  t.textColor = new Color(color || C.text);\n  t.lineLimit = 1;\n}\nline(SHOW.title || \"☀️ Мой день\", C.title, 15, true);\nw.addSpacer(6);\nif (!s || !s.todo) {\n  line(\"Открой приложение, чтобы появились данные\", C.muted);\n} else {\n  const t = s.todo, fresh = t.date === today;\n  const L = v => (v / 1000).toFixed(1).replace(\".\", \",\");\n  const todo = [];\n  let total = 0, done = 0;\n  if (SHOW.water) {\n    const water = fresh ? (t.w || 0) : 0; total++; if (water >= t.wg) done++;\n    line(water >= t.wg ? \"💧 Вода: выполнено\" : `💧 Выпить ещё ${L(t.wg - water)} л`, water >= t.wg ? C.ok : C.water);\n  }\n  if (SHOW.read) {\n    const pages = fresh ? (t.p || 0) : 0; total++; if (pages >= t.pg) done++;\n    line(pages >= t.pg ? \"📖 Чтение: выполнено\" : `📖 Прочитать ещё ${t.pg - pages} стр.`, pages >= t.pg ? C.ok : C.read);\n  }\n  const lesson = (t.plan || {})[now.getDay()];\n  if (SHOW.lesson && lesson) { total++; const d = fresh && (t.lessonsDone || []).includes(lesson); if (d) done++; else todo.push(\"🌍 Урок: \" + lesson); }\n  (t.habits || []).forEach(h => {\n    if (h.b ? !SHOW.bad : !SHOW.habits) return;\n    total++; const d = fresh && h.d; if (d) done++; else todo.push((h.b ? \"🚭 \" : \"✅ \") + h.n);\n  });\n  if (SHOW.vits) (t.vits || []).forEach(v => { total++; const d = fresh && v.d; if (d) done++; else todo.push(\"💊 \" + v.n); });\n  if (SHOW.count && total) line(`Сделано ${done} из ${total}`, C.muted, 11);\n  if (!todo.length && (SHOW.lesson || SHOW.habits || SHOW.bad || SHOW.vits)) line(\"🎉 Всё на сегодня сделано\", C.ok);\n  const max = big ? 12 : 3;\n  todo.slice(0, max).forEach(x => line(x, C.text, 12));\n  if (todo.length > max) line(`и ещё ${todo.length - max}…`, C.muted, 11);\n}\nw.addSpacer();\nconst f = w.addText(\"нажми, чтобы открыть приложение\");\nf.font = Font.systemFont(9);\nf.textColor = new Color(C.muted);\nw.refreshAfterDate = new Date(Date.now() + 30 * 60000);\nScript.setWidget(w);\nif (config.runsInApp) await w.presentMedium();\nScript.complete();\n";
+  const WIDGET_OPTS = [["water", "💧 Сколько воды осталось выпить"], ["read", "📖 Сколько страниц осталось прочитать"], ["lesson", "🌍 Урок языка на сегодня"], ["habits", "✅ Полезные привычки"], ["bad", "🚭 Вредные привычки"], ["vits", "💊 Витамины"], ["count", "Счётчик «сделано 3 из 7»"]];
+  let WOPT = { water: true, read: true, lesson: true, habits: true, bad: true, vits: true, count: true, theme: "dark", title: "☀️ Мой день" };
+  try { Object.assign(WOPT, JSON.parse(localStorage.getItem("moy-den-widget") || "{}")); } catch (e) {}
   function widgetScript(){
-    return WIDGET_TPL.replace("%PROJECT%", String(CFG.projectId || "")).replace("%CODE%", pair ? pair.code : "").replace("%PID%", pair ? pair.pid : "").replace("%APP%", location.origin + location.pathname);
+    return WIDGET_TPL.replace("%PROJECT%", String(CFG.projectId || "")).replace("%CODE%", pair ? pair.code : "").replace("%PID%", pair ? pair.pid : "").replace("%APP%", location.origin + location.pathname).replace("%SHOW%", () => JSON.stringify(WOPT));
   }
   function renderWidget(){
     const box = $("widBox");
@@ -4267,11 +4303,32 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <li>На экране «Домой» зажми пустое место → <b>«Изменить» → «Добавить виджет»</b> → найди <b>Scriptable</b> → выбери средний размер → «Добавить виджет».</li>
         <li>Зажми новый виджет → <b>«Изменить виджет»</b> → в поле <b>Script</b> выбери «Мой день».</li>
       </ol>
+      <div class="widopts">
+        <b>Что показывать в виджете</b>
+        ${WIDGET_OPTS.map(([k, n]) => `<label><input type="checkbox" data-wopt="${k}" ${WOPT[k] ? "checked" : ""}> ${n}</label>`).join("")}
+        <div class="row"><label class="mhint" for="wTitle">Заголовок</label><input type="text" id="wTitle" maxlength="24" value="${esc(WOPT.title || "")}" style="flex:1 1 160px"></div>
+        <div class="seg" role="radiogroup" aria-label="Оформление виджета"><label><input type="radio" name="wtheme" value="dark" ${WOPT.theme !== "light" ? "checked" : ""}>Тёмный</label><label><input type="radio" name="wtheme" value="light" ${WOPT.theme === "light" ? "checked" : ""}>Светлый</label></div>
+        <span class="mhint">Скрипт ниже сразу меняется под выбор. Если поменяешь что-то потом, скопируй скрипт заново и замени его в Scriptable.</span>
+      </div>
       <button class="btn primary" type="button" id="widCopy">Скопировать скрипт</button>
       <textarea id="widText" readonly rows="6" style="font-family:var(--f-num);font-size:11px" aria-label="Текст скрипта для виджета">${esc(widgetScript())}</textarea>
       <p class="mhint">Виджет обновляет данные сам, примерно раз в полчаса (когда — решает iPhone). Свежие цифры появляются, когда ты что-то отмечаешь в приложении. Утром, пока ты ничего не отметил, виджет покажет весь список дел на день и полную норму воды. Нажатие на виджет открывает приложение.</p>
       <p class="mhint">🔒 Виджет показывает только итоги дня: воду, чтение, названия привычек и витаминов. Калории и финансы в него не попадают.</p>`;
   }
+  $("widBox").addEventListener("change", e => {
+    const k = e.target.dataset.wopt;
+    if (k) WOPT[k] = e.target.checked;
+    else if (e.target.name === "wtheme") WOPT.theme = e.target.value;
+    else return;
+    try { localStorage.setItem("moy-den-widget", JSON.stringify(WOPT)); } catch (er) {}
+    $("widText").value = widgetScript();
+  });
+  $("widBox").addEventListener("input", e => {
+    if (e.target.id !== "wTitle") return;
+    WOPT.title = e.target.value.slice(0, 24);
+    try { localStorage.setItem("moy-den-widget", JSON.stringify(WOPT)); } catch (er) {}
+    $("widText").value = widgetScript();
+  });
   $("widBox").addEventListener("click", async e => {
     if (e.target.id === "widOn"){
       startPair(newCode(), true);
@@ -4297,7 +4354,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.08-1";
+const APP_VERSION = "2026.11.08-2";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

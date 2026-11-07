@@ -26,7 +26,7 @@ M.weeks = [
     },
     read: {
       title: "Анна и Том",
-      text: "Hello! My name is Anna. I am from Russia. I am a student. My friend is Tom. He is from England. He is a teacher. Tom is very nice. We are good friends.",
+      text: "Hello! My name is Anna. I am from Russia. I am a student. My friend is Tom. He is from England. His city is Oxford. It is not big, but it is good. He is a teacher. Tom is very nice. We are good friends.",
       gloss: [["very", "очень"], ["nice", "приятный, милый"]],
       qs: [
         { q: "Откуда Анна?", a: ["Из России", "Из Англии", "Не сказано"], c: 0 },

@@ -1491,9 +1491,6 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 <script src="course-en.js"></script>
 <script src="course-az.js"></script>
 <script src="program-en.js"></script>
-<script src="program-en-m1.js"></script>
-<script src="program-en-m2.js"></script>
-<script src="program-en-m3.js"></script>
 <script src="foods-ru.js"></script>
 <script src="fin-lessons.js"></script>
 <script src="books-ru.js"></script>
@@ -2802,11 +2799,23 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   function pgMonth(m){ return PROG().months[m - 1]; }
   function pgReady(m){ const M = pgMonth(m); return !!(M && M.weeks && M.weeks.length && M.exam); }
   function pgPassed(st, m){ return (st.ex[m] || []).some(r => r.pass); }
+  // month files are loaded on demand: everything up to the current month plus the next one
+  const PG_FILES = {};
+  function pgLoad(m){
+    const P = PROG(); if (!P || m < 1 || m > P.months.length || PG_FILES[m]) return;
+    if (pgReady(m)){ PG_FILES[m] = "ok"; return; }
+    PG_FILES[m] = "loading";
+    const el = document.createElement("script"); el.src = "program-" + P.id + "-m" + m + ".js";
+    el.onload = () => { PG_FILES[m] = pgReady(m) ? "ok" : "missing"; pgTrN = -1; if (typeof render === "function") render(); };
+    el.onerror = () => { PG_FILES[m] = "missing"; el.remove(); if (typeof render === "function") render(); };
+    document.head.appendChild(el);
+  }
+  function pgEnsure(upto){ for (let i = 1; i <= upto + 1; i++) pgLoad(i); }
   function pgNext(st){
     const P = PROG();
     for (let m = 1; m <= P.months.length; m++){
       if (pgPassed(st, m)) continue;
-      if (!pgReady(m)) return { kind: "soon", m };
+      if (!pgReady(m)){ pgEnsure(m); return { kind: PG_FILES[m] === "missing" ? "soon" : "loading", m }; }
       const M = pgMonth(m);
       for (let w = 1; w <= M.weeks.length; w++) for (let d = 1; d <= 6; d++) if (!st.done[pgKey(m, w, d)]) return { kind: "day", m, w, d };
       return { kind: "exam", m };
@@ -3027,7 +3036,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       foot.innerHTML = `<button class="btn primary" type="button" data-ls="check" disabled>Проверить</button>`;
     },
     trans(q, body, foot){
-      body.innerHTML = `<span class="ls-kind">Переведи на английский</span><h2 class="ls-q" id="lsTitle">${esc(q.ru)}</h2><input type="text" id="lsInput" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" placeholder="Напиши предложение по-английски">`;
+      const gap = q.ru.includes("___");
+      body.innerHTML = `<span class="ls-kind">${gap ? "Впиши пропущенное" : "Переведи на английский"}</span><h2 class="ls-q" id="lsTitle">${esc(q.ru)}</h2><input type="text" id="lsInput" autocomplete="off" autocapitalize="${gap ? "off" : "sentences"}" autocorrect="off" spellcheck="false" placeholder="${gap ? "Только пропущенные слова" : "Напиши предложение по-английски"}">`;
       foot.innerHTML = `<button class="btn primary" type="button" data-ls="check">Проверить</button>`;
       setTimeout(() => { const i = $("lsInput"); if (i) i.focus(); }, 50);
     },
@@ -3079,6 +3089,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   function pgStartExam(m){
     const st = pgState(); const lock = pgExamLock(st, m);
+    const need = (() => { const P = PROG(), lv = P.levelExams[m]; if (!lv) return [m]; const out = []; for (let i = P.levels[lv].months[0]; i <= m; i++) out.push(i); return out; })();
+    if (need.some(i => !pgReady(i))){ need.forEach(pgLoad); toast("Загружаю материалы для экзамена, попробуй через пару секунд"); return; }
     if (lock){ toast("Пересдача будет доступна " + new Date(lock).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })); return; }
     L = { kind: "exam", pg: { m }, q: pgExamQs(m), i: 0, right: 0, asked: 0, fr: 0, ft: 0, srsRes: {}, secs: {}, plays: 0, start: Date.now(), retried: new Set(), state: "ask", pick: null, built: [] };
     $("lesson").hidden = false; document.body.style.overflow = "hidden"; showQ();
@@ -3186,6 +3198,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       today = `<span class="tl-day">Конец месяца ${nx.m}</span><div class="tl-what">📝 ${P.levelExams[nx.m] ? "Экзамен уровня " + P.levelExams[nx.m] : "Экзамен месяца"}</div>
         <div class="tl-sub">6 частей: слова, грамматика, чтение, аудирование, письмо, говорение. Чтобы сдать, нужно ${P.passTotal}% в сумме и не меньше ${P.passSection}% в каждой части. Около 40 минут.</div>
         ${lock ? `<div class="tl-sub">Пересдача будет доступна ${new Date(lock).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}. Пока повтори слабые темы.</div>` : `<button class="btn primary" type="button" data-pgexam="${nx.m}">Начать экзамен</button>`}`;
+    } else if (nx.kind === "loading"){
+      today = `<span class="tl-day">Месяц ${nx.m}: ${esc(M.title)}</span><div class="tl-what">⏳ Загружаю уроки месяца…</div><div class="tl-sub">Нужен интернет один раз: потом уроки будут работать и без сети.</div>`;
     } else if (nx.kind === "soon"){
       today = `<span class="tl-day">Месяц ${nx.m}: ${esc(M.title)}</span><div class="tl-what">🛠 Материалы месяца готовятся</div><div class="tl-sub">Пока повторяй слова: ${due ? "сегодня к повторению " + due + " " + plural(due, "слово", "слова", "слов") + "." : "на сегодня повторение пройдено."}</div>${due ? `<button class="btn primary" type="button" data-pgsrs="1">Повторить слова</button>` : ""}`;
     } else today = `<div class="tl-what">🎓 Программа пройдена</div><div class="tl-sub">Поддерживай уровень: повторяй слова, смотри фильмы, говори.</div>`;
@@ -3202,7 +3216,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       ${prac.length ? `<div class="pgprac"><b>Практика вне приложения на эту неделю</b>${prac.map((t, i) => `<label><input type="checkbox" data-pgprac="${i}" ${pdone[i] ? "checked" : ""}> ${esc(t)}</label>`).join("")}</div>` : ""}
       ${M && M.weeks ? `<details class="pgsec"><summary>🗓 План месяца ${nx.m}: ${esc(M.title)}</summary><div class="pgmon">${pgDayList(st, nx.m)}${pgExamRow(st, nx.m)}
         <div class="mhint">День 1 — слова, 2 — грамматика, 3 — слова и фразы, 4 — чтение, 5 — аудирование и говорение, 6 — слова, письмо и проверка недели. Седьмой день — отдых или практика вне приложения. Пройденный урок можно повторить.</div></div></details>` : ""}
-      <details class="pgsec"><summary>🧭 Вся программа: A0 → B2 за ${total} месяцев</summary><div class="pgall">
+      <details class="pgsec"><summary>🧭 Вся программа: A0 → ${Object.keys(P.levels).slice(-1)[0]} за ${total} месяцев</summary><div class="pgall">
         ${lvls.map(([name, Lv]) => `<div class="pglv"><div class="pglvh"><b>${name}</b><span class="mhint">месяцы ${Lv.months[0]}–${Lv.months[1]}</span>${lv && Object.keys(P.levels).indexOf(name) <= Object.keys(P.levels).indexOf(lv) ? `<span class="chip ok">✓ подтверждён</span>` : ""}</div>
           <div class="pgcan"><div>🎧 ${esc(Lv.can.listen)}</div><div>📖 ${esc(Lv.can.read)}</div><div>🗣 ${esc(Lv.can.speak)}</div><div>✍️ ${esc(Lv.can.write)}</div></div>
           ${P.months.filter(x => x.n >= Lv.months[0] && x.n <= Lv.months[1]).map(x => `<div class="pgm ${pgPassed(st, x.n) ? "ok" : x.n === nx.m ? "cur" : ""}"><div><b>${x.n}. ${esc(x.title)}</b>${pgPassed(st, x.n) ? ` <span class="chip ok">✓ ${Math.max(...(st.ex[x.n] || []).map(r => r.pct))}%</span>` : x.n === nx.m ? ` <span class="chip">сейчас</span>` : ""}${x.examTitle ? ` <span class="chip fire">${esc(x.examTitle)}</span>` : ""}</div><div class="mhint">Темы: ${x.topics.map(esc).join(", ")}</div><div class="mhint">Грамматика: ${x.grammar.map(esc).join("; ")}</div></div>`).join("")}</div>`).join("")}

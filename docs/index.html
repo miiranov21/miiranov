@@ -2849,7 +2849,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   let rqState = null;
   function bookRecs(a){
     const have = new Set(S.books.list.map(b => b.title.toLowerCase()));
-    return (window.MD_BOOKS || []).filter(b => !have.has(b[0].toLowerCase())).map(([title, author, pages, tagStr, desc]) => {
+    const nope = new Set(((S.settings.readQuiz && S.settings.readQuiz.nope) || []).map(t => t.toLowerCase()));
+    return (window.MD_BOOKS || []).filter(b => !have.has(b[0].toLowerCase()) && !nope.has(b[0].toLowerCase())).map(([title, author, pages, tagStr, desc]) => {
       const T = new Set(tagStr.split(" ")); let sc = 0; const why = [];
       const hit = (tags, pts) => { tags.forEach(t => { if (T.has(t)){ sc += pts; if (TAG_RU[t] && !why.includes(TAG_RU[t])) why.push(TAG_RU[t]); } }); };
       (a.why || []).forEach(w => {
@@ -2868,7 +2869,19 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       if (a.time === "rare" && pages > 450) sc -= 2;
       if (a.time === "daily" && pages > 450) sc += 1;
       return { title, author, pages, desc, sc, why: why.slice(0, 3) };
-    }).sort((x, y) => y.sc - x.sc || x.pages - y.pages).slice(0, 8);
+    }).sort((x, y) => y.sc - x.sc || x.pages - y.pages);
+  }
+  let rqShown = new Set(), rqPage = [];
+  function rqPick(a){
+    const all = bookRecs(a);
+    let left = all.filter(b => !rqShown.has(b.title));
+    if (left.length < 1 && all.length){ rqShown = new Set(); left = all; toast("Это все подходящие книги. Начинаем подборку сначала"); }
+    // keep cards that are still on screen and valid, fill the rest with the next best
+    const keep = rqPage.map(t => all.find(b => b.title === t)).filter(Boolean);
+    const fresh = left.filter(b => !keep.includes(b)).slice(0, Math.max(0, 8 - keep.length));
+    const page = keep.concat(fresh).slice(0, 8);
+    rqPage = page.map(b => b.title); page.forEach(b => rqShown.add(b.title));
+    return { page, total: all.length };
   }
   function rqRender(){
     const box = $("rqBody");
@@ -2886,18 +2899,21 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (!prof){ rqState = { step: 0, a: {} }; return rqRender(); }
     const a = prof.a, T = RQ_TYPES[a.type] || ["📚 Читатель", ""];
     const tags = [].concat((a.topics || []).map(t => RQ[1].o.find(o => o[0] === t)), (a.stories || []).filter(x => x !== "none").map(t => RQ[2].o.find(o => o[0] === t))).filter(Boolean).map(o => o[1]);
-    const recs = bookRecs(a);
+    const { page: recs, total } = rqPick(a);
     box.innerHTML = `<div class="portrait"><span class="mhint">Твой читательский портрет</span><div class="pt-type">${T[0]}</div><div>${T[1]}</div>
         ${tags.length ? `<div class="pt-tags">${tags.map(t => `<span class="chip">${t}</span>`).join("")}</div>` : ""}
         <div class="mhint">Настроение: ${{ light: "лёгкое", deep: "глубокое", tense: "напряжённое" }[a.mood] || "любое"} · объём: ${{ short: "тонкие книги", medium: "средние", long: "любой" }[a.size] || "любой"}</div></div>
       <h3 class="rep-h">📚 Тебе могут понравиться</h3>
       <div class="recs">${recs.length ? recs.map((b, i) => `<div class="rec1" data-ri="${i}"><div class="rt">${esc(b.title)}</div><div class="ra">${esc(b.author)} · ${b.pages} стр.</div><div class="rd">${esc(b.desc)}</div>${b.why.length ? `<div class="rw">Подходит: ${b.why.map(esc).join(", ")}</div>` : ""}
-        <div class="row"><button class="btn sm read" type="button" data-rqadd="${i}" data-mode="want">🔖 Хочу прочитать</button><button class="btn sm" type="button" data-rqadd="${i}" data-mode="now">📖 Читать сейчас</button></div></div>`).join("") : `<div class="empty">Похоже, все подходящие книги уже есть в твоей библиотеке. Пройди тест заново с другими ответами.</div>`}</div>
+        <div class="row"><button class="btn sm read" type="button" data-rqadd="${i}" data-mode="want">🔖 Хочу прочитать</button><button class="btn sm" type="button" data-rqadd="${i}" data-mode="now">📖 Читать сейчас</button></div>
+        <div class="row"><button class="btn sm ghost" type="button" data-rqadd="${i}" data-mode="done">✓ Уже читал</button><button class="btn sm ghost" type="button" data-rqnope="${i}">🚫 Не интересно</button></div></div>`).join("") : `<div class="empty">Похоже, все подходящие книги уже есть в твоей библиотеке или отмечены как неинтересные. Пройди тест заново с другими ответами.</div>`}</div>
+      ${total > 8 ? `<button class="btn read" type="button" data-rq="more">🔄 Обновить подборку</button>` : ""}
       <button class="btn" type="button" data-rq="again">Пройти тест заново</button>
+      ${((S.settings.readQuiz.nope) || []).length ? `<button class="btn sm ghost" type="button" data-rq="unnope">Вернуть книги из «Не интересно» (${S.settings.readQuiz.nope.length})</button>` : ""}
       <p class="mhint">Подборка из каталога известных книг. Книги, которые уже есть в твоей библиотеке, сюда не попадают. Сколько страниц — примерно, у изданий бывает по-разному: поправить можно в карточке книги.</p>`;
     box._recs = recs;
   }
-  function openRq(){ rqState = S.settings.readQuiz ? null : { step: 0, a: {} }; $("rq").hidden = false; document.body.style.overflow = "hidden"; rqRender(); }
+  function openRq(){ rqPage = []; rqState = S.settings.readQuiz ? null : { step: 0, a: {} }; $("rq").hidden = false; document.body.style.overflow = "hidden"; rqRender(); }
   $("rqOpen").onclick = openRq;
   $("rqClose").onclick = () => { $("rq").hidden = true; document.body.style.overflow = ""; rqState = null; };
   $("rqBody").addEventListener("click", e => {
@@ -2919,19 +2935,32 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const a = b.dataset.rq;
       if (a === "next"){ rqState.step++; finishIfDone(); }
       else if (a === "back"){ rqState.step = Math.max(0, rqState.step - 1); rqRender(); }
-      else if (a === "again"){ rqState = { step: 0, a: {} }; rqRender(); }
+      else if (a === "again"){ rqState = { step: 0, a: {} }; rqShown = new Set(); rqPage = []; rqRender(); }
+      else if (a === "more"){ rqPage = []; rqRender(); $("rqBody").scrollTop = 0; toast("Вот другие книги"); }
+      else if (a === "unnope"){ const st = clone(S.settings); st.readQuiz.nope = []; S.settings = st; persist("settings", st, 0); rqRender(); toast("Книги из «Не интересно» снова могут попадать в подборку"); }
       return;
     }
     const add = e.target.closest("[data-rqadd]");
     if (add){
       const r = $("rqBody")._recs[+add.dataset.rqadd]; if (!r) return;
-      const books = clone(S.books); const id = uid(), now = add.dataset.mode === "now";
-      books.list.push({ id, title: r.title, author: r.author, total: r.pages, read: 0, done: false, want: !now, added: todayKey() });
+      const books = clone(S.books); const id = uid(), mode = add.dataset.mode, now = mode === "now", done = mode === "done";
+      books.list.push({ id, title: r.title, author: r.author, total: r.pages, read: done ? r.pages : 0, done, want: mode === "want", added: todayKey() });
       if (now) books.current = id;
       S.books = books; persist("books", books, 0); render();
-      add.closest(".rec1").classList.add("added");
-      add.parentElement.innerHTML = `<span class="chip ok">${now ? "✓ Читаешь сейчас" : "✓ В «Хочу прочитать»"}</span>`;
-      toast(now ? "«" + r.title + "» — читаешь сейчас" : "«" + r.title + "» добавлена в «Хочу прочитать»");
+      const card = add.closest(".rec1"); card.classList.add("added");
+      card.querySelectorAll(".row").forEach(rw => rw.remove());
+      card.insertAdjacentHTML("beforeend", `<span class="chip ok">${now ? "✓ Читаешь сейчас" : done ? "✓ На полке прочитанных" : "✓ В «Хочу прочитать»"}</span>`);
+      toast(now ? "«" + r.title + "» — читаешь сейчас" : done ? "«" + r.title + "» отмечена прочитанной и больше не будет предлагаться" : "«" + r.title + "» добавлена в «Хочу прочитать»");
+      return;
+    }
+    const nope = e.target.closest("[data-rqnope]");
+    if (nope){
+      const r = $("rqBody")._recs[+nope.dataset.rqnope]; if (!r) return;
+      const st = clone(S.settings); st.readQuiz.nope = (st.readQuiz.nope || []).concat(r.title); S.settings = st; persist("settings", st, 0);
+      const card = nope.closest(".rec1"); card.classList.add("added");
+      card.querySelectorAll(".row").forEach(rw => rw.remove());
+      card.insertAdjacentHTML("beforeend", `<span class="chip">🚫 Больше не предложу</span>`);
+      toast("Понял, «" + r.title + "» больше не будет в подборке");
     }
   });
   function finishIfDone(){
@@ -4523,7 +4552,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.08-3";
+const APP_VERSION = "2026.11.08-4";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

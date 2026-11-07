@@ -41,7 +41,7 @@ function checkWrite(m, where, w, level, nTrans){
   if (!w.model || cyr.test(w.model)) E(m, where + ": write.model must be English");
   else {
     if (wc(w.model) < w.minWords * 0.8) W(m, where + ": model is shorter than 80% of minWords (" + wc(w.model) + "/" + w.minWords + ")");
-    const low = " " + w.model.toLowerCase().replace(/[^a-z' ]/g, " ") + " ";
+    const low = " " + w.model.toLowerCase().replace(/[^a-z' -]/g, " ") + " ";
     (w.use || []).forEach(u => { if (!low.includes(" " + u.toLowerCase() + " ") && !low.includes(" " + u.toLowerCase())) W(m, where + ": model does not use «" + u + "»"); });
   }
 }

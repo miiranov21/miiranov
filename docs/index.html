@@ -550,7 +550,9 @@ body:not([data-view="habits"]) [data-v="habits"],
 body:not([data-view="vit"]) [data-v="vit"],
 body:not([data-view="fin"]) [data-v="fin"],
 body:not([data-view="account"]) [data-v="account"],
-body:not([data-view="widget"]) [data-v="widget"]{display:none!important}
+body:not([data-view="widget"]) [data-v="widget"],
+body:not([data-view="ideas"]) [data-v="ideas"]{display:none!important}
+body[data-view="ideas"] .datenav,body[data-view="account"] .datenav,body[data-view="widget"] .datenav{display:none!important}
 .top{flex-wrap:nowrap;align-items:center}
 .top .brand{flex:1;min-width:0}
 .top .brand h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -595,6 +597,25 @@ body:not([data-view="widget"]) [data-v="widget"]{display:none!important}
 .widopts{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:12px;padding:12px}
 .widopts > label{display:flex;align-items:center;gap:10px;font-size:14px;padding:4px 0}
 .widopts input[type=checkbox]{width:19px;height:19px;accent-color:var(--accent)}
+.ideabox{display:flex;flex-direction:column;gap:12px}
+.ideaform{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:12px;padding:12px}
+.ideaform textarea{min-height:76px;resize:vertical}
+.ideaform .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ideaform select{flex:1 1 150px}
+.ideaform .seg{flex-wrap:wrap}
+.idealist{display:flex;flex-direction:column;gap:8px}
+.idea{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;background:var(--surface)}
+.idea.done{opacity:.6}
+.idea.done .itx{text-decoration:line-through}
+.idea .itx{font-size:14.5px;font-weight:600;overflow-wrap:anywhere;white-space:pre-wrap}
+.idea .ihd{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--ink-3)}
+.idea .ift{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.idea .ift .btn{padding:5px 10px;font-size:12.5px}
+.idea .ist{border:1px solid var(--line);cursor:pointer}
+.idea .ist.plan{background:var(--read-soft);color:var(--read)}
+.idea .ist.done{background:var(--habit);color:#fff;border-color:var(--habit)}
+.idea .ilk.on{border-color:var(--accent);color:var(--accent)}
+.ideafil{align-self:flex-start}
 .widsteps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px}
 
 .pageat{border:1px solid var(--read);background:var(--read-soft);border-radius:12px;padding:10px 12px}
@@ -1113,6 +1134,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div id="widBox" class="widbox"></div>
     </section>
 
+    <section class="panel span2" id="p-ideas" data-v="ideas" aria-labelledby="h-ideas">
+      <div class="panel-head"><h2 id="h-ideas"><span class="dot" style="background:var(--accent)"></span>Ваши идеи</h2><span class="meta" id="ideasMeta"></span></div>
+      <div id="ideaBox" class="ideabox"></div>
+    </section>
+
     <section class="panel span2" id="p-fin" data-v="fin" aria-labelledby="h-fin">
       <div class="panel-head">
         <h2 id="h-fin"><span class="dot" style="background:var(--fin)"></span>Финансы</h2>
@@ -1382,6 +1408,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <button type="button" data-dtool="settings"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg></span>Цели и норма</button>
     <button type="button" data-dview="widget"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><rect x="9" y="6" width="6" height="5" rx="1"/><path d="M11 18.5h2"/></svg></span>Виджет на экран</button>
     <button type="button" data-dview="account"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5"/></svg></span>Аккаунт</button>
+    <button type="button" data-dview="ideas"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17.5h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2v1.5h5V16c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/></svg></span>Ваши идеи</button>
     <button type="button" data-dtool="menu"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 17h6M18 7h2M14 17h6"/><circle cx="16" cy="7" r="2"/><circle cx="12" cy="17" r="2"/></svg></span>Настроить меню</button>
     <button type="button" data-dtool="update"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4.5v4.2h-4.2"/></svg></span>Обновить приложение</button>
   </div>
@@ -1532,7 +1559,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   function syncOn(){ return CLOUD && !!(AUTH || pair); }
   function dataCol(){ return AUTH ? "users/" + AUTH.uid + "/data" : "pairs/" + pair.code + "/data"; }
   function unitDocId(u){ return AUTH ? u : pair.pid + "_" + u; }
-  function unitFromId(id){ if (AUTH) return id === "profile" ? null : id; return id.startsWith(pair.pid + "_") ? id.slice(pair.pid.length + 1) : null; }
+  function unitFromId(id){ if (AUTH) return id === "profile" || id === "ideas" ? null : id; return id.startsWith(pair.pid + "_") ? id.slice(pair.pid.length + 1) : null; }
 
   function fsUrl(path, extra){
     const q = [];
@@ -1612,6 +1639,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   async function pollBoard(){
     if (!CLOUD || !pair || document.hidden) return;
+    if (document.body.dataset.view === "ideas" && typeof syncIdeas === "function") syncIdeas();
     try {
       const docs = await fsList("pairs/" + pair.code + "/players");
       boardDocs = docs.map(d => Object.assign({ id: d.id }, d.obj));
@@ -4246,7 +4274,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     ["lang", "🌍", "Язык", "Иностранный язык"], ["habits", "✅", "Привычки", "Привычки"], ["vit", "💊", "Витамины", "Витамины"],
     ["fin", "💰", "Финансы", "Финансы"]
   ];
-  const EXTRA_VIEWS = { account: "Аккаунт", widget: "Виджет" };
+  const EXTRA_VIEWS = { account: "Аккаунт", widget: "Виджет", ideas: "Ваши идеи" };
   const NAV_TO_VIEW = { summary: "home", "p-kcal": "food", "p-water": "food", "p-read": "read", "p-lang": "lang", "p-hab": "habits", "p-vit": "vit", "p-fin": "fin" };
   const VIEW_SEC = { food: "p-kcal", read: "p-read", lang: "p-lang", habits: "p-hab", vit: "p-vit", fin: "p-fin" };
   const navBtns = [...document.querySelectorAll("#bnav [data-go]")];
@@ -4264,6 +4292,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     // deferred: on first load these screens' code is defined further down the page
     if (v === "account") setTimeout(() => renderAccount(), 0);
     if (v === "widget") setTimeout(() => renderWidget(), 0);
+    if (v === "ideas") setTimeout(() => { renderIdeas(); syncIdeas(); }, 0);
   }
   navBtns.forEach(bt => bt.addEventListener("click", () => setView(NAV_TO_VIEW[bt.dataset.go] || "home")));
   function renderDrawer(){
@@ -4538,6 +4567,105 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
   });
 
+  // ---------- your ideas: wishes and bugs, shared inside the pair ----------
+  const IDEA_TYPES = [["idea", "💡", "Идея"], ["better", "✨", "Улучшить"], ["bug", "🐞", "Ошибка"]];
+  const IDEA_ST = { new: "Новая", plan: "В планах", done: "Сделано" };
+  let FB = { list: [] }, ideaFil = "open";
+  try { FB = Object.assign({ list: [] }, JSON.parse(localStorage.getItem("moy-den-ideas") || "{}")); } catch (e) {}
+  function ideaMe(){ return pair ? pair.pid : AUTH ? AUTH.uid : "me"; }
+  function ideasPath(){ if (!CLOUD) return null; if (pair) return "pairs/" + pair.code + "/data/ideas"; if (AUTH) return "users/" + AUTH.uid + "/data/ideas"; return null; }
+  function ideaSecs(){ return [["", "Всё приложение"]].concat(VIEWS.filter(v => v[0] !== "home").map(v => [v[0], v[2]]), [["report", "Отчёт"], ["pair", "Пара"], ["widget", "Виджет"]]); }
+  function mergeIdeas(a, b){
+    const m = new Map();
+    [...(a || []), ...(b || [])].forEach(x => { const o = m.get(x.id); if (!o || (x._u || 0) > (o._u || 0)) m.set(x.id, x); });
+    return [...m.values()];
+  }
+  function saveIdeasLocal(){ try { localStorage.setItem("moy-den-ideas", JSON.stringify(FB)); } catch (e) {} }
+  let ideaBusy = Promise.resolve();
+  function syncIdeas(){
+    const path = ideasPath(); if (!path) return ideaBusy;
+    ideaBusy = ideaBusy.then(async () => {
+      const r = await fetch(fsUrl(path), { headers: await fsHeaders(path) });
+      let remote = [];
+      if (r.ok){ const j = await r.json(); try { remote = JSON.parse(j.fields.json.stringValue).list || []; } catch (e) {} }
+      else if (r.status !== 404) throw new Error("HTTP " + r.status);
+      const merged = mergeIdeas(remote, FB.list);
+      const sig = l => JSON.stringify(l.map(x => x.id + ":" + (x._u || 0)).sort());
+      const changedLocal = sig(merged) !== sig(FB.list), changedRemote = sig(merged) !== sig(remote);
+      FB.list = merged; saveIdeasLocal();
+      if (changedRemote) await fsSet(path, { list: merged });
+      if (changedLocal && view === "ideas") renderIdeas();
+    }).catch(() => {});
+    return ideaBusy;
+  }
+  function touchIdea(x){ x._u = Date.now(); saveIdeasLocal(); renderIdeas(); syncIdeas(); }
+  function ideaDate(ms){ const d = new Date(ms); return d.getDate() + " " + MONTHS[d.getMonth()]; }
+  function renderIdeas(){
+    const box = $("ideaBox"); if (!box) return;
+    const me = ideaMe();
+    const live = FB.list.filter(x => !x.del);
+    const open = live.filter(x => x.st !== "done");
+    $("ideasMeta").textContent = live.length ? open.length + " открыто · " + (live.length - open.length) + " сделано" : "";
+    const shown = live.filter(x => ideaFil === "all" || (ideaFil === "done" ? x.st === "done" : x.st !== "done"))
+      .sort((a, b) => ((a.st === "done") - (b.st === "done")) || ((b.likes || []).length - (a.likes || []).length) || (b.at - a.at));
+    const secName = Object.fromEntries(ideaSecs());
+    const shared = pair ? "Идеи видите вы оба: ты и партнёр." : ideasPath() ? "Идеи сохраняются в твоём аккаунте." : "Идеи хранятся на этом телефоне. Подключи пару, и партнёр тоже сможет их писать.";
+    box.innerHTML = `<p class="mhint">Записывай сюда всё, что неудобно, чего не хватает или что сломалось. Так будет понятно, что улучшить в приложении дальше. ${shared}</p>
+      <form class="ideaform" id="ideaForm">
+        <textarea id="ideaText" maxlength="1000" placeholder="Например: хочу видеть воду на главном экране крупнее" aria-label="Текст идеи" required></textarea>
+        <div class="seg" role="radiogroup" aria-label="Тип">${IDEA_TYPES.map(([k, ic, n], i) => `<label><input type="radio" name="itype" value="${k}" ${i ? "" : "checked"}>${ic} ${n}</label>`).join("")}</div>
+        <div class="row"><select id="ideaSec" aria-label="Раздел">${ideaSecs().map(([k, n]) => `<option value="${k}">${n}</option>`).join("")}</select>
+        <button class="btn primary" type="submit">Добавить идею</button></div>
+      </form>
+      ${live.length ? `<div class="seg ideafil" role="radiogroup" aria-label="Показать">${[["open", "Открытые"], ["done", "Сделано"], ["all", "Все"]].map(([k, n]) => `<label><input type="radio" name="ifil" value="${k}" ${ideaFil === k ? "checked" : ""}>${n}</label>`).join("")}</div>` : ""}
+      <div class="idealist">${shown.length ? shown.map(x => {
+        const t = IDEA_TYPES.find(y => y[0] === x.type) || IDEA_TYPES[0];
+        const liked = (x.likes || []).includes(me);
+        return `<div class="idea ${x.st === "done" ? "done" : ""}" data-iid="${esc(x.id)}">
+          <div class="ihd"><span class="chip">${t[1]} ${t[2]}</span>${x.sec ? `<span class="chip">${esc(secName[x.sec] || x.sec)}</span>` : ""}<span>${esc(x.by || "")}${x.by ? " · " : ""}${ideaDate(x.at)}</span></div>
+          <div class="itx">${esc(x.t)}</div>
+          <div class="ift"><button type="button" class="chip ist ${x.st || "new"}" data-iact="st" title="Нажми, чтобы сменить статус">${IDEA_ST[x.st || "new"]}</button>
+            <button type="button" class="btn ghost ilk ${liked ? "on" : ""}" data-iact="like" aria-pressed="${liked}">👍 ${(x.likes || []).length || ""}</button>
+            ${x.byId === me ? `<button type="button" class="btn ghost" data-iact="del">Удалить</button>` : ""}</div>
+        </div>`;
+      }).join("") : `<div class="empty">${live.length ? "Здесь пока пусто." : "Идей пока нет. Напиши первую!"}</div>`}</div>
+      ${open.length ? `<button class="btn" type="button" id="ideaCopy">📋 Скопировать открытые идеи списком</button><span class="mhint">Удобно, чтобы отправить список тому, кто дорабатывает приложение.</span>` : ""}`;
+  }
+  $("ideaBox").addEventListener("submit", e => {
+    if (e.target.id !== "ideaForm") return;
+    e.preventDefault();
+    const t = $("ideaText").value.trim(); if (!t) return;
+    const type = (document.querySelector('[name="itype"]:checked') || {}).value || "idea";
+    FB.list.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t, type, sec: $("ideaSec").value, by: S.settings.nick || "", byId: ideaMe(), at: Date.now(), st: "new", likes: [], _u: Date.now() });
+    if (ideaFil === "done") ideaFil = "open";
+    saveIdeasLocal(); renderIdeas(); syncIdeas(); toast("Идея записана 💡");
+  });
+  $("ideaBox").addEventListener("change", e => { if (e.target.name === "ifil"){ ideaFil = e.target.value; renderIdeas(); } });
+  $("ideaBox").addEventListener("click", async e => {
+    if (e.target.id === "ideaCopy"){
+      const secName = Object.fromEntries(ideaSecs());
+      const list = FB.list.filter(x => !x.del && x.st !== "done").sort((a, b) => ((b.likes || []).length - (a.likes || []).length) || (a.at - b.at));
+      const txt = "Идеи для приложения «Мой день»:\n" + list.map((x, i) => {
+        const t = IDEA_TYPES.find(y => y[0] === x.type) || IDEA_TYPES[0];
+        return (i + 1) + ". [" + t[2] + (x.sec ? " · " + (secName[x.sec] || x.sec) : "") + (x.st === "plan" ? " · в планах" : "") + "] " + x.t + ((x.likes || []).length ? " (👍 " + x.likes.length + ")" : "") + (x.by ? " — " + x.by : "");
+      }).join("\n");
+      try { await navigator.clipboard.writeText(txt); toast("Список скопирован"); }
+      catch (er) {
+        let ta = $("ideaTxt");
+        if (!ta){ ta = document.createElement("textarea"); ta.id = "ideaTxt"; ta.readOnly = true; ta.rows = 6; ta.setAttribute("aria-label", "Список идей"); $("ideaBox").appendChild(ta); }
+        ta.value = txt; ta.focus(); ta.select(); toast("Выдели текст и нажми «Скопировать»");
+      }
+      return;
+    }
+    const b = e.target.closest("[data-iact]"); if (!b) return;
+    const x = FB.list.find(y => y.id === b.closest("[data-iid]").dataset.iid); if (!x) return;
+    const me = ideaMe();
+    if (b.dataset.iact === "st") x.st = { new: "plan", plan: "done", done: "new" }[x.st || "new"];
+    else if (b.dataset.iact === "like"){ x.likes = x.likes || []; x.likes = x.likes.includes(me) ? x.likes.filter(y => y !== me) : x.likes.concat(me); }
+    else if (b.dataset.iact === "del"){ if (b.dataset.sure !== "1"){ b.dataset.sure = "1"; b.textContent = "Точно удалить?"; return; } x.del = true; x.t = ""; }
+    touchIdea(x);
+  });
+
   // ---------- misc ----------
   let toastT;
   function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2200); }
@@ -4552,7 +4680,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.08-4";
+const APP_VERSION = "2026.11.08-5";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

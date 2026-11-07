@@ -485,6 +485,16 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .resetbox[open]{display:flex;flex-direction:column;gap:8px}
 .resetbox summary{font-weight:600;color:var(--ink-2)}
 
+.invbar .row{display:flex;gap:8px;flex-wrap:wrap}
+.roomadd{display:flex;gap:8px;align-items:center}
+.roomadd input{flex:1 1 auto;min-width:0}
+.roomadd .btn{flex:none}
+.roommore{border-top:1px solid var(--line);padding-top:8px}
+.roommore summary{cursor:pointer;font-weight:600;color:var(--ink-2)}
+.roommore > div{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.ptsel{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.ptsel .chip{border:1px solid var(--line);cursor:pointer}
+.ptsel .chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .updbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border:1px solid var(--accent);background:var(--surface);border-radius:var(--r);padding:10px 14px;font-weight:600}
 .appver{font-size:12px;color:var(--ink-3);text-align:center}
 
@@ -922,6 +932,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     </div>
   </header>
   <div id="viewBar" hidden></div><div id="viewChips" hidden></div><div id="viewNote" hidden></div>
+  <div class="updbar invbar" id="invBar" hidden></div>
   <div class="updbar" id="updBar" hidden><span>✨ Вышла новая версия приложения</span><button class="btn sm primary" type="button" id="updNow">Обновить сейчас</button></div>
 
   <div class="note" id="syncNote" hidden></div>
@@ -1281,11 +1292,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <p class="appver" id="appVer"></p>
     <details class="resetbox">
       <summary>Сбросить прогресс</summary>
-      <p class="mhint">Удаляется только твоё: у партнёра ничего не изменится. Отменить сброс нельзя.</p>
+      <p class="mhint">Удаляется только твоё: у других участников комнаты ничего не изменится. Отменить сброс нельзя.</p>
       <button class="btn" type="button" id="resetProgress">Начать с чистого листа</button>
-      <span class="mhint">Удалит все записи: еду, воду, страницы, отметки привычек и витаминов, книги, уроки языка, словарь, блюда и финансовые записи. Останутся цели, список привычек и витаминов, проценты конвертов и подключение к паре.</span>
+      <span class="mhint">Удалит все записи: еду, воду, страницы, отметки привычек и витаминов, книги, уроки языка, словарь, блюда и финансовые записи. Останутся цели, список привычек и витаминов, проценты конвертов и комната.</span>
       <button class="btn" type="button" id="resetAll" style="color:var(--warn);border-color:var(--warn)">Удалить вообще всё</button>
-      <span class="mhint">Как будто открыл приложение впервые: удалятся и настройки, и подключение к паре, и токен Т-Инвестиций.</span>
+      <span class="mhint">Как будто открыл приложение впервые: удалятся и настройки, и комната, и токен Т-Инвестиций.</span>
     </details>
     <div class="row" style="justify-content:flex-end">
       <button class="btn ghost" type="button" id="cancelSettings">Отмена</button>
@@ -1334,8 +1345,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <div class="repnav"><button type="button" id="repPrev" aria-label="Предыдущая неделя">‹</button><span id="repRange" class="num"></span><button type="button" id="repNext" aria-label="Следующая неделя">›</button></div>
     <div class="reptabs" role="tablist" aria-label="Чей отчёт">
       <button type="button" role="tab" data-rtab="me" aria-selected="true">Мой отчёт</button>
-      <button type="button" role="tab" data-rtab="pt" aria-selected="false" id="rtabPt">Отчёт партнёра</button>
-      <button type="button" role="tab" data-rtab="both" aria-selected="false">Совместный</button>
+      <button type="button" role="tab" data-rtab="pt" aria-selected="false" id="rtabPt">Участники</button>
+      <button type="button" role="tab" data-rtab="both" aria-selected="false">Комната</button>
     </div>
     <div id="repMe" class="reppane">
       <div class="repstats" id="repStats"></div>
@@ -1348,7 +1359,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div id="repPair"></div>
   <section class="panel vsin" aria-labelledby="h-vs" id="vsPanel">
     <div class="panel-head">
-      <h2 id="h-vs"><span class="dot" style="background:var(--accent)"></span>Прогресс пары</h2>
+      <h2 id="h-vs"><span class="dot" style="background:var(--accent)"></span>Комната</h2>
       <span class="meta" id="vsMeta"></span>
     </div>
     <div class="vs" id="vs"></div>
@@ -1415,6 +1426,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   <div class="dr-acc" id="drAcc"></div>
   <div class="dr-list" id="drList"></div>
   <div class="dr-list dr-tools">
+    <button type="button" data-dtool="room"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.3"/><path d="M2.8 19.5c0-3.4 2.8-5.6 6.2-5.6s6.2 2.2 6.2 5.6"/><circle cx="16.8" cy="9.5" r="2.6"/><path d="M16.2 14c3 .1 5 2 5 5"/></svg></span>Комната</button>
     <button type="button" data-dtool="report"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M3 20.5h18"/></svg></span>Отчёт за неделю</button>
     <button type="button" data-dtool="settings"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg></span>Цели и норма</button>
     <button type="button" data-dview="widget"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><rect x="9" y="6" width="6" height="5" rx="1"/><path d="M11 18.5h2"/></svg></span>Виджет на экран</button>
@@ -1596,6 +1608,13 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const r = await fetch(fsUrl(path), { method: "PATCH", headers: await fsHeaders(path, { "Content-Type": "application/json" }), body: JSON.stringify({ fields: { json: { stringValue: JSON.stringify(obj) } } }) });
     if (!r.ok) throw new Error("HTTP " + r.status);
   }
+  async function fsGetDoc(path){
+    const r = await fetch(fsUrl(path), { headers: await fsHeaders(path) });
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    try { return JSON.parse(j.fields.json.stringValue); } catch (e) { return null; }
+  }
   async function fsDelete(path){
     const r = await fetch(fsUrl(path), { method: "DELETE", headers: await fsHeaders(path) });
     if (!r.ok && r.status !== 404) throw new Error("HTTP " + r.status);
@@ -1648,8 +1667,84 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (cloudDirty.size){ clearTimeout(cloudT); cloudT = setTimeout(pushCloud, 500); }
     if (changed) render();
   }
+  // personal inbox: pairs/INBX<personal code>/data/{card, inv_<code of who invites>}
+  // "I" is never used in room codes, so an inbox id can never clash with a room
+  const inboxOf = c => "pairs/INBX" + c + "/data";
+  let invites = [], lastCard = "";
+  async function pollInbox(){
+    const c = myCode(); if (!CLOUD || !pair || !c) return;
+    const card = JSON.stringify({ nick: S.settings.nick || "", uc: c });
+    if (card !== lastCard){ try { await fsSet(inboxOf(c) + "/card", JSON.parse(card)); lastCard = card; } catch (e) {} }
+    try {
+      const docs = await fsList(inboxOf(c));
+      invites = [];
+      for (const d of docs){
+        if (!d.id.startsWith("inv_")) continue;
+        if (!d.obj || !d.obj.room || d.obj.room === pair.code){ fsDelete(inboxOf(c) + "/" + d.id).catch(() => {}); continue; }
+        invites.push(Object.assign({ id: d.id }, d.obj));
+      }
+    } catch (e) {}
+    renderInvites();
+  }
+  function renderInvites(){
+    const bar = $("invBar"), inv = invites[0];
+    if (!inv){ bar.hidden = true; bar.innerHTML = ""; return; }
+    bar.hidden = false;
+    bar.innerHTML = `<span>📨 <b>${esc(inv.by || "Кто-то")}</b> <span class="ucode">${fmtCode(inv.uc || "")}</span> зовёт тебя в комнату${inv.n > 1 ? " (там уже " + inv.n + " " + plural(inv.n, "человек", "человека", "человек") + ")" : ""}</span>
+      <div class="row"><button class="btn sm primary" type="button" data-inv="yes">Принять</button><button class="btn sm" type="button" data-inv="no">Отклонить</button></div>`;
+  }
+  $("invBar").addEventListener("click", async e => {
+    const b = e.target.closest("[data-inv]"); const inv = invites[0]; if (!b || !inv) return;
+    if (b.dataset.inv === "yes"){
+      const others = boardDocs.filter(d => d.id !== pair.pid && d.updated).length;
+      if (others && b.dataset.sure !== "1"){ b.dataset.sure = "1"; b.textContent = "Ты выйдешь из текущей комнаты. Точно?"; return; }
+      invites.shift(); renderInvites();
+      fsDelete(inboxOf(myCode()) + "/" + inv.id).catch(() => {});
+      await joinRoom(inv.room);
+      toast("Ты в комнате" + (inv.by ? " у " + inv.by : ""));
+    } else {
+      invites.shift(); renderInvites();
+      fsDelete(inboxOf(myCode()) + "/" + inv.id).catch(() => {});
+      toast("Приглашение отклонено");
+    }
+  });
+  // leave the old room (others stop seeing you there) and move into another one
+  async function leaveRoomCloud(old){
+    try { await fsDelete("pairs/" + old.code + "/players/" + old.pid); } catch (e) {}
+    if (!AUTH){
+      try { const docs = await fsList("pairs/" + old.code + "/data"); for (const d of docs) if (d.id.startsWith(old.pid + "_")) await fsDelete("pairs/" + old.code + "/data/" + d.id); } catch (e) {}
+    }
+  }
+  async function joinRoom(code){
+    const old = pair;
+    if (old && old.code === code) return;
+    const pid = AUTH ? AUTH.uid : (old ? old.pid : newPid());
+    savePair({ code, pid });
+    boardDocs = []; boardState = "loading"; lastSummary = "";
+    if (typeof FB !== "undefined") { /* ideas of the new room are merged on the next sync */ }
+    markAll(); scheduleSummary(); render(); renderBoard();
+    if (old) leaveRoomCloud(old);
+    await pollBoard();
+  }
+  async function addByCode(raw){
+    const c = normCode(raw);
+    if (c.length !== 8){ toast("Код — 8 символов, например #ABCD-EFGH"); return; }
+    if (c === myCode()){ toast("Это твой собственный код"); return; }
+    if (boardDocs.some(d => d.uc === c && d.id !== pair.pid)){ toast("Этот человек уже в комнате"); return; }
+    const btn = $("addGo"); if (btn){ btn.disabled = true; btn.textContent = "Ищу…"; }
+    try {
+      const card = await fsGetDoc(inboxOf(c) + "/card");
+      if (!card){ toast("Не нашёл " + fmtCode(c) + ". Проверь код или попроси человека открыть приложение"); return; }
+      const n = boardDocs.filter(d => d.updated).length || 1;
+      await fsSet(inboxOf(c) + "/inv_" + myCode(), { room: pair.code, by: S.settings.nick || "", uc: myCode(), n, at: Date.now() });
+      if ($("addCode")) $("addCode").value = "";
+      toast("Приглашение отправлено" + (card.nick ? ": " + card.nick : "") + ". Появится в комнате, когда примет");
+    } catch (e) { toast("Нет связи с облаком. Попробуй ещё раз"); }
+    finally { const b2 = $("addGo"); if (b2){ b2.disabled = false; b2.textContent = "Добавить"; } }
+  }
   async function pollBoard(){
     if (!CLOUD || !pair || document.hidden) return;
+    pollInbox();
     if (document.body.dataset.view === "ideas" && typeof syncIdeas === "function") syncIdeas();
     try {
       const docs = await fsList("pairs/" + pair.code + "/players");
@@ -1660,7 +1755,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   function setSync(st){
     if (!syncOn()) { $("sub").textContent = "Данные хранятся на этом телефоне"; return; }
-    $("sub").textContent = st === "offline" ? "Нет связи с облаком · записи сохранены на телефоне" : AUTH ? "Аккаунт: " + (AUTH.email || "") : "Синхронизировано с парой";
+    $("sub").textContent = st === "offline" ? "Нет связи с облаком · записи сохранены на телефоне" : AUTH ? "Аккаунт: " + (AUTH.email || "") : "Синхронизировано с облаком";
   }
   function savePair(p){
     if (p && AUTH) p.pid = AUTH.uid;
@@ -1713,10 +1808,10 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const nick = S.settings.nick || "";
     return `<div class="profcard">
       <div class="accme"><div class="accav">${esc((nick || "?")[0].toUpperCase())}</div><div><b>${esc(nick || "Без никнейма")}</b><div class="ucode">${fmtCode(myCode())}</div></div></div>
-      <label class="mhint" for="pNick">Никнейм — так тебя увидит партнёр в отчёте и в «Ваших идеях»</label>
+      <label class="mhint" for="pNick">Никнейм — так тебя увидят участники комнаты и в «Ваших идеях»</label>
       <div class="row"><input type="text" id="pNick" maxlength="24" autocomplete="nickname" value="${esc(nick)}" placeholder="Придумай никнейм"><button class="btn" type="button" data-prof="rnd" title="Придумать случайный">🎲</button><button class="btn primary" type="button" data-prof="save">Сохранить</button></div>
       <div class="codebox"><span class="mhint">Твой код</span><span class="num">${fmtCode(myCode())}</span><button class="btn sm" type="button" data-prof="copy">Скопировать</button></div>
-      <p class="mhint">Код у каждого свой и не меняется. Никнеймы могут совпасть, а по коду всегда понятно, кто есть кто. ${AUTH ? "Код привязан к аккаунту и одинаковый на всех телефонах." : "Войди в аккаунт, чтобы код был одинаковым на всех твоих телефонах."}</p>
+      <p class="mhint">Код у каждого свой и не меняется. Дай его тому, кто хочет добавить тебя в свою комнату. Никнеймы могут совпасть, а по коду всегда понятно, кто есть кто. ${AUTH ? "Код привязан к аккаунту и одинаковый на всех телефонах." : "Войди в аккаунт, чтобы код был одинаковым на всех твоих телефонах."}</p>
     </div>`;
   }
   function normCode(v){ return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
@@ -1725,11 +1820,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     store = localStore; localStore.load(); resolveStore(); loaded = true; migrateBad(); render();
     if (document.body.dataset.view === "account" && typeof renderAccount === "function") setTimeout(renderAccount, 0);
     setSync("ok");
+    if (CLOUD && !AUTH && !pair) autoRoom();
     if (!syncOn()) return;
-    if (AUTH && !pair){ try { await loadProfile(); } catch (e) {} }
+    if (AUTH && !pair){ try { await loadProfile(); } catch (e) {} if (!pair) autoRoom(); }
     try { await pullCloud(); migrateBad(); render(); } catch (e) { setSync("offline"); }
     pollBoard();
   }
+  // everyone gets their own room right away; other people join by invitation
+  function autoRoom(){ savePair({ code: newCode(), pid: AUTH ? AUTH.uid : newPid() }); boardState = "loading"; lastSummary = ""; markAll(); scheduleSummary(); }
   setInterval(pollBoard, 20000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden){ pollBoard(); if (syncOn()) pullCloud().catch(() => {}); } });
 
@@ -1808,14 +1906,12 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       $("vs").innerHTML = "";
       j.hidden = false;
       if (boardState === "choose"){
-        j.innerHTML = `<b>Кто ты в этой паре?</b> Если ты уже пользовался трекером на другом телефоне, выбери себя, и твои записи загрузятся сюда.
+        j.innerHTML = `<b>Кто ты в этой комнате?</b> Если ты уже пользовался трекером на другом телефоне, выбери себя, и твои записи загрузятся сюда.
           <div class="row">${chooseList.map(p => `<button class="btn" type="button" data-pickme="${esc(p.id)}">Я — ${esc(p.nick || "без имени")}</button>`).join("")}
           <button class="btn primary" type="button" data-pickme="new">Я новый участник</button></div>`;
       } else {
-        j.innerHTML = `<b>Смотрите прогресс друг друга.</b> Один из вас создаёт пару и отправляет код второму. Тогда здесь будет видно всё, чем каждый занимается: чтение, библиотека, вода, привычки, язык и вредные привычки. Калории и еда остаются личными.
-          <div class="row"><button class="btn primary" type="button" id="pairCreate">Создать пару</button><span style="color:var(--ink-3)">или</span>
-          <input type="text" id="pairCode" placeholder="Код пары: XXXX-XXXX-XXXX" maxlength="16" autocomplete="off" autocapitalize="characters" style="max-width:220px" aria-label="Код пары">
-          <button class="btn" type="button" id="pairJoin">Подключиться</button></div>`;
+        j.innerHTML = `<b>Комната ещё не создана.</b> В комнате видно, чем занимается каждый: чтение, библиотека, вода, привычки, язык. Калории и еда остаются личными.
+          <div class="row"><button class="btn primary" type="button" id="pairCreate">Создать комнату</button></div>`;
       }
       return;
     }
@@ -1856,16 +1952,25 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("h2h").innerHTML = "";
     pl_updated(players);
     j.hidden = false;
-    const codeLine = `<div class="row"><span>Код пары: <b class="num">${prettyCode(pair.code)}</b></span><button class="btn sm" type="button" id="pairCopy">Скопировать</button><button class="btn sm ghost" type="button" id="pairLeave">Отключить этот телефон</button></div>`;
+    $("vsMeta").textContent += " · " + players.length + " " + plural(players.length, "участник", "участника", "участников");
+    const addLine = `<b>Добавить в комнату</b>
+      <div class="roomadd"><input type="text" id="addCode" placeholder="Код человека: #XXXX-XXXX" maxlength="12" autocomplete="off" autocapitalize="characters" aria-label="Код человека"><button class="btn primary" type="button" id="addGo">Добавить</button></div>
+      <span class="mhint">Твой код: <b class="num">${fmtCode(myCode())}</b> <button class="btn sm ghost" type="button" id="myCodeCopy">Скопировать</button> — дай его тем, кто хочет добавить тебя. Добавлять может любой участник. Человек получит приглашение и сам решит, принять ли его.</span>
+      <details class="roommore"><summary>Ещё</summary><div>
+        <span class="mhint">Код комнаты: <b class="num">${prettyCode(pair.code)}</b> <button class="btn sm ghost" type="button" id="pairCopy">Скопировать</button>. Пригодится, чтобы зайти в комнату с другого телефона.</span>
+        <div class="roomadd"><input type="text" id="pairCode" placeholder="Код комнаты: XXXX-XXXX-XXXX" maxlength="16" autocomplete="off" autocapitalize="characters" aria-label="Код комнаты"><button class="btn" type="button" id="pairJoin">Войти</button></div>
+        <button class="btn" type="button" id="roomLeave" style="color:var(--warn);border-color:var(--warn);align-self:flex-start">Выйти из комнаты</button>
+        <span class="mhint">После выхода у тебя будет своя новая пустая комната, а другие перестанут видеть твой прогресс.</span>
+      </div></details>`;
     if (boardState === "error"){
-      j.innerHTML = `<b>Нет связи с облаком.</b> Записи сохраняются на телефоне и отправятся, когда связь появится.` + codeLine;
+      j.innerHTML = `<b>Нет связи с облаком.</b> Записи сохраняются на телефоне и отправятся, когда связь появится.` + addLine;
     } else if (players.length < 2){
-      j.innerHTML = `<b>Пока здесь только ты.</b> Отправь девушке код пары. Она открывает сайт, нажимает «Подключиться» в этом блоке и вводит код. Её карточка появится здесь.` + codeLine;
-    } else j.innerHTML = codeLine;
+      j.innerHTML = `<span>👋 Пока в комнате только ты. Добавь людей по их коду: он есть у каждого в меню ☰, вверху.</span>` + addLine;
+    } else j.innerHTML = addLine;
   }
   function pl_updated(players){
     const o = players.filter(p => !p.me && p.updated);
-    if (o.length) $("vsMeta").textContent += " · " + o.map(p => (p.nick || "партнёр") + ": обновлено " + ago(p.updated)).join(", ");
+    if (o.length) $("vsMeta").textContent += " · " + o.map(p => (p.nick || "участник") + ": обновлено " + ago(p.updated)).join(", ");
   }
   function ago(iso){
     const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
@@ -2750,8 +2855,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (partner.length){
       const sumP = (pl, f) => keys.reduce((a, k) => a + (((pl.days || {})[k] || {})[f] || 0), 0);
       const me = buildSummary();
-      const rows = [Object.assign({ label: S.settings.nick ? S.settings.nick + " (я)" : "Я" }, me)].concat(partner.map(x => Object.assign({ label: x.nick || "Партнёр" }, x)));
-      $("repPair").innerHTML = `<h3 class="rep-h">👫 Итоги недели вдвоём</h3><div class="h2h"><table><thead><tr><th></th><th>Страниц</th><th>Воды, л</th><th>Привычек</th><th>Язык, мин</th></tr></thead><tbody>` +
+      const rows = [Object.assign({ label: S.settings.nick ? S.settings.nick + " (я)" : "Я" }, me)].concat(partner.map(x => Object.assign({ label: (x.nick || "Участник") + (x.uc ? " " + fmtCode(x.uc) : "") }, x)));
+      $("repPair").innerHTML = `<h3 class="rep-h">👥 Итоги недели в комнате</h3><div class="h2h"><table><thead><tr><th></th><th>Страниц</th><th>Воды, л</th><th>Привычек</th><th>Язык, мин</th></tr></thead><tbody>` +
         rows.map(r => `<tr><td>${esc(r.label)}</td><td class="c">${sumP(r, "p")}</td><td class="c">${(sumP(r, "w") / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}</td><td class="c">${sumP(r, "h")} из ${sumP(r, "ht")}</td><td class="c">${sumP(r, "lm")}</td></tr>`).join("") +
         `</tbody></table></div>`;
     } else $("repPair").innerHTML = "";
@@ -2778,14 +2883,19 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (t === "both") renderBoard();
   }
   document.querySelector(".reptabs").addEventListener("click", e => { const b = e.target.closest("[data-rtab]"); if (b) setRepTab(b.dataset.rtab); });
-  function partnerDoc(){ return (typeof pair !== "undefined" && pair) ? boardDocs.find(x => x.id !== pair.pid && x.updated) : null; }
+  let ptSel = null;
+  function partnerList(){ return (typeof pair !== "undefined" && pair) ? boardDocs.filter(x => x.id !== pair.pid && x.updated) : []; }
+  function partnerDoc(){ const l = partnerList(); return l.find(x => x.id === ptSel) || l[0] || null; }
+  $("repPt").addEventListener("click", e => { const c = e.target.closest("[data-ptsel]"); if (c){ ptSel = c.dataset.ptsel; renderBoard(); } });
   function renderPartnerReport(keys, end){
     const box = $("repPt"), pd = partnerDoc();
-    $("rtabPt").textContent = pd && pd.nick ? "Отчёт: " + pd.nick : "Отчёт партнёра";
+    const plist = partnerList();
+    $("rtabPt").textContent = plist.length === 1 && pd.nick ? "Отчёт: " + pd.nick : "Участники";
     if (!pd){
-      box.innerHTML = `<div class="empty">Отчёт партнёра появится, когда вы подключитесь парой. Открой вкладку «Совместный»: там можно создать пару или ввести код.</div>`;
+      box.innerHTML = `<div class="empty">Здесь появятся отчёты других участников комнаты. Добавь людей по их коду во вкладке «Комната».</div>`;
       return;
     }
+    const selHtml = plist.length > 1 ? `<div class="ptsel">${plist.map(x => `<button type="button" class="chip ${x.id === pd.id ? "on" : ""}" data-ptsel="${esc(x.id)}">${esc(x.nick || "Участник")}</button>`).join("")}</div>` : "";
     const today = todayKey(), past = keys.filter(k => k <= today);
     const D = k => (pd.days || {})[k] || {};
     const sum = f => past.reduce((a, k) => a + (D(k)[f] || 0), 0);
@@ -2795,7 +2905,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const wD = daysWith("w"); const avgW = wD.length ? sum("w") / wD.length : 0;
     const hT = sum("ht"), hD = sum("h"), vN = sum("vn"), vT = sum("vt");
     const lessons = past.reduce((a, k) => a + ((D(k).ll || []).length), 0);
-    let html = `<div class="pthead"><b>${esc(pd.nick || "Партнёр")}${pd.uc ? ` <span class="ucode">${fmtCode(pd.uc)}</span>` : ""}</b><span class="mhint">обновлено ${ago(pd.updated)}</span></div><div class="repstats">
+    let html = selHtml + `<div class="pthead"><b>${esc(pd.nick || "Участник")}${pd.uc ? ` <span class="ucode">${fmtCode(pd.uc)}</span>` : ""}</b><span class="mhint">обновлено ${ago(pd.updated)}</span></div><div class="repstats">
       <div><span>📖 Прочитано</span><b>${sum("p")} стр.</b><small>цель выполнена ${goalDays("p", "pg")} из ${past.length} дн.</small></div>
       <div><span>💧 Вода в среднем</span><b>${L1(avgW)} л</b><small>цель выполнена ${goalDays("w", "wg")} из ${past.length} дн.</small></div>
       <div><span>✅ Привычки</span><b>${hT ? Math.round(hD / hT * 100) : 0}%</b><small>отмечено ${hD} из ${hT}</small></div>
@@ -2812,7 +2922,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       row("📖 стр.", "p", v => v) + row("💧 л", "w", v => L1(v)) + row("✅ привычки", "h", (v, d) => d.ht ? v + "/" + d.ht : "—") +
       row("🌍 мин", "lm", v => v) + (vN ? row("💊 витамины", "vt", (v, d) => d.vn ? v + "/" + d.vn : "—") : "") + `</tbody></table></div>`;
     if ((pd.shelf || []).length) html += `<div><h3 class="rep-h">📚 Последние прочитанные</h3><div class="mhint">${pd.shelf.slice(0, 8).map(b => "«" + esc(b.t) + "»" + (b.r ? " " + "★".repeat(b.r) : "")).join(" · ")}</div></div>`;
-    html += `<p class="mhint">Калории, еда, заметки и финансы партнёра не показываются: они личные.</p>`;
+    html += `<p class="mhint">Калории, еда, заметки и финансы участников не показываются: они личные.</p>`;
     box.innerHTML = html;
   }
 
@@ -3114,15 +3224,15 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (isNew){
       savePair({ code, pid: newPid() }); boardState = "loading"; renderBoard();
       lastSummary = ""; scheduleSummary(); markAll(); pollBoard();
-      toast("Пара создана. Отправь код девушке");
+      toast("Комната создана");
       return;
     }
     $("join").innerHTML = `<span>Проверяю код…</span>`;
     try {
-      if (AUTH){ savePair({ code, pid: AUTH.uid }); boardState = "loading"; renderBoard(); markAll(); lastSummary = ""; scheduleSummary(); pollBoard(); toast("Вы подключены к паре"); return; }
+      if (AUTH){ await joinRoom(code); toast("Ты в комнате"); return; }
       const docs = await fsList("pairs/" + code + "/players");
       chooseList = docs.map(d => Object.assign({ id: d.id }, d.obj));
-      if (!chooseList.length){ toast("По этому коду пока никого нет. Проверь код"); boardState = "nopair"; renderBoard(); return; }
+      if (!chooseList.length){ toast("В комнате с таким кодом никого нет. Проверь код"); boardState = "nopair"; renderBoard(); return; }
       pendingCode = code; boardState = "choose"; renderBoard();
     } catch (e) { toast("Не удалось связаться с облаком. Проверь интернет"); boardState = "nopair"; renderBoard(); }
   }
@@ -3139,6 +3249,12 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   $("join").addEventListener("click", async e => {
     const t = e.target.closest("button"); if (!t) return;
     if (t.id === "pairCreate") startPair(newCode(), true);
+    else if (t.id === "addGo") addByCode($("addCode").value);
+    else if (t.id === "myCodeCopy"){ const txt = fmtCode(myCode()); try { await navigator.clipboard.writeText(txt); toast("Код скопирован"); } catch (er) { toast("Твой код: " + txt); } }
+    else if (t.id === "roomLeave"){
+      if (t.dataset.confirm !== "1"){ t.dataset.confirm = "1"; t.textContent = "Точно выйти?"; return; }
+      await joinRoom(newCode()); toast("Ты вышел из комнаты. Теперь у тебя своя новая комната");
+    }
     else if (t.id === "pairJoin"){
       const code = normCode($("pairCode").value);
       if (code.length !== 12){ toast("В коде должно быть 12 символов"); return; }
@@ -3146,7 +3262,9 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
     else if (t.dataset.pickme){
       const me = t.dataset.pickme;
+      const old = pair;
       savePair({ code: pendingCode, pid: me === "new" ? newPid() : me });
+      if (old && old.code !== pendingCode) leaveRoomCloud(old);
       boardState = "loading"; renderBoard();
       if (me !== "new"){ try { await pullCloud(); toast("Твои записи загружены"); } catch (er) { toast("Не удалось загрузить записи"); } }
       else markAll();
@@ -3159,10 +3277,13 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     else if (t.id === "pairLeave"){
       if (t.dataset.confirm !== "1"){ t.dataset.confirm = "1"; t.textContent = "Точно отключить?"; t.style.color = "var(--warn)"; setTimeout(() => { if (t.isConnected){ t.dataset.confirm = ""; t.textContent = "Отключить этот телефон"; t.style.color = ""; } }, 3000); return; }
       savePair(null); boardDocs = []; boardState = "nopair"; setSync("ok"); render();
-      toast("Телефон отключён от пары. Записи остались на нём");
+      toast("Телефон отключён от комнаты. Записи остались на нём");
     }
   });
-  $("join").addEventListener("keydown", e => { if (e.target.id === "pairCode" && e.key === "Enter"){ e.preventDefault(); $("pairJoin").click(); } });
+  $("join").addEventListener("keydown", e => {
+    if (e.target.id === "pairCode" && e.key === "Enter"){ e.preventDefault(); $("pairJoin").click(); }
+    if (e.target.id === "addCode" && e.key === "Enter"){ e.preventDefault(); $("addGo").click(); }
+  });
 
   function saveNick(){ setNick($("nick").value); }
   $("nickSave").onclick = saveNick;
@@ -4360,6 +4481,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     closeDrawer();
     const a = t.dataset.dtool;
     if (a === "report") $("reportOpen").click();
+    else if (a === "room"){ $("reportOpen").click(); setRepTab("both"); }
     else if (a === "settings") $("openSettings").click();
     else if (a === "update") $("updBtn").click();
     else if (a === "menu") openMenuDlg();
@@ -4473,7 +4595,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
     if (AUTH){
       box.innerHTML = `<p class="mhint">👤 Вход: <b>${esc(AUTH.email || "")}</b></p>
-        <p class="mhint">✓ Записи сохраняются в аккаунт и появятся на любом телефоне после входа. ${pair ? "Пара подключена, код: <b class='num'>" + prettyCode(pair.code) + "</b>." : "Пара не подключена: это можно сделать в «Отчёте за неделю» → «Совместный»."}</p>
+        <p class="mhint">✓ Записи сохраняются в аккаунт и появятся на любом телефоне после входа. ${pair ? "Твоя комната подключена: людей можно добавлять по их коду в меню ☰ → «Комната»." : ""}</p>
         <p class="mhint">💰 Финансы и токен Т-Инвестиций по-прежнему хранятся только на этом телефоне и в аккаунт не попадают.</p>
         <div class="row"><button class="btn" type="button" data-acc="reset">Сменить пароль</button><button class="btn" type="button" data-acc="logout" style="color:var(--warn);border-color:var(--warn)">Выйти из аккаунта</button></div>
         <p class="mhint">При выходе записи удалятся с этого телефона (в аккаунте они останутся). Удобно, если телефоном пользуется кто-то ещё.</p>`;
@@ -4529,8 +4651,22 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
   }
   async function afterLogin(isNew){
-    if (pair){ const old = pair.pid; if (old && old !== AUTH.uid){ fsDelete("pairs/" + pair.code + "/players/" + old).catch(() => {}); } savePair({ code: pair.code, pid: AUTH.uid }); }
-    else { try { await loadProfile(); } catch (e) {} }
+    // an account that already has a room goes back to it, unless this phone's room already has other people
+    let prof = null;
+    if (!isNew){ try { prof = await fsGetDoc("users/" + AUTH.uid + "/data/profile"); } catch (e) {} }
+    if (prof && prof.nick && !S.settings.nick){ const st = clone(S.settings); st.nick = prof.nick; S.settings = st; localStore.save("settings", st); }
+    const profRoom = prof && prof.pair;
+    if (pair){
+      const old = pair, others = boardDocs.filter(d => d.id !== old.pid && d.updated).length;
+      if (profRoom && profRoom !== old.code && !others){
+        fsDelete("pairs/" + old.code + "/players/" + old.pid).catch(() => {});
+        savePair({ code: profRoom, pid: AUTH.uid }); boardDocs = []; boardState = "loading"; lastSummary = "";
+      } else {
+        if (old.pid && old.pid !== AUTH.uid) fsDelete("pairs/" + old.code + "/players/" + old.pid).catch(() => {});
+        savePair({ code: old.code, pid: AUTH.uid });
+      }
+    } else if (profRoom){ savePair({ code: profRoom, pid: AUTH.uid }); boardState = "loading"; }
+    else autoRoom();
     if (isNew){ markAll(); fsSet("users/" + AUTH.uid + "/data/profile", { pair: pair ? pair.code : null, nick: S.settings.nick || "" }).catch(() => {}); }
     try { await pullCloud(); } catch (e) {}
     lastSummary = ""; scheduleSummary(); pollBoard(); setSync("ok"); render(); renderAccount(); renderDrawerAcc();
@@ -4636,7 +4772,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   try { FB = Object.assign({ list: [] }, JSON.parse(localStorage.getItem("moy-den-ideas") || "{}")); } catch (e) {}
   function ideaMe(){ return pair ? pair.pid : AUTH ? AUTH.uid : "me"; }
   function ideasPath(){ if (!CLOUD) return null; if (pair) return "pairs/" + pair.code + "/data/ideas"; if (AUTH) return "users/" + AUTH.uid + "/data/ideas"; return null; }
-  function ideaSecs(){ return [["", "Всё приложение"]].concat(VIEWS.filter(v => v[0] !== "home").map(v => [v[0], v[2]]), [["report", "Отчёт"], ["pair", "Пара"], ["widget", "Виджет"]]); }
+  function ideaSecs(){ return [["", "Всё приложение"]].concat(VIEWS.filter(v => v[0] !== "home").map(v => [v[0], v[2]]), [["report", "Отчёт"], ["pair", "Комната"], ["widget", "Виджет"]]); }
   function mergeIdeas(a, b){
     const m = new Map();
     [...(a || []), ...(b || [])].forEach(x => { const o = m.get(x.id); if (!o || (x._u || 0) > (o._u || 0)) m.set(x.id, x); });
@@ -4671,7 +4807,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const shown = live.filter(x => ideaFil === "all" || (ideaFil === "done" ? x.st === "done" : x.st !== "done"))
       .sort((a, b) => ((a.st === "done") - (b.st === "done")) || ((b.likes || []).length - (a.likes || []).length) || (b.at - a.at));
     const secName = Object.fromEntries(ideaSecs());
-    const shared = pair ? "Идеи видите вы оба: ты и партнёр." : ideasPath() ? "Идеи сохраняются в твоём аккаунте." : "Идеи хранятся на этом телефоне. Подключи пару, и партнёр тоже сможет их писать.";
+    const shared = pair ? "Идеи видят и пишут все участники твоей комнаты." : ideasPath() ? "Идеи сохраняются в твоём аккаунте." : "Идеи хранятся на этом телефоне.";
     box.innerHTML = `<p class="mhint">Записывай сюда всё, что неудобно, чего не хватает или что сломалось. Так будет понятно, что улучшить в приложении дальше. ${shared}</p>
       <form class="ideaform" id="ideaForm">
         <textarea id="ideaText" maxlength="1000" placeholder="Например: хочу видеть воду на главном экране крупнее" aria-label="Текст идеи" required></textarea>
@@ -4742,7 +4878,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.08-6";
+const APP_VERSION = "2026.11.08-7";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

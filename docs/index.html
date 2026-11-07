@@ -544,6 +544,7 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 body:not([data-view="home"]) [data-v="home"],
 body:not([data-view="food"]) [data-v="food"],
 body:not([data-view="water"]) [data-v="water"],
+body:not([data-view="read"]) [data-v="read"],
 body:not([data-view="lang"]) [data-v="lang"],
 body:not([data-view="habits"]) [data-v="habits"],
 body:not([data-view="vit"]) [data-v="vit"],
@@ -591,6 +592,17 @@ body:not([data-view="widget"]) [data-v="widget"]{display:none!important}
 .accform .terr,.accbox .terr{color:var(--warn);font-size:13px}
 .widsteps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px}
 
+.pageat{border:1px solid var(--read);background:var(--read-soft);border-radius:12px;padding:10px 12px}
+.notesbox{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:14px;padding:12px}
+.noteform{display:flex;flex-direction:column;gap:8px}
+.notes{display:flex;flex-direction:column;gap:8px}
+.note1{border-left:3px solid var(--read);background:var(--surface-2);border-radius:0 10px 10px 0;padding:8px 10px;display:flex;flex-direction:column;gap:4px}
+.note1 .nt{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}
+.note1 .nm{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--ink-3)}
+.note1 .x{width:26px;height:26px;font-size:17px;border:0;background:transparent;color:var(--ink-3);border-radius:8px;flex:none}
+.note1 .x:hover{background:var(--surface);color:var(--warn)}
+.sheet .snotes{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto}
+
 /* Section filter */
 .viewbar{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .vb-top{display:flex;flex-direction:column;gap:2px}
@@ -602,6 +614,7 @@ body:not([data-view="widget"]) [data-v="widget"]{display:none!important}
 body.hide-vsPanel #vsPanel, body.hide-vsPanel [data-go="vsPanel"],
 body.hide-p-kcal #p-kcal, body.hide-p-kcal #profileCta, body.hide-p-kcal [data-go="p-kcal"], body.hide-p-kcal [data-sec="p-kcal"],
 body.hide-p-water #p-water, body.hide-p-water [data-go="p-water"], body.hide-p-water [data-sec="p-water"],
+body.hide-p-read #p-read, body.hide-p-read [data-go="p-read"], body.hide-p-read [data-sec="p-read"],
 body.hide-p-lang #p-lang, body.hide-p-lang [data-go="p-lang"],
 body.hide-p-hab #p-hab, body.hide-p-hab [data-go="p-hab"], body.hide-p-hab [data-sec="p-hab"],
 body.hide-p-cal #p-cal,
@@ -879,7 +892,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <button class="btn primary" type="submit">Добавить</button>
       </form>
       <button class="libbtn" type="button" id="dishOpen"><span style="font-size:24px" aria-hidden="true">🍲</span><span><b>Домашнее блюдо</b><small>посчитать КБЖУ по продуктам: мамин борщ, плов, запеканка</small></span><span aria-hidden="true">›</span></button>
-      <div class="field" id="recentWrap" hidden><label>Быстро добавить ещё раз</label><div class="recent" id="recent"></div></div>
+      <div id="recentWrap" hidden><div id="recent"></div></div>
     </section>
 
     <section class="panel" id="p-water" data-v="water" aria-labelledby="h-water">
@@ -898,12 +911,24 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <span class="mhint" id="waterHint">Число до 10 считается в литрах, больше — в миллилитрах.</span>
       </form>
 
-      <div class="panel-head" style="margin-top:6px">
+    </section>
+
+    <section class="panel" id="p-read" data-v="read" aria-labelledby="h-read">
+      <div class="panel-head">
         <h2 id="h-read"><span class="dot" style="background:var(--read)"></span>Чтение</h2>
         <span class="meta num" id="readMeta"></span>
       </div>
+      <div class="pbar" aria-hidden="true"><i id="readBar" style="background:var(--read)"></i></div>
+      <form class="manual pageat" id="pageAtForm" autocomplete="off" hidden>
+        <label for="pageAt" id="pageAtLabel">На какой ты странице</label>
+        <div class="row">
+          <input type="number" id="pageAt" min="1" max="20000" inputmode="numeric" placeholder="номер страницы">
+          <button class="btn read" type="submit">Записать</button>
+        </div>
+        <span class="mhint" id="pageAtHint"></span>
+      </form>
       <form class="manual" id="pagesForm" autocomplete="off">
-        <label for="pagesCustom">Сколько прочитал</label>
+        <label for="pagesCustom" id="pagesLabel">Или сколько страниц прочитал</label>
         <div class="row">
           <input type="number" id="pagesCustom" placeholder="страниц" min="1" max="2000" inputmode="numeric">
           <button class="btn read" type="submit" id="pagesAdd">Добавить</button>
@@ -911,6 +936,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         </div>
       </form>
       <div class="books" id="books"></div>
+      <div class="notesbox" id="notesBox" hidden>
+        <h3 class="finh">📝 Мои заметки <span id="notesMeta"></span></h3>
+        <form class="noteform" id="noteForm" autocomplete="off">
+          <textarea id="noteText" maxlength="1000" rows="3" placeholder="Ключевая мысль, цитата или вывод из прочитанного"></textarea>
+          <div class="row"><label class="mhint" for="notePage">стр.</label><input type="number" id="notePage" min="1" max="20000" inputmode="numeric" style="width:90px"><button class="btn read" type="submit">Сохранить заметку</button></div>
+        </form>
+        <div class="notes" id="notesList"></div>
+      </div>
       <button class="libbtn" type="button" id="libOpen"><span class="libbtn-spines" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span><b>📚 Моя библиотека</b><small id="libCount"></small></span><span aria-hidden="true">›</span></button>
       <details id="bookDetails">
         <summary>+ Добавить книгу</summary>
@@ -1192,6 +1225,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <button type="button" data-go="summary"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg></span><span class="tx">День</span></button>
     <button type="button" data-go="p-kcal"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 7.5c-1.4-1.5-3.9-1.9-5.6-.6-2.4 1.9-2.1 6.1-.4 9.2 1.3 2.4 3 4.7 4.6 4.2.6-.2.9-.4 1.4-.4s.8.2 1.4.4c1.6.5 3.3-1.8 4.6-4.2 1.7-3.1 2-7.3-.4-9.2-1.7-1.3-4.2-.9-5.6.6z"/><path d="M12 7.5c0-2 .9-3.4 2.8-4"/></svg></span><span class="tx">Еда</span></button>
     <button type="button" data-go="p-water"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3.5s6 6.4 6 10.7a6 6 0 0 1-12 0C6 9.9 12 3.5 12 3.5z"/><path d="M9.2 14.6a2.9 2.9 0 0 0 2.6 2.6"/></svg></span><span class="tx">Вода</span></button>
+    <button type="button" data-go="p-read"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 6.5c-1.8-1.3-4.3-2-7.5-2v13c3.2 0 5.7.7 7.5 2 1.8-1.3 4.3-2 7.5-2v-13c-3.2 0-5.7.7-7.5 2z"/><path d="M12 6.5v13"/></svg></span><span class="tx">Чтение</span></button>
     <button type="button" data-go="p-lang"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.3 2.5 3.5 5.3 3.5 8.5s-1.2 6-3.5 8.5c-2.3-2.5-3.5-5.3-3.5-8.5s1.2-6 3.5-8.5z"/></svg></span><span class="tx">Язык</span></button>
     <button type="button" data-go="p-hab"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.2 12.4 2.6 2.6 5-5.4"/></svg></span><span class="tx">Привычки</span></button>
     <button type="button" data-go="p-vit"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.2" y="8.6" width="17.6" height="6.8" rx="3.4" transform="rotate(-40 12 12)"/><path d="m9.3 9.4 5.3 5.2"/></svg></span><span class="tx">Витамины</span></button>
@@ -1807,7 +1841,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div class="ring-card" data-sec="p-water"><div class="ring">${ring(d.water / g.water, "var(--water)")}<span class="pct">${Math.round(d.water / g.water * 100)}%</span></div>
         <div><div class="lbl">Вода</div><div class="val">${(d.water / 1000).toFixed(2).replace(".", ",")} <small>/ ${(g.water / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} л</small></div>
         <div class="hint">${t.waterOk ? "цель выполнена" : "ещё " + Math.ceil((g.water - d.water) / g.glass) + " " + plural(Math.ceil((g.water - d.water) / g.glass), "стакан", "стакана", "стаканов")}</div></div></div>
-      <div class="ring-card" data-sec="p-water"><div class="ring">${ring(d.pages / g.pages, "var(--read)")}<span class="pct">${Math.round(d.pages / g.pages * 100)}%</span></div>
+      <div class="ring-card" data-sec="p-read"><div class="ring">${ring(d.pages / g.pages, "var(--read)")}<span class="pct">${Math.round(d.pages / g.pages * 100)}%</span></div>
         <div><div class="lbl">Чтение</div><div class="val">${d.pages} <small>/ ${g.pages} стр.</small></div>
         <div class="hint">${t.readOk ? "цель выполнена" : "ещё " + (g.pages - d.pages) + " стр."}</div></div></div>
       <div class="ring-card" data-sec="p-hab"><div class="ring">${ring(t.habitsTotal ? t.habitsDone / t.habitsTotal : 0, "var(--habit)")}<span class="pct">${t.habitsDone}/${t.habitsTotal}</span></div>
@@ -1892,6 +1926,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     renderCal();
     renderIdeas();
     renderVits();
+    renderReadExtras();
     if (typeof renderToday === "function") renderToday();
     renderFin();
     renderBoard();
@@ -2666,6 +2701,62 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       S.books = books; persist("books", books); render();
     }
   }
+
+  // ---------- reading: "I'm on page N" and notes ----------
+  function curBook(){ return S.books.list.find(x => x.id === S.books.current && !x.done && !x.want) || null; }
+  function renderReadExtras(){
+    const b = curBook(), d = day(cur), g = goals();
+    $("readBar").style.width = Math.min(100, d.pages / g.pages * 100) + "%";
+    $("pageAtForm").hidden = !b;
+    $("pagesLabel").textContent = b ? "Или сколько страниц прочитал" : "Сколько страниц прочитал";
+    if (b){
+      $("pageAtLabel").textContent = `На какой ты странице в «${b.title}»`;
+      $("pageAtHint").textContent = `Сбился со счёта? Просто впиши номер страницы, на которой остановился. Сейчас записано: стр. ${b.read} из ${b.total}.`;
+      if (document.activeElement !== $("pageAt")) $("pageAt").placeholder = "например " + Math.min(b.total, b.read + 15);
+    }
+    $("notesBox").hidden = !b;
+    if (b){
+      const notes = (b.notes || []).slice().reverse();
+      $("notesMeta").textContent = "· «" + b.title + "»" + (notes.length ? " · " + notes.length : "");
+      if (document.activeElement !== $("notePage") && !$("notePage").value) $("notePage").placeholder = String(b.read || 1);
+      $("notesList").innerHTML = notes.length ? notes.map(n => noteHtml(n, b.id)).join("") : `<div class="empty">Записывай ключевые мысли и цитаты, пока читаешь. Заметки сохраняются у книги и потом видны в библиотеке.</div>`;
+    }
+  }
+  function noteHtml(n, bid){
+    const dt = n.d ? parseKey(n.d) : null;
+    return `<div class="note1"><div class="nt">${esc(n.t)}</div><div class="nm"><span>${n.p ? "стр. " + n.p + " · " : ""}${dt ? dt.getDate() + " " + MONTHS[dt.getMonth()] : ""}</span><button class="x" type="button" data-ndel="${n.id}" data-nbook="${bid}" aria-label="Удалить заметку">×</button></div></div>`;
+  }
+  $("pageAtForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const b = curBook(); if (!b) return;
+    const n = parseInt($("pageAt").value, 10);
+    if (!(n >= 0)){ toast("Впиши номер страницы"); return; }
+    if (n > b.total){ toast(`В книге всего ${b.total} стр. Проверь номер`); return; }
+    const delta = n - b.read;
+    if (delta > 0){ addPages(delta); toast(`+${delta} стр. Ты на странице ${n}`); }
+    else if (delta < 0){
+      const books = clone(S.books), bb = books.list.find(x => x.id === b.id); bb.read = n;
+      S.books = books; persist("books", books, 0); render(); toast(`Закладка перенесена на стр. ${n}. Прочитанные за день страницы не изменились`);
+    } else toast("Ты уже на этой странице");
+    $("pageAt").value = "";
+  });
+  $("noteForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const b = curBook(); if (!b) return;
+    const t = $("noteText").value.trim(); if (!t){ toast("Напиши заметку"); return; }
+    const pg = parseInt($("notePage").value, 10);
+    const books = clone(S.books), bb = books.list.find(x => x.id === b.id);
+    bb.notes = bb.notes || []; bb.notes.push({ id: uid(), t: t.slice(0, 1000), p: pg > 0 ? pg : (bb.read || null), d: todayKey() });
+    S.books = books; persist("books", books, 0);
+    $("noteText").value = ""; $("notePage").value = ""; render(); toast("Заметка сохранена");
+  });
+  document.addEventListener("click", e => {
+    const x = e.target.closest("[data-ndel]"); if (!x) return;
+    if (x.dataset.confirm !== "1"){ x.dataset.confirm = "1"; x.textContent = "?"; x.style.color = "var(--warn)"; setTimeout(() => { if (x.isConnected){ x.dataset.confirm = ""; x.textContent = "×"; x.style.color = ""; } }, 3000); return; }
+    const books = clone(S.books), bb = books.list.find(b => b.id === x.dataset.nbook); if (!bb) return;
+    bb.notes = (bb.notes || []).filter(n => n.id !== x.dataset.ndel);
+    S.books = books; persist("books", books, 0); render(); if (!$("libSheet").hidden && $("libSheet").dataset.id === bb.id) openSheet(bb.id);
+  });
 
   $("prev").onclick = () => { cur = shift(cur, -1); render(); };
   $("next").onclick = () => { if (cur < todayKey()){ cur = shift(cur, 1); render(); } };
@@ -3785,6 +3876,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const sh = $("libSheet");
     sh.innerHTML = `<div class="st-t">${esc(b.title)}</div>${b.author ? `<div class="st-a">${esc(b.author)}</div>` : ""}
       <div class="st-m">${b.total} стр. · ${status}${b.added ? " · добавлена " + fmtDate(b.added) : ""}</div>
+      ${(b.notes || []).length ? `<div class="mhint">📝 Мои заметки (${b.notes.length})</div><div class="snotes">${b.notes.slice().reverse().map(n => noteHtml(n, b.id)).join("")}</div>` : ""}
       ${b.done ? `<div class="stars" role="group" aria-label="Оценка">${[1,2,3,4,5].map(n => `<button type="button" class="${(b.rating || 0) >= n ? "on" : ""}" data-rate="${n}" aria-label="${n} из 5">★</button>`).join("")}</div>` : ""}
       <div class="row">
         ${b.done ? "" : `<button class="btn sm" type="button" data-bact="done">✓ Прочитана</button>`}
@@ -3930,13 +4022,13 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 
   // ---------- screens and menu ----------
   const VIEWS = [
-    ["home", "🏠", "Главная", "Мой день"], ["food", "🍎", "Питание", "Питание"], ["water", "💧", "Вода и чтение", "Вода и чтение"],
+    ["home", "🏠", "Главная", "Мой день"], ["food", "🍎", "Питание", "Питание"], ["water", "💧", "Вода", "Вода"], ["read", "📖", "Чтение", "Чтение"],
     ["lang", "🌍", "Язык", "Иностранный язык"], ["habits", "✅", "Привычки", "Привычки"], ["vit", "💊", "Витамины", "Витамины"],
     ["fin", "💰", "Финансы", "Финансы"]
   ];
   const EXTRA_VIEWS = { account: "Аккаунт", widget: "Виджет" };
-  const NAV_TO_VIEW = { summary: "home", "p-kcal": "food", "p-water": "water", "p-lang": "lang", "p-hab": "habits", "p-vit": "vit", "p-fin": "fin" };
-  const VIEW_SEC = { food: "p-kcal", water: "p-water", lang: "p-lang", habits: "p-hab", vit: "p-vit", fin: "p-fin" };
+  const NAV_TO_VIEW = { summary: "home", "p-kcal": "food", "p-water": "water", "p-read": "read", "p-lang": "lang", "p-hab": "habits", "p-vit": "vit", "p-fin": "fin" };
+  const VIEW_SEC = { food: "p-kcal", water: "p-water", read: "p-read", lang: "p-lang", habits: "p-hab", vit: "p-vit", fin: "p-fin" };
   const navBtns = [...document.querySelectorAll("#bnav [data-go]")];
   let view = "home";
   function setView(v, opts){
@@ -3974,7 +4066,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   });
   window.addEventListener("hashchange", () => setView((location.hash || "").slice(1) || "home", { noHash: true }));
   // tapping a ring on the home screen opens its section
-  $("summary").addEventListener("click", e => { const c = e.target.closest("[data-sec]"); if (c){ const v = { "p-kcal": "food", "p-water": "water", "p-hab": "habits" }[c.dataset.sec]; if (v) setView(v); } });
+  $("summary").addEventListener("click", e => { const c = e.target.closest("[data-sec]"); if (c){ const v = { "p-kcal": "food", "p-water": "water", "p-read": "read", "p-hab": "habits" }[c.dataset.sec]; if (v) setView(v); } });
 
   // ---------- "Сегодня": the day's to-do list on the home screen ----------
   function renderToday(){
@@ -3982,7 +4074,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const items = [];
     const L1 = v => (v / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 });
     items.push({ sec: "Главное", icon: "💧", name: "Выпить воду", sub: t.waterOk ? `выпито ${L1(d.water)} л` : `ещё ${L1(g.water - d.water)} л из ${L1(g.water)}`, done: t.waterOk, go: "water" });
-    items.push({ sec: "Главное", icon: "📖", name: "Почитать", sub: t.readOk ? `прочитано ${d.pages} стр.` : `ещё ${g.pages - d.pages} стр.`, done: t.readOk, go: "water" });
+    items.push({ sec: "Главное", icon: "📖", name: "Почитать", sub: t.readOk ? `прочитано ${d.pages} стр.` : `ещё ${g.pages - d.pages} стр.`, done: t.readOk, go: "read" });
     if (S.settings.lang && COURSE && COURSE.units && COURSE.units.length){
       const wd = parseKey(k).getDay(), kind = plan()[wd];
       if (kind && kind !== "rest"){
@@ -4016,7 +4108,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   });
 
   // ---------- section filter (per phone, easy to undo) ----------
-  const SECTIONS = [["p-kcal", "🍎 Питание"], ["p-water", "💧 Вода и чтение"], ["p-lang", "🌍 Язык"], ["p-hab", "✅ Привычки"], ["p-vit", "💊 Витамины"], ["p-cal", "📅 Календарь привычек"], ["p-fin", "💰 Финансы"], ["report", "📊 Отчёт за неделю"]];
+  const SECTIONS = [["p-kcal", "🍎 Питание"], ["p-water", "💧 Вода"], ["p-read", "📖 Чтение"], ["p-lang", "🌍 Язык"], ["p-hab", "✅ Привычки"], ["p-vit", "💊 Витамины"], ["p-cal", "📅 Календарь привычек"], ["p-fin", "💰 Финансы"], ["report", "📊 Отчёт за неделю"]];
   let hiddenSecs = [];
   try { hiddenSecs = JSON.parse(localStorage.getItem("moy-den-hidden") || "[]"); } catch (e) { hiddenSecs = []; }
   function applyView(){
@@ -4205,7 +4297,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.07-4";
+const APP_VERSION = "2026.11.08-1";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

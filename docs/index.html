@@ -539,6 +539,54 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .recideas{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .recideas button{border:1px dashed var(--fin);background:transparent;border-radius:999px;padding:5px 11px;font-size:13px;font-weight:600}
 
+/* Views and menu */
+.grid{grid-template-columns:minmax(0,1fr)!important}
+body:not([data-view="home"]) [data-v="home"],
+body:not([data-view="food"]) [data-v="food"],
+body:not([data-view="water"]) [data-v="water"],
+body:not([data-view="lang"]) [data-v="lang"],
+body:not([data-view="habits"]) [data-v="habits"],
+body:not([data-view="vit"]) [data-v="vit"],
+body:not([data-view="fin"]) [data-v="fin"],
+body:not([data-view="account"]) [data-v="account"],
+body:not([data-view="widget"]) [data-v="widget"]{display:none!important}
+.top{flex-wrap:nowrap;align-items:center}
+.top .brand{flex:1;min-width:0}
+.top .brand h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.menubtn{flex:none;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;color:var(--ink)}
+.menubtn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.hdr-tools{flex:none}
+@media (max-width:620px){.top{flex-wrap:wrap}.hdr-tools{width:100%}.hdr-tools .datenav{flex:1;justify-content:space-between}}
+.drawer-bg{position:fixed;inset:0;background:rgba(10,15,25,.45);z-index:60}
+.drawer{position:fixed;top:0;bottom:0;left:0;width:min(320px,86vw);background:var(--surface);z-index:61;display:flex;flex-direction:column;gap:6px;overflow-y:auto;padding:calc(12px + env(safe-area-inset-top,0px)) 12px calc(16px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));box-shadow:8px 0 30px rgba(0,0,0,.2)}
+.dr-head{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 8px}
+.dr-head b{font-family:var(--f-display);font-size:18px}
+.dr-acc{font-size:13px;color:var(--ink-2);padding:0 6px 6px}
+.dr-acc button{border:0;background:transparent;color:var(--accent);font-weight:700;padding:0}
+.dr-list{display:flex;flex-direction:column;gap:2px}
+.dr-list button{display:flex;align-items:center;gap:12px;border:0;background:transparent;border-radius:12px;padding:11px 10px;font-size:15px;font-weight:600;text-align:left;color:var(--ink)}
+.dr-list button span{width:24px;text-align:center;font-size:18px}
+.dr-list button:hover{background:var(--surface-2)}
+.dr-list button.on{background:var(--surface-2);color:var(--accent)}
+.dr-tools{border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
+.dr-tools button{font-size:14px;font-weight:500;color:var(--ink-2)}
+.todo{display:flex;flex-direction:column;gap:6px}
+.todo .ti{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:10px 12px;text-align:left;width:100%}
+.todo .ti .tb{width:22px;height:22px;border-radius:7px;border:2px solid var(--ink-3);display:grid;place-items:center;color:transparent;font-size:13px;flex:none}
+.todo .ti.done{opacity:.6}
+.todo .ti.done .tb{background:var(--habit);border-color:var(--habit);color:#fff}
+.todo .ti .tt{flex:1;min-width:0;font-weight:600;font-size:14px;overflow-wrap:anywhere}
+.todo .ti .tt small{display:block;font-weight:500;color:var(--ink-3);font-size:12px}
+.todo .ti .tg{font-size:12px;color:var(--accent);font-weight:700;white-space:nowrap}
+.todo .tsec{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:700;margin-top:4px}
+.ring-card{cursor:pointer}
+.accbox,.widbox{display:flex;flex-direction:column;gap:12px}
+.accform{display:flex;flex-direction:column;gap:10px;max-width:420px}
+.accme{display:flex;align-items:center;gap:12px}
+.accav{width:48px;height:48px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-size:20px}
+.accform .terr,.accbox .terr{color:var(--warn);font-size:13px}
+.widsteps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+
 /* Section filter */
 .viewbar{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .vb-top{display:flex;flex-direction:column;gap:2px}
@@ -769,24 +817,25 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 
 <div class="wrap">
   <header class="top">
+    <button class="menubtn" type="button" id="menuOpen" aria-label="Открыть меню" aria-expanded="false" aria-controls="drawer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <div class="brand">
-      <h1>Мой день</h1>
+      <h1 id="viewTitle">Мой день</h1>
       <span class="sub" id="sub">Калории, вода, чтение и привычки</span>
     </div>
-    <div class="row">
+    <div class="row hdr-tools">
       <div class="datenav" role="group" aria-label="Выбор дня">
         <button id="prev" aria-label="Предыдущий день">‹</button>
         <span class="d" id="dlabel"></span>
         <button id="next" aria-label="Следующий день">›</button>
         <button class="today" id="today">Сегодня</button>
       </div>
-      <button class="iconbtn" id="updBtn" title="Загрузить последнюю версию приложения">↻ Обновить</button>
-      <button class="iconbtn" id="viewOpen" aria-expanded="false" aria-controls="viewBar">☰ Разделы</button>
-      <button class="iconbtn" id="openSettings">⚙ Цели</button>
+      <button class="iconbtn" id="updBtn" title="Загрузить последнюю версию приложения" hidden>↻ Обновить</button>
+      <button class="iconbtn" id="viewOpen" aria-expanded="false" aria-controls="viewBar" hidden>☰ Разделы</button>
+      <button class="iconbtn" id="openSettings" hidden>⚙ Цели</button>
     </div>
   </header>
   <div class="viewbar" id="viewBar" hidden>
-    <div class="vb-top"><b>Что показывать сейчас</b><span class="mhint">Скрытое никуда не пропадает: данные сохраняются, вернуть можно в любой момент.</span></div>
+    <div class="vb-top"><b>Какие разделы показывать в меню</b><span class="mhint">Скрытое никуда не пропадает: данные сохраняются, вернуть можно в любой момент.</span></div>
     <div class="vb-chips" id="viewChips"></div>
   </div>
   <div class="viewnote" id="viewNote" hidden></div>
@@ -794,13 +843,17 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 
   <div class="note" id="syncNote" hidden></div>
 
-  <div class="cta" id="profileCta" hidden><p>Укажи вес, рост и возраст, и трекер посчитает твою норму КБЖУ и воды.</p><button class="btn primary" type="button" id="ctaBtn">Рассчитать норму</button></div>
+  <div class="cta" id="profileCta" data-v="home" hidden><p>Укажи вес, рост и возраст, и трекер посчитает твою норму КБЖУ и воды.</p><button class="btn primary" type="button" id="ctaBtn">Рассчитать норму</button></div>
 
-  <section class="summary" id="summary" aria-label="Сводка дня"></section>
-  <button class="reportbtn" type="button" id="reportOpen"><span aria-hidden="true">📊</span><span><b>Отчёт за неделю</b><small>калории, вода, чтение, привычки, язык</small></span><span aria-hidden="true">›</span></button>
+  <section class="summary" id="summary" data-v="home" aria-label="Сводка дня"></section>
+  <section class="panel todaycard" id="todayCard" data-v="home" aria-labelledby="h-today">
+    <div class="panel-head"><h2 id="h-today"><span class="dot" style="background:var(--accent)"></span>Сегодня</h2><span class="meta" id="todayMeta"></span></div>
+    <div class="todo" id="todo"></div>
+  </section>
+  <button class="reportbtn" type="button" id="reportOpen" data-v="home"><span aria-hidden="true">📊</span><span><b>Отчёт за неделю</b><small>калории, вода, чтение, привычки, язык</small></span><span aria-hidden="true">›</span></button>
 
   <div class="grid">
-    <section class="panel" id="p-kcal" aria-labelledby="h-kcal">
+    <section class="panel" id="p-kcal" data-v="food" aria-labelledby="h-kcal">
       <div class="panel-head">
         <h2 id="h-kcal"><span class="dot" style="background:var(--kcal)"></span>Питание</h2>
         <span class="meta num" id="kcalMeta"></span>
@@ -825,7 +878,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div class="field" id="recentWrap" hidden><label>Быстро добавить ещё раз</label><div class="recent" id="recent"></div></div>
     </section>
 
-    <section class="panel" id="p-water" aria-labelledby="h-water">
+    <section class="panel" id="p-water" data-v="water" aria-labelledby="h-water">
       <div class="panel-head">
         <h2 id="h-water"><span class="dot" style="background:var(--water)"></span>Вода</h2>
         <span class="meta num" id="waterMeta"></span>
@@ -868,7 +921,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 
     </section>
 
-    <section class="panel span2" id="p-lang" aria-labelledby="h-lang">
+    <section class="panel span2" id="p-lang" data-v="lang" aria-labelledby="h-lang">
       <div class="panel-head">
         <h2 id="h-lang"><span class="dot" style="background:var(--lang)"></span>Иностранный язык</h2>
         <span class="meta num" id="langMeta"></span>
@@ -919,7 +972,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       </div>
     </section>
 
-    <section class="panel span2" id="p-hab" aria-labelledby="h-hab">
+    <section class="panel span2" id="p-hab" data-v="habits" aria-labelledby="h-hab">
       <div class="panel-head">
         <h2 id="h-hab"><span class="dot" style="background:var(--habit)"></span>Привычки</h2>
         <span class="row"><span class="meta" id="habMeta"></span><button class="btn sm ghost" type="button" id="editHabits" aria-pressed="false">Изменить</button></span>
@@ -937,7 +990,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     </section>
 
 
-    <section class="panel span2" id="p-vit" aria-labelledby="h-vit">
+    <section class="panel span2" id="p-vit" data-v="vit" aria-labelledby="h-vit">
       <div class="panel-head">
         <h2 id="h-vit"><span class="dot" style="background:var(--vit)"></span>Витамины</h2>
         <span class="row"><span class="meta" id="vitMeta"></span><button class="btn sm ghost" type="button" id="editVits" aria-pressed="false">Изменить</button></span>
@@ -962,7 +1015,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       </details>
     </section>
 
-    <section class="panel span2" id="p-cal" aria-labelledby="h-cal">
+    <section class="panel span2" id="p-cal" data-v="habits" aria-labelledby="h-cal">
       <div class="panel-head">
         <h2 id="h-cal"><span class="dot" style="background:var(--habit)"></span>Календарь привычек</h2>
         <span class="meta">как держимся каждый день</span>
@@ -976,7 +1029,17 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div class="cal-stats" id="calStats"></div>
     </section>
 
-    <section class="panel span2" id="p-fin" aria-labelledby="h-fin">
+    <section class="panel span2" id="p-acc" data-v="account" aria-labelledby="h-acc">
+      <div class="panel-head"><h2 id="h-acc"><span class="dot" style="background:var(--accent)"></span>Аккаунт</h2><span class="meta" id="accMeta"></span></div>
+      <div id="accBox" class="accbox"></div>
+    </section>
+
+    <section class="panel span2" id="p-wid" data-v="widget" aria-labelledby="h-wid">
+      <div class="panel-head"><h2 id="h-wid"><span class="dot" style="background:var(--accent)"></span>Виджет на экран «Домой»</h2></div>
+      <div id="widBox" class="widbox"></div>
+    </section>
+
+    <section class="panel span2" id="p-fin" data-v="fin" aria-labelledby="h-fin">
       <div class="panel-head">
         <h2 id="h-fin"><span class="dot" style="background:var(--fin)"></span>Финансы</h2>
         <span class="meta">🔒 только на этом телефоне</span>
@@ -1215,6 +1278,21 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   </div>
 </div>
 
+<div class="drawer-bg" id="drawerBg" hidden></div>
+<nav class="drawer" id="drawer" aria-label="Меню" hidden>
+  <div class="dr-head"><b>Мой день</b><button class="ls-close" type="button" id="menuClose" aria-label="Закрыть меню">×</button></div>
+  <div class="dr-acc" id="drAcc"></div>
+  <div class="dr-list" id="drList"></div>
+  <div class="dr-list dr-tools">
+    <button type="button" data-dtool="report"><span>📊</span>Отчёт за неделю</button>
+    <button type="button" data-dtool="settings"><span>⚙</span>Цели и норма</button>
+    <button type="button" data-dview="widget"><span>📲</span>Виджет на экран</button>
+    <button type="button" data-dview="account"><span>👤</span>Аккаунт</button>
+    <button type="button" data-dtool="menu"><span>☰</span>Настроить меню</button>
+    <button type="button" data-dtool="update"><span>↻</span>Обновить приложение</button>
+  </div>
+</nav>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="config.js"></script>
@@ -1325,6 +1403,42 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
 
   // ---------- cloud (Firestore REST, optional) ----------
+  // ---------- accounts (Firebase Authentication over REST) ----------
+  const AUTH_ON = CLOUD && !!(CFG.apiKey && String(CFG.apiKey).trim());
+  let AUTH = null;
+  try { AUTH = JSON.parse(localStorage.getItem("moy-den-auth") || "null"); } catch (e) { AUTH = null; }
+  if (!AUTH_ON) AUTH = null;
+  function saveAuthState(){ try { if (AUTH) localStorage.setItem("moy-den-auth", JSON.stringify(AUTH)); else localStorage.removeItem("moy-den-auth"); } catch (e) {} }
+  async function authCall(method, body){
+    const r = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:" + method + "?key=" + encodeURIComponent(CFG.apiKey), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error("auth"), { code: (j.error && j.error.message) || ("HTTP_" + r.status) });
+    return j;
+  }
+  function takeTokens(j, email){
+    AUTH = { uid: j.localId || j.user_id || (AUTH && AUTH.uid), email: email || (AUTH && AUTH.email), idToken: j.idToken || j.id_token, refreshToken: j.refreshToken || j.refresh_token,
+      exp: Date.now() + (parseInt(j.expiresIn || j.expires_in || "3600", 10) - 120) * 1000 };
+    saveAuthState();
+  }
+  async function idToken(){
+    if (!AUTH) return null;
+    if (Date.now() < AUTH.exp && AUTH.idToken) return AUTH.idToken;
+    const r = await fetch("https://securetoken.googleapis.com/v1/token?key=" + encodeURIComponent(CFG.apiKey), { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(AUTH.refreshToken) });
+    if (!r.ok) throw Object.assign(new Error("token"), { code: "TOKEN_EXPIRED" });
+    takeTokens(await r.json());
+    return AUTH.idToken;
+  }
+  async function fsHeaders(path, extra){
+    const h = Object.assign({}, extra || {});
+    if (AUTH && path.startsWith("users/")) h.Authorization = "Bearer " + await idToken();
+    return h;
+  }
+  // where this person's own records live in the cloud
+  function syncOn(){ return CLOUD && !!(AUTH || pair); }
+  function dataCol(){ return AUTH ? "users/" + AUTH.uid + "/data" : "pairs/" + pair.code + "/data"; }
+  function unitDocId(u){ return AUTH ? u : pair.pid + "_" + u; }
+  function unitFromId(id){ if (AUTH) return id === "profile" ? null : id; return id.startsWith(pair.pid + "_") ? id.slice(pair.pid.length + 1) : null; }
+
   function fsUrl(path, extra){
     const q = [];
     if (CFG.apiKey) q.push("key=" + encodeURIComponent(CFG.apiKey));
@@ -1334,7 +1448,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   async function fsList(col){
     const out = []; let token = "";
     do {
-      const r = await fetch(fsUrl(col, "pageSize=300" + (token ? "&pageToken=" + encodeURIComponent(token) : "")));
+      const r = await fetch(fsUrl(col, "pageSize=300" + (token ? "&pageToken=" + encodeURIComponent(token) : "")), { headers: await fsHeaders(col) });
       if (!r.ok) throw new Error("HTTP " + r.status);
       const j = await r.json();
       (j.documents || []).forEach(d => {
@@ -1346,11 +1460,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     return out;
   }
   async function fsSet(path, obj){
-    const r = await fetch(fsUrl(path), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: { json: { stringValue: JSON.stringify(obj) } } }) });
+    const r = await fetch(fsUrl(path), { method: "PATCH", headers: await fsHeaders(path, { "Content-Type": "application/json" }), body: JSON.stringify({ fields: { json: { stringValue: JSON.stringify(obj) } } }) });
     if (!r.ok) throw new Error("HTTP " + r.status);
   }
   async function fsDelete(path){
-    const r = await fetch(fsUrl(path), { method: "DELETE" });
+    const r = await fetch(fsUrl(path), { method: "DELETE", headers: await fsHeaders(path) });
     if (!r.ok && r.status !== 404) throw new Error("HTTP " + r.status);
   }
 
@@ -1358,30 +1472,30 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   const cloudDirty = new Set(); let cloudT = null, cloudBusy = Promise.resolve();
   function unitOf(id){ return id.startsWith("d-") ? id.slice(2, 9) : "meta"; }
   function markCloud(id){
-    if (!CLOUD || !pair) return;
+    if (!syncOn()) return;
     cloudDirty.add(unitOf(id));
     clearTimeout(cloudT);
     cloudT = setTimeout(pushCloud, 3000);
   }
   function pushCloud(){
-    if (!CLOUD || !pair || !loaded) return;
+    if (!syncOn() || !loaded) return;
     const units = [...cloudDirty]; cloudDirty.clear();
     units.forEach(u => {
       const body = u === "meta"
         ? { settings: S.settings, books: S.books, dict: S.dict, course: S.course, recipes: S.recipes }
         : { days: Object.fromEntries(Object.entries(S.days).filter(([k]) => k.startsWith(u))) };
-      cloudBusy = cloudBusy.then(() => fsSet("pairs/" + pair.code + "/data/" + pair.pid + "_" + u, body)).catch(() => { cloudDirty.add(u); setSync("offline"); });
+      cloudBusy = cloudBusy.then(() => fsSet(dataCol() + "/" + unitDocId(u), body)).catch(() => { cloudDirty.add(u); setSync("offline"); });
     });
     cloudBusy = cloudBusy.then(() => { if (!cloudDirty.size) setSync("ok"); });
   }
   async function pullCloud(){
-    if (!CLOUD || !pair) return;
-    const docs = await fsList("pairs/" + pair.code + "/data");
-    const mine = docs.filter(d => d.id.startsWith(pair.pid + "_"));
+    if (!syncOn()) return;
+    const docs = await fsList(dataCol());
+    const mine = docs.filter(d => unitFromId(d.id));
     let changed = false;
     const newer = (a, b) => (a && a._u || 0) > (b && b._u || 0);
     for (const d of mine){
-      const u = d.id.slice(pair.pid.length + 1);
+      const u = unitFromId(d.id);
       if (u === "meta"){
         if (d.obj.settings && newer(d.obj.settings, S.settings) && !dirty.has("settings")){ S.settings = Object.assign(clone(DEFAULT_SETTINGS), d.obj.settings); localStore.save("settings", S.settings); changed = true; }
         if (d.obj.books && newer(d.obj.books, S.books) && !dirty.has("books")){ S.books = Object.assign({ list: [], current: null }, d.obj.books); localStore.save("books", S.books); changed = true; }
@@ -1395,7 +1509,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       }
     }
     // local records the cloud has not seen yet go up
-    const seen = new Set(mine.map(d => d.id.slice(pair.pid.length + 1)));
+    const seen = new Set(mine.map(d => unitFromId(d.id)));
     if (!seen.has("meta") && (S.settings._u || S.books._u || S.dict._u || S.course._u || S.recipes._u)) cloudDirty.add("meta");
     Object.keys(S.days).forEach(k => { if (!seen.has(k.slice(0, 7))) cloudDirty.add(k.slice(0, 7)); });
     if (cloudDirty.size){ clearTimeout(cloudT); cloudT = setTimeout(pushCloud, 500); }
@@ -1411,11 +1525,13 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     renderBoard();
   }
   function setSync(st){
-    if (!CLOUD || !pair) { $("sub").textContent = "Данные хранятся на этом телефоне"; return; }
-    $("sub").textContent = st === "offline" ? "Нет связи с облаком · записи сохранены на телефоне" : "Синхронизировано с парой";
+    if (!syncOn()) { $("sub").textContent = "Данные хранятся на этом телефоне"; return; }
+    $("sub").textContent = st === "offline" ? "Нет связи с облаком · записи сохранены на телефоне" : AUTH ? "Аккаунт: " + (AUTH.email || "") : "Синхронизировано с парой";
   }
   function savePair(p){
+    if (p && AUTH) p.pid = AUTH.uid;
     pair = p;
+    if (AUTH) fsSet("users/" + AUTH.uid + "/data/profile", { pair: p ? p.code : null, nick: S.settings.nick || "" }).catch(() => {});
     try { if (p) localStorage.setItem("moy-den-pair", JSON.stringify(p)); else localStorage.removeItem("moy-den-pair"); } catch (e) {}
   }
   const CODE_ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1433,12 +1549,13 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   async function connect(){
     store = localStore; localStore.load(); resolveStore(); loaded = true; migrateBad(); render();
     setSync("ok");
-    if (!CLOUD || !pair) return;
+    if (!syncOn()) return;
+    if (AUTH && !pair){ try { await loadProfile(); } catch (e) {} }
     try { await pullCloud(); migrateBad(); render(); } catch (e) { setSync("offline"); }
     pollBoard();
   }
   setInterval(pollBoard, 20000);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden){ pollBoard(); if (pair) pullCloud().catch(() => {}); } });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden){ pollBoard(); if (syncOn()) pullCloud().catch(() => {}); } });
 
   // ---------- competition ----------
   let lastSummary = "", summaryT = null, summaryBusy = Promise.resolve();
@@ -1464,6 +1581,15 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       shelf: S.books.list.filter(b => b.done).sort((a, b) => (b.finished || "").localeCompare(a.finished || "")).slice(0, 12).map(b => ({ t: b.title, a: b.author || "", r: b.rating || 0 })),
       want: S.books.list.filter(b => b.want).length,
       habStreaks: S.settings.habits.filter(h => h.type !== "bad").map(h => ({ n: h.name, s: habitStreak(h.id) })).filter(x => x.s > 1),
+      todo: (() => {
+        const tk = todayKey(), td = day(tk), g0 = goals();
+        const P = (typeof plan === "function" && S.settings.lang && COURSE.units && COURSE.units.length) ? plan() : null;
+        return { date: tk, w: td.water, wg: g0.water, p: td.pages, pg: g0.pages,
+          habits: S.settings.habits.map(h => ({ n: h.name, b: h.type === "bad" ? 1 : 0, d: td.habits[h.id] ? 1 : 0 })),
+          vits: (typeof vitsFor === "function" ? vitsFor(tk) : []).map(v => ({ n: v.name, d: td.vits && td.vits[v.id] ? 1 : 0 })),
+          plan: P ? Object.fromEntries([0,1,2,3,4,5,6].map(i => [i, P[i] && P[i] !== "rest" ? KINDS[P[i]].label : null])) : {},
+          lessonsDone: (td.lang && td.lang.lessons) || [] };
+      })(),
       lang: S.settings.lang ? S.settings.lang.name : "",
       dictN: myWords().length,
       units: courseUnitsDone(),
@@ -1762,6 +1888,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     renderCal();
     renderIdeas();
     renderVits();
+    if (typeof renderToday === "function") renderToday();
     renderFin();
     renderBoard();
     scheduleSummary();
@@ -2597,6 +2724,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
     $("join").innerHTML = `<span>Проверяю код…</span>`;
     try {
+      if (AUTH){ savePair({ code, pid: AUTH.uid }); boardState = "loading"; renderBoard(); markAll(); lastSummary = ""; scheduleSummary(); pollBoard(); toast("Вы подключены к паре"); return; }
       const docs = await fsList("pairs/" + code + "/players");
       chooseList = docs.map(d => Object.assign({ id: d.id }, d.obj));
       if (!chooseList.length){ toast("По этому коду пока никого нет. Проверь код"); boardState = "nopair"; renderBoard(); return; }
@@ -2604,6 +2732,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     } catch (e) { toast("Не удалось связаться с облаком. Проверь интернет"); boardState = "nopair"; renderBoard(); }
   }
   let pendingCode = null;
+  async function loadProfile(){
+    const docs = await fsList("users/" + AUTH.uid + "/data");
+    const prof = docs.find(d => d.id === "profile");
+    if (prof && prof.obj){
+      if (prof.obj.pair) { pair = { code: prof.obj.pair, pid: AUTH.uid }; try { localStorage.setItem("moy-den-pair", JSON.stringify(pair)); } catch (e) {} boardState = "loading"; }
+      if (prof.obj.nick && !S.settings.nick){ const st = clone(S.settings); st.nick = prof.obj.nick; S.settings = st; localStore.save("settings", st); }
+    }
+  }
   function markAll(){ cloudDirty.add("meta"); Object.keys(S.days).forEach(k => cloudDirty.add(k.slice(0, 7))); clearTimeout(cloudT); cloudT = setTimeout(pushCloud, 800); }
   $("join").addEventListener("click", async e => {
     const t = e.target.closest("button"); if (!t) return;
@@ -3727,11 +3863,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   $("newHabit").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); $("addHabit").click(); } });
   $("cancelSettings").onclick = () => $("settings").close();
   async function wipeCloud(){
-    if (!CLOUD || !pair) return;
+    if (!syncOn()) return;
     try {
-      const docs = await fsList("pairs/" + pair.code + "/data");
-      for (const d of docs.filter(x => x.id.startsWith(pair.pid + "_"))) await fsDelete("pairs/" + pair.code + "/data/" + d.id);
-      await fsDelete("pairs/" + pair.code + "/players/" + pair.pid);
+      const docs = await fsList(dataCol());
+      for (const d of docs.filter(x => unitFromId(x.id))) await fsDelete(dataCol() + "/" + d.id);
+      if (pair) await fsDelete("pairs/" + pair.code + "/players/" + pair.pid);
     } catch (e) {}
   }
   function confirmTap(b, text){
@@ -3788,27 +3924,92 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("settings").close(); render(); toast("Цели сохранены");
   });
 
-  // ---------- bottom nav ----------
+  // ---------- screens and menu ----------
+  const VIEWS = [
+    ["home", "🏠", "Главная", "Мой день"], ["food", "🍎", "Питание", "Питание"], ["water", "💧", "Вода и чтение", "Вода и чтение"],
+    ["lang", "🌍", "Язык", "Иностранный язык"], ["habits", "✅", "Привычки", "Привычки"], ["vit", "💊", "Витамины", "Витамины"],
+    ["fin", "💰", "Финансы", "Финансы"]
+  ];
+  const EXTRA_VIEWS = { account: "Аккаунт", widget: "Виджет" };
+  const NAV_TO_VIEW = { summary: "home", "p-kcal": "food", "p-water": "water", "p-lang": "lang", "p-hab": "habits", "p-vit": "vit", "p-fin": "fin" };
+  const VIEW_SEC = { food: "p-kcal", water: "p-water", lang: "p-lang", habits: "p-hab", vit: "p-vit", fin: "p-fin" };
   const navBtns = [...document.querySelectorAll("#bnav [data-go]")];
-  const reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let navLock = 0;
-  function setActive(id){ navBtns.forEach(b => b.classList.toggle("on", b.dataset.go === id)); }
-  navBtns.forEach(b => b.addEventListener("click", () => {
-    const el = $(b.dataset.go); if (!el) return;
-    setActive(b.dataset.go); navLock = Date.now();
-    if (b.dataset.go === "summary") window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
-    else el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
-  }));
-  function syncNav(){
-    if (Date.now() - navLock < 900) return;
-    const line = window.innerHeight * 0.35; let curId = "summary";
-    for (const b of navBtns){ const el = $(b.dataset.go); if (el && el.getBoundingClientRect().top <= line) curId = b.dataset.go; }
-    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) curId = navBtns[navBtns.length - 1].dataset.go;
-    setActive(curId);
+  let view = "home";
+  function setView(v, opts){
+    if (!VIEWS.some(x => x[0] === v) && !EXTRA_VIEWS[v]) v = "home";
+    view = v; document.body.dataset.view = v;
+    const meta = VIEWS.find(x => x[0] === v);
+    $("viewTitle").textContent = meta ? meta[3] : EXTRA_VIEWS[v];
+    navBtns.forEach(bt => bt.classList.toggle("on", NAV_TO_VIEW[bt.dataset.go] === v));
+    document.querySelectorAll("#drList [data-dview]").forEach(bt => bt.classList.toggle("on", bt.dataset.dview === v));
+    if (!(opts && opts.keepScroll)) window.scrollTo(0, 0);
+    if (!(opts && opts.noHash)){ try { history.replaceState(null, "", v === "home" ? location.pathname : "#" + v); } catch (e) {} }
+    // deferred: on first load these screens' code is defined further down the page
+    if (v === "account") setTimeout(() => renderAccount(), 0);
+    if (v === "widget") setTimeout(() => renderWidget(), 0);
   }
-  let navRaf = 0;
-  window.addEventListener("scroll", () => { if (!navRaf) navRaf = requestAnimationFrame(() => { navRaf = 0; syncNav(); }); }, { passive: true });
-  setActive("summary");
+  navBtns.forEach(bt => bt.addEventListener("click", () => setView(NAV_TO_VIEW[bt.dataset.go] || "home")));
+  function renderDrawer(){
+    $("drList").innerHTML = VIEWS.filter(([v]) => !VIEW_SEC[v] || !hiddenSecs.includes(VIEW_SEC[v])).map(([v, ic, name]) => `<button type="button" data-dview="${v}" class="${v === view ? "on" : ""}"><span>${ic}</span>${name}</button>`).join("");
+  }
+  function openDrawer(){ renderDrawer(); if (typeof renderDrawerAcc === "function") renderDrawerAcc(); $("drawer").hidden = false; $("drawerBg").hidden = false; $("menuOpen").setAttribute("aria-expanded", "true"); }
+  function closeDrawer(){ $("drawer").hidden = true; $("drawerBg").hidden = true; $("menuOpen").setAttribute("aria-expanded", "false"); }
+  $("menuOpen").onclick = openDrawer;
+  $("menuClose").onclick = closeDrawer;
+  $("drawerBg").onclick = closeDrawer;
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("drawer").hidden) closeDrawer(); });
+  $("drawer").addEventListener("click", e => {
+    const v = e.target.closest("[data-dview]"); if (v){ closeDrawer(); setView(v.dataset.dview); return; }
+    const t = e.target.closest("[data-dtool]"); if (!t) return;
+    closeDrawer();
+    const a = t.dataset.dtool;
+    if (a === "report") $("reportOpen").click();
+    else if (a === "settings") $("openSettings").click();
+    else if (a === "update") $("updBtn").click();
+    else if (a === "menu"){ setView("home"); $("viewBar").hidden = false; }
+  });
+  window.addEventListener("hashchange", () => setView((location.hash || "").slice(1) || "home", { noHash: true }));
+  // tapping a ring on the home screen opens its section
+  $("summary").addEventListener("click", e => { const c = e.target.closest("[data-sec]"); if (c){ const v = { "p-kcal": "food", "p-water": "water", "p-hab": "habits" }[c.dataset.sec]; if (v) setView(v); } });
+
+  // ---------- "Сегодня": the day's to-do list on the home screen ----------
+  function renderToday(){
+    const k = cur, d = day(k), g = goals(), t = totals(k);
+    const items = [];
+    const L1 = v => (v / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 });
+    items.push({ sec: "Главное", icon: "💧", name: "Выпить воду", sub: t.waterOk ? `выпито ${L1(d.water)} л` : `ещё ${L1(g.water - d.water)} л из ${L1(g.water)}`, done: t.waterOk, go: "water" });
+    items.push({ sec: "Главное", icon: "📖", name: "Почитать", sub: t.readOk ? `прочитано ${d.pages} стр.` : `ещё ${g.pages - d.pages} стр.`, done: t.readOk, go: "water" });
+    if (S.settings.lang && COURSE && COURSE.units && COURSE.units.length){
+      const wd = parseKey(k).getDay(), kind = plan()[wd];
+      if (kind && kind !== "rest"){
+        const K = KINDS[kind], doneL = ((d.lang && d.lang.lessons) || []).includes(K.label);
+        const u = kind === "review" ? null : unitFor(kind);
+        items.push({ sec: "Главное", icon: "🌍", name: "Урок: " + K.label, sub: u ? "тема «" + u.title + "»" : "повторение", done: doneL, lesson: kind, unit: u ? u.id : "" });
+      }
+    }
+    S.settings.habits.forEach(h => items.push({ sec: "Привычки", icon: h.type === "bad" ? "🚭" : "✅", name: h.name, sub: h.type === "bad" ? "отметь, если продержался" : "", done: !!d.habits[h.id], habit: h.id }));
+    vitsFor(k).forEach(v => items.push({ sec: "Витамины", icon: "💊", name: v.name, sub: [{ m: "утром", d: "днём", e: "вечером" }[v.when || "m"], v.dose].filter(Boolean).join(" · "), done: !!(d.vits && d.vits[v.id]), vit: v.id }));
+    if (typeof FIN !== "undefined" && k === todayKey()) (FIN.recurring || []).forEach(r => {
+      const mk = k.slice(0, 7), due = recDue(r, mk); if (!due || recPaid(r, mk)) return;
+      if (due <= k) items.push({ sec: "Оплатить", icon: "🔁", name: r.name, sub: (due < k ? "просрочено · " : "сегодня · ") + money(r.amount), done: false, go: "fin" });
+    });
+    const done = items.filter(i => i.done).length;
+    $("todayMeta").textContent = items.length ? `${done} из ${items.length}` : "";
+    let lastSec = "";
+    $("todo").innerHTML = items.map((it, i) => {
+      const head = it.sec !== lastSec ? `<div class="tsec">${it.sec}</div>` : ""; lastSec = it.sec;
+      const act = it.habit ? `data-thabit="${it.habit}"` : it.vit ? `data-tvit="${it.vit}"` : it.lesson ? `data-tlesson="${it.lesson}" data-tunit="${it.unit}"` : `data-tgo="${it.go}"`;
+      const tag = it.habit || it.vit ? "" : it.lesson ? (it.done ? "" : "начать ›") : "открыть ›";
+      return head + `<button type="button" class="ti ${it.done ? "done" : ""}" ${act}><span class="tb">✓</span><span class="tt">${it.icon} ${esc(it.name)}${it.sub ? `<small>${esc(it.sub)}</small>` : ""}</span>${tag ? `<span class="tg">${tag}</span>` : ""}</button>`;
+    }).join("");
+  }
+  $("todo").addEventListener("click", e => {
+    const b = e.target.closest(".ti"); if (!b) return;
+    if (b.dataset.thabit){ const d = clone(day(cur)); if (d.habits[b.dataset.thabit]) delete d.habits[b.dataset.thabit]; else d.habits[b.dataset.thabit] = true; commitDay(cur, d, 300); return; }
+    if (b.dataset.tvit){ const d = clone(day(cur)); d.vits = d.vits || {}; if (d.vits[b.dataset.tvit]) delete d.vits[b.dataset.tvit]; else d.vits[b.dataset.tvit] = true; commitDay(cur, d, 300); return; }
+    if (b.dataset.tlesson){ startLesson(b.dataset.tlesson, b.dataset.tunit); return; }
+    if (b.dataset.tgo) setView(b.dataset.tgo);
+  });
 
   // ---------- section filter (per phone, easy to undo) ----------
   const SECTIONS = [["p-kcal", "🍎 Питание"], ["p-water", "💧 Вода и чтение"], ["p-lang", "🌍 Язык"], ["p-hab", "✅ Привычки"], ["p-vit", "💊 Витамины"], ["p-cal", "📅 Календарь привычек"], ["p-fin", "💰 Финансы"], ["report", "📊 Отчёт за неделю"]];
@@ -3822,6 +4023,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("viewNote").hidden = !n;
     $("viewNote").innerHTML = n ? `<span>Скрыто разделов: ${n}</span><button type="button" data-sec-all="1">Показать всё</button><button type="button" data-sec-open="1">Настроить</button>` : "";
     try { localStorage.setItem("moy-den-hidden", JSON.stringify(hiddenSecs)); } catch (e) {}
+    if (typeof renderDrawer === "function") renderDrawer();
   }
   $("viewOpen").onclick = () => { const bar = $("viewBar"); bar.hidden = !bar.hidden; $("viewOpen").setAttribute("aria-expanded", String(!bar.hidden)); };
   document.addEventListener("click", e => {
@@ -3832,6 +4034,128 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     applyView();
   });
   applyView();
+  setView((location.hash || "").slice(1) || "home", { noHash: true });
+
+  // ---------- account screen ----------
+  let accMode = "login";
+  const AUTH_ERR = {
+    EMAIL_EXISTS: "Аккаунт с такой почтой уже есть. Войди в него.",
+    EMAIL_NOT_FOUND: "Аккаунта с такой почтой нет. Создай новый.",
+    INVALID_PASSWORD: "Неверный пароль.", INVALID_LOGIN_CREDENTIALS: "Неверная почта или пароль.",
+    INVALID_EMAIL: "Проверь адрес почты.", MISSING_PASSWORD: "Впиши пароль.",
+    TOO_MANY_ATTEMPTS_TRY_LATER: "Слишком много попыток. Подожди несколько минут.",
+    OPERATION_NOT_ALLOWED: "Вход по почте ещё не включён в Firebase (Authentication → Sign-in method → Email/Password).",
+    CONFIGURATION_NOT_FOUND: "Вход по почте ещё не включён в Firebase (Authentication → Get started).",
+    USER_DISABLED: "Этот аккаунт отключён."
+  };
+  const authErr = e => { const c = String(e && e.code || ""); if (c.startsWith("WEAK_PASSWORD")) return "Пароль слишком простой: нужно минимум 6 символов."; return AUTH_ERR[c] || (c.startsWith("API_KEY") || c.includes("API key") ? "Неверный ключ Firebase в настройках сайта." : "Не получилось. Проверь интернет и попробуй ещё раз."); };
+  function renderDrawerAcc(){
+    $("drAcc").innerHTML = AUTH ? `👤 ${esc(AUTH.email || "")}` : AUTH_ON ? `Без аккаунта · <button type="button" data-dview="account">Войти</button>` : "";
+  }
+  function renderAccount(){
+    const box = $("accBox");
+    $("accMeta").textContent = AUTH ? "вход выполнен" : "";
+    if (!AUTH_ON){
+      box.innerHTML = `<p class="mhint">С аккаунтом все записи хранятся в облаке и открываются на любом телефоне: вошёл по почте и паролю — и всё на месте. У каждого свой аккаунт.</p>
+        <div class="note">Аккаунты пока не включены в настройках приложения. Их включает владелец (тот, кто настраивал Firebase): нужно включить вход по почте и вписать ключ в config.js. Пока приложение работает без аккаунта, записи хранятся на телефоне.</div>`;
+      return;
+    }
+    if (AUTH){
+      box.innerHTML = `<div class="accme"><div class="accav">${esc((S.settings.nick || AUTH.email || "?")[0].toUpperCase())}</div><div><b>${esc(S.settings.nick || "Без имени")}</b><div class="mhint">${esc(AUTH.email || "")}</div></div></div>
+        <p class="mhint">✓ Записи сохраняются в аккаунт и появятся на любом телефоне после входа. ${pair ? "Пара подключена, код: <b class='num'>" + prettyCode(pair.code) + "</b>." : "Пара не подключена: это можно сделать в «Отчёте за неделю» → «Совместный»."}</p>
+        <p class="mhint">💰 Финансы и токен Т-Инвестиций по-прежнему хранятся только на этом телефоне и в аккаунт не попадают.</p>
+        <div class="row"><button class="btn" type="button" data-acc="reset">Сменить пароль</button><button class="btn" type="button" data-acc="logout" style="color:var(--warn);border-color:var(--warn)">Выйти из аккаунта</button></div>
+        <p class="mhint">При выходе записи удалятся с этого телефона (в аккаунте они останутся). Удобно, если телефоном пользуется кто-то ещё.</p>`;
+      return;
+    }
+    const reg = accMode === "signup";
+    box.innerHTML = `<p class="mhint">С аккаунтом записи хранятся в облаке и открываются на любом телефоне. У каждого свой аккаунт: вход по почте и паролю.</p>
+      <div class="reptabs" style="grid-template-columns:1fr 1fr"><button type="button" data-accmode="login" aria-selected="${!reg}">Войти</button><button type="button" data-accmode="signup" aria-selected="${reg}">Создать аккаунт</button></div>
+      <form class="accform" id="accForm" autocomplete="on">
+        ${reg ? `<div class="field"><label for="aName">Как тебя зовут</label><input type="text" id="aName" maxlength="24" autocomplete="nickname" value="${esc(S.settings.nick || "")}" placeholder="Миша"></div>` : ""}
+        <div class="field"><label for="aEmail">Почта</label><input type="email" id="aEmail" required autocomplete="email" inputmode="email" placeholder="name@example.com"></div>
+        <div class="field"><label for="aPass">Пароль</label><input type="password" id="aPass" required minlength="6" autocomplete="${reg ? "new-password" : "current-password"}" placeholder="${reg ? "минимум 6 символов" : ""}"></div>
+        <div class="terr" id="accErr" hidden></div>
+        <button class="btn primary" type="submit" id="accGo">${reg ? "Создать аккаунт" : "Войти"}</button>
+        ${reg ? "" : `<button class="btn ghost" type="button" data-acc="forgot">Забыл пароль</button>`}
+      </form>
+      <p class="mhint">${reg ? "Всё, что уже записано на этом телефоне, перенесётся в новый аккаунт." : "После входа записи из аккаунта загрузятся на этот телефон и объединятся с тем, что уже есть на нём."} Финансы остаются только на телефоне.</p>`;
+  }
+  async function afterLogin(isNew){
+    if (pair){ const old = pair.pid; if (old && old !== AUTH.uid){ fsDelete("pairs/" + pair.code + "/players/" + old).catch(() => {}); } savePair({ code: pair.code, pid: AUTH.uid }); }
+    else { try { await loadProfile(); } catch (e) {} }
+    if (isNew){ markAll(); fsSet("users/" + AUTH.uid + "/data/profile", { pair: pair ? pair.code : null, nick: S.settings.nick || "" }).catch(() => {}); }
+    try { await pullCloud(); } catch (e) {}
+    lastSummary = ""; scheduleSummary(); pollBoard(); setSync("ok"); render(); renderAccount(); renderDrawerAcc();
+  }
+  $("accBox").addEventListener("click", async e => {
+    const m = e.target.closest("[data-accmode]"); if (m){ accMode = m.dataset.accmode; renderAccount(); return; }
+    const b = e.target.closest("[data-acc]"); if (!b) return;
+    const a = b.dataset.acc;
+    if (a === "forgot" || a === "reset"){
+      const email = a === "reset" ? AUTH.email : ($("aEmail").value || "").trim();
+      if (!email){ toast("Впиши почту, и пришлём ссылку для нового пароля"); return; }
+      try { await authCall("sendOobCode", { requestType: "PASSWORD_RESET", email }); toast("Письмо со ссылкой для нового пароля отправлено на " + email); }
+      catch (er) { toast(authErr(er)); }
+    } else if (a === "logout"){
+      if (b.dataset.confirm !== "1"){ b.dataset.confirm = "1"; b.textContent = "Точно выйти? Нажми ещё раз"; return; }
+      try { ["moy-den-v1", "moy-den-pair", "moy-den-auth", "moy-den-tinv-cache"].forEach(k => localStorage.removeItem(k)); } catch (er) {}
+      location.hash = ""; location.reload();
+    }
+  });
+  $("accBox").addEventListener("submit", async e => {
+    if (e.target.id !== "accForm") return;
+    e.preventDefault();
+    const email = $("aEmail").value.trim(), pass = $("aPass").value, reg = accMode === "signup";
+    const err = $("accErr"); err.hidden = true;
+    $("accGo").disabled = true; $("accGo").textContent = reg ? "Создаю…" : "Вхожу…";
+    try {
+      const j = await authCall(reg ? "signUp" : "signInWithPassword", { email, password: pass, returnSecureToken: true });
+      takeTokens(j, email);
+      if (reg){ const nm = ($("aName") && $("aName").value.trim()) || ""; if (nm){ const st = clone(S.settings); st.nick = nm.slice(0, 24); S.settings = st; persist("settings", st, 0); } }
+      await afterLogin(reg);
+      toast(reg ? "Аккаунт создан. Записи сохраняются в облако" : "Вход выполнен");
+    } catch (er) {
+      err.textContent = authErr(er); err.hidden = false;
+      $("accGo").disabled = false; $("accGo").textContent = reg ? "Создать аккаунт" : "Войти";
+    }
+  });
+
+  // ---------- home-screen widget (Scriptable) ----------
+  const WIDGET_TPL = "// Виджет «Мой день» для приложения Scriptable (iPhone).\n// Показывает, сколько воды осталось выпить, и список дел на сегодня.\nconst PROJECT = \"%PROJECT%\", CODE = \"%CODE%\", PID = \"%PID%\";\nconst APP = \"%APP%\";\nconst url = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/pairs/${CODE}/players/${PID}`;\nlet s = null;\ntry { const j = await new Request(url).loadJSON(); s = JSON.parse(j.fields.json.stringValue); } catch (e) {}\nconst pad = n => String(n).padStart(2, \"0\");\nconst now = new Date();\nconst today = now.getFullYear() + \"-\" + pad(now.getMonth() + 1) + \"-\" + pad(now.getDate());\nconst big = config.widgetFamily === \"large\";\nconst w = new ListWidget();\nw.backgroundColor = new Color(\"#161D29\");\nw.url = APP;\nw.setPadding(14, 14, 12, 14);\nconst title = w.addText(\"☀️ Мой день\");\ntitle.font = Font.boldSystemFont(15);\ntitle.textColor = Color.white();\nw.addSpacer(6);\nfunction line(text, color, size) {\n  const t = w.addText(text);\n  t.font = Font.systemFont(size || 13);\n  t.textColor = new Color(color || \"#E8EDF5\");\n  t.lineLimit = 1;\n}\nif (!s || !s.todo) {\n  line(\"Открой приложение, чтобы появились данные\", \"#AEB8C8\");\n} else {\n  const t = s.todo, fresh = t.date === today;\n  const L = v => (v / 1000).toFixed(1).replace(\".\", \",\");\n  const water = fresh ? (t.w || 0) : 0, pages = fresh ? (t.p || 0) : 0;\n  line(water >= t.wg ? \"💧 Вода: выполнено\" : `💧 Выпить ещё ${L(t.wg - water)} л`, water >= t.wg ? \"#3CC79A\" : \"#4DB0F5\");\n  line(pages >= t.pg ? \"📖 Чтение: выполнено\" : `📖 Прочитать ещё ${t.pg - pages} стр.`, pages >= t.pg ? \"#3CC79A\" : \"#A585F0\");\n  const todo = [];\n  const lesson = (t.plan || {})[now.getDay()];\n  if (lesson && !(fresh && (t.lessonsDone || []).includes(lesson))) todo.push(\"🌍 Урок: \" + lesson);\n  (t.habits || []).forEach(h => { if (!(fresh && h.d)) todo.push((h.b ? \"🚭 \" : \"✅ \") + h.n); });\n  (t.vits || []).forEach(v => { if (!(fresh && v.d)) todo.push(\"💊 \" + v.n); });\n  if (!todo.length) line(\"🎉 Всё на сегодня сделано\", \"#3CC79A\");\n  const max = big ? 12 : 3;\n  todo.slice(0, max).forEach(x => line(x, \"#E8EDF5\", 12));\n  if (todo.length > max) line(`и ещё ${todo.length - max}…`, \"#7D899C\", 11);\n}\nw.addSpacer();\nconst f = w.addText(\"нажми, чтобы открыть приложение\");\nf.font = Font.systemFont(9);\nf.textColor = new Color(\"#7D899C\");\nw.refreshAfterDate = new Date(Date.now() + 30 * 60000);\nScript.setWidget(w);\nif (config.runsInApp) await w.presentMedium();\nScript.complete();\n";
+  function widgetScript(){
+    return WIDGET_TPL.replace("%PROJECT%", String(CFG.projectId || "")).replace("%CODE%", pair ? pair.code : "").replace("%PID%", pair ? pair.pid : "").replace("%APP%", location.origin + location.pathname);
+  }
+  function renderWidget(){
+    const box = $("widBox");
+    const intro = `<p class="mhint">У веб-приложений нет своих виджетов на iPhone — это ограничение Apple. Но виджет можно сделать через бесплатное приложение <b>Scriptable</b>: он покажет, сколько воды осталось выпить, и список дел на сегодня — привычки, витамины, урок языка.</p>`;
+    if (!CLOUD){ box.innerHTML = intro + `<div class="empty">Для виджета нужно облако, а оно сейчас не подключено.</div>`; return; }
+    if (!pair){
+      box.innerHTML = intro + `<div class="note">Виджет берёт данные из облака. Для этого нужен код синхронизации. Его же можно потом отправить партнёру, чтобы видеть прогресс друг друга.</div><button class="btn primary" type="button" id="widOn">Включить виджет</button>`;
+      return;
+    }
+    box.innerHTML = intro + `<ol class="widsteps">
+        <li>Установи <b>Scriptable</b> из App Store (бесплатно).</li>
+        <li>Нажми <b>«Скопировать скрипт»</b> ниже.</li>
+        <li>Открой Scriptable → <b>«+»</b> вверху → вставь скрипт → вверху назови его <b>«Мой день»</b> → <b>Done</b>.</li>
+        <li>На экране «Домой» зажми пустое место → <b>«Изменить» → «Добавить виджет»</b> → найди <b>Scriptable</b> → выбери средний размер → «Добавить виджет».</li>
+        <li>Зажми новый виджет → <b>«Изменить виджет»</b> → в поле <b>Script</b> выбери «Мой день».</li>
+      </ol>
+      <button class="btn primary" type="button" id="widCopy">Скопировать скрипт</button>
+      <textarea id="widText" readonly rows="6" style="font-family:var(--f-num);font-size:11px" aria-label="Текст скрипта для виджета">${esc(widgetScript())}</textarea>
+      <p class="mhint">Виджет обновляет данные сам, примерно раз в полчаса (когда — решает iPhone). Свежие цифры появляются, когда ты что-то отмечаешь в приложении. Утром, пока ты ничего не отметил, виджет покажет весь список дел на день и полную норму воды. Нажатие на виджет открывает приложение.</p>
+      <p class="mhint">🔒 Виджет показывает только итоги дня: воду, чтение, названия привычек и витаминов. Калории и финансы в него не попадают.</p>`;
+  }
+  $("widBox").addEventListener("click", async e => {
+    if (e.target.id === "widOn"){
+      startPair(newCode(), true);
+      setTimeout(renderWidget, 300);
+    } else if (e.target.id === "widCopy"){
+      const txt = widgetScript();
+      try { await navigator.clipboard.writeText(txt); toast("Скрипт скопирован. Вставь его в Scriptable"); }
+      catch (er) { const ta = $("widText"); ta.focus(); ta.select(); toast("Выдели текст и нажми «Скопировать»"); }
+    }
+  });
 
   // ---------- misc ----------
   let toastT;
@@ -3847,7 +4171,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.07-1";
+const APP_VERSION = "2026.11.07-2";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

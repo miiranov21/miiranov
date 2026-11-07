@@ -10,5 +10,13 @@ service cloud.firestore {
         && request.resource.data.json is string
         && request.resource.data.json.size() < 900000;
     }
+    // Аккаунты: записи каждого видит и меняет только он сам.
+    match /users/{uid}/data/{doc} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['json'])
+        && request.resource.data.json is string
+        && request.resource.data.json.size() < 900000;
+    }
   }
 }

@@ -306,9 +306,9 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .nick input{flex:1 1 160px;max-width:260px}
 
 /* Bottom nav */
-.wrap{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+.wrap{padding-bottom:24px}
 .panel,.summary{scroll-margin-top:12px}
-.bnav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(15,25,45,.08);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(4px,env(safe-area-inset-left,0px));padding-right:max(4px,env(safe-area-inset-right,0px))}
+.bnav{position:sticky;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(15,25,45,.08);padding-bottom:max(4px,env(safe-area-inset-bottom,0px));padding-left:max(4px,env(safe-area-inset-left,0px));padding-right:max(4px,env(safe-area-inset-right,0px))}
 .bnav-in{max-width:760px;margin:0 auto;display:flex;gap:2px;padding-block:6px}
 .bnav button{flex:1 1 0;border:0;background:transparent;border-radius:12px;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink-3);min-width:0}
 .bnav button .ic{display:block;width:23px;height:23px;line-height:0}
@@ -514,6 +514,30 @@ details summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2)
 .ptlist{display:flex;flex-direction:column;gap:6px}
 .pthead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
 .pthead b{font-family:var(--f-display);font-size:18px}
+
+/* Recurring payments */
+.recs{display:flex;flex-direction:column;gap:6px}
+.rec{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;min-width:0;position:relative}
+.rec .ri{font-size:20px;flex:none}
+.rec .rn{flex:1 1 150px;min-width:0}
+.rec .ract{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+.rec .rn b{display:block;overflow-wrap:anywhere}
+.rec .rn small{font-size:12px;color:var(--ink-3)}
+.rec .ra{font-family:var(--f-num);font-weight:700;white-space:nowrap}
+.rec .rs{font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.rec .rs.paid{background:var(--fin-soft);color:var(--fin)}
+.rec .rs.soon{background:var(--vit-soft);color:var(--vit)}
+.rec .rs.late{background:var(--kcal-soft);color:var(--warn)}
+.rec .rs.wait{background:var(--surface-2);color:var(--ink-3)}
+.rec.paid{opacity:.7}
+.rec .rdel{display:none}
+.recs.editing .rdel{display:inline-flex}
+.recsum{font-size:13px;color:var(--ink-2);background:var(--surface-2);border-radius:10px;padding:8px 12px}
+.recform{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,.9fr) minmax(0,.7fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.2fr) auto;gap:8px;align-items:end;margin-top:8px}
+.recform [hidden]{display:none!important}
+@media (max-width:760px){.recform{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.recform .btn{grid-column:1/-1}}
+.recideas{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.recideas button{border:1px dashed var(--fin);background:transparent;border-radius:999px;padding:5px 11px;font-size:13px;font-weight:600}
 
 /* Section filter */
 .viewbar{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
@@ -982,6 +1006,24 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
             <button class="btn fin" type="submit">Перевести</button>
           </form>
           <p class="mhint">Деньги сами между конвертами не переходят. Например, взять из подушки на кредит можно только вручную, здесь.</p>
+        </details>
+      </div>
+
+      <div class="finsec">
+        <div class="finh-row"><h3 class="finh">🔁 Постоянные расходы <span id="recMeta"></span></h3><button class="btn sm ghost" type="button" id="recEdit" aria-pressed="false">Изменить</button></div>
+        <div class="recs" id="recs"></div>
+        <details id="recAddBox">
+          <summary>+ Добавить постоянный расход</summary>
+          <div class="recideas" id="recIdeas"></div>
+          <form class="recform" id="recForm" autocomplete="off">
+            <div class="field"><label for="rName">Что</label><input type="text" id="rName" maxlength="30" required placeholder="Мобильная связь"></div>
+            <div class="field"><label for="rAmt">Сумма</label><input type="number" id="rAmt" min="0.01" step="0.01" inputmode="decimal" required placeholder="500"></div>
+            <div class="field"><label for="rDay">День оплаты</label><input type="number" id="rDay" min="1" max="31" inputmode="numeric" required placeholder="15"></div>
+            <div class="field"><label for="rPer">Как часто</label><select id="rPer"><option value="m">Каждый месяц</option><option value="y">Раз в год</option></select></div>
+            <div class="field" id="rMonWrap" hidden><label for="rMon">Месяц</label><select id="rMon"></select></div>
+            <div class="field"><label for="rEnv">Из конверта</label><select id="rEnv"></select></div>
+            <button class="btn fin" type="submit">Добавить</button>
+          </form>
         </details>
       </div>
 
@@ -3075,10 +3117,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const inv = tx.filter(t => t.t === "inv").reduce((s, t) => s + t.a, 0);
     $("finSum").innerHTML = `<div><span>Пришло</span><b class="pos">${money(inc)}</b></div><div><span>Потрачено</span><b class="neg">${money(exp)}</b></div><div><span>Вложено</span><b>${money(inv)}</b></div>`;
     $("finTx").innerHTML = tx.length ? tx.slice().sort((a, b) => (b.d + b.tm).localeCompare(a.d + a.tm)).map(t => {
-      const what = t.t === "move" ? "↔ " + envById(t.from).icon + " → " + envById(t.to).icon + " " + esc(envById(t.to).name) : t.t === "inc" ? "💵 " + (t.n || "Доход") : t.t === "inv" ? "📈 " + esc(t.n || "Вложение") : envById(t.env).icon + " " + esc(envById(t.env).name) + (t.n ? " · " + esc(t.n) : "");
+      const what = t.rec ? "🔁 " + esc(t.n || "Постоянный расход") + " · " + envById(t.env).icon : t.t === "move" ? "↔ " + envById(t.from).icon + " → " + envById(t.to).icon + " " + esc(envById(t.to).name) : t.t === "inc" ? "💵 " + (t.n || "Доход") : t.t === "inv" ? "📈 " + esc(t.n || "Вложение") : envById(t.env).icon + " " + esc(envById(t.env).name) + (t.n ? " · " + esc(t.n) : "");
       return `<div class="item"><span class="mt num">${+t.d.slice(8)}.${t.d.slice(5, 7)}</span><span class="name">${t.t === "inc" ? esc(what) : what}</span><span class="num" style="color:${t.t === "inc" ? "var(--fin)" : t.t === "move" ? "var(--ink-3)" : "var(--ink)"}">${t.t === "inc" ? "+" : t.t === "move" ? "" : "−"}${money(t.a)}</span><button class="x" type="button" data-fdel="${t.id}" aria-label="Удалить запись">×</button></div>`;
     }).join("") : `<div class="empty">В этом месяце записей нет.</div>`;
     $("finCur").value = FIN.cur;
+    renderRec();
     if (!tState.busy && !(document.activeElement && document.activeElement.id === "tToken")) renderTinv();
   }
   // ---------- T-Invest (read-only token, stays on this phone) ----------
@@ -3183,6 +3226,94 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   // refresh automatically at most every 15 minutes while the app is open
   setTimeout(() => { if (FIN.tToken && (!tState.data || Date.now() - Date.parse(tState.data.at) > 15 * 60000)) tRefresh(); }, 1500);
   document.addEventListener("visibilitychange", () => { if (!document.hidden && FIN.tToken && tState.data && Date.now() - Date.parse(tState.data.at) > 15 * 60000) tRefresh(); });
+
+  // ---------- recurring payments ----------
+  const REC_IDEAS = [["📱", "Мобильная связь", 500, "need"], ["🌐", "Домашний интернет", 600, "need"], ["🏋️", "Абонемент в зал", 2500, "want"], ["🎵", "Музыка", 199, "want"], ["🎬", "Кино и сериалы", 299, "want"], ["☁️", "Облако", 149, "want"], ["🏠", "Аренда", 25000, "need"], ["💡", "Коммуналка", 4000, "need"], ["💳", "Платёж по кредиту", 5000, "need"], ["🚇", "Проездной", 2000, "need"]];
+  let recEditing = false;
+  const MONTHS_N = ["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
+  function recDue(r, monthKey){
+    const [y, m] = monthKey.split("-").map(Number);
+    if (r.per === "y" && r.mon !== m) return null;
+    const dim = new Date(y, m, 0).getDate();
+    return monthKey + "-" + pad(Math.min(r.day, dim));
+  }
+  function recPaid(r, monthKey){ return FIN.tx.find(t => t.rec === r.id && t.d.startsWith(r.per === "y" ? monthKey.slice(0, 4) : monthKey)); }
+  function recIcon(name){ const i = REC_IDEAS.find(x => x[1].toLowerCase() === String(name).toLowerCase()); return i ? i[0] : "🔁"; }
+  function renderRec(){
+    const list = FIN.recurring || [];
+    const mk = finMonth, today = todayKey();
+    const monthly = list.reduce((a, r) => a + (r.per === "y" ? r.amount / 12 : r.amount), 0);
+    $("recMeta").textContent = list.length ? "≈ " + money(monthly) + " в месяц" : "";
+    $("recEdit").hidden = !list.length;
+    $("recs").classList.toggle("editing", recEditing);
+    if (!list.length){
+      $("recs").innerHTML = `<div class="empty">Добавь то, за что платишь регулярно: связь, интернет, зал, подписки, аренду. Приложение напомнит о дне оплаты и спишет деньги из конверта, когда нажмёшь «Оплатил».</div>`;
+    } else {
+      let unpaid = 0;
+      const rows = list.slice().sort((a, b) => (recDue(a, mk) || "9999").localeCompare(recDue(b, mk) || "9999")).map(r => {
+        const due = recDue(r, mk), paid = recPaid(r, mk);
+        let st = "", cls = "wait";
+        if (!due && r.per === "y") { st = "в " + MONTHS_N[(r.mon || 1) - 1] + "е"; cls = "wait"; }
+        else if (paid){ st = "оплачено " + (+paid.d.slice(8)) + "." + paid.d.slice(5, 7); cls = "paid"; }
+        else {
+          unpaid += r.amount;
+          const diff = Math.round((parseKey(due) - parseKey(today)) / 86400000);
+          if (mk < today.slice(0, 7) || diff < 0){ st = "просрочено"; cls = "late"; }
+          else if (diff === 0){ st = "сегодня"; cls = "soon"; }
+          else if (diff <= 3){ st = "через " + diff + " " + plural(diff, "день", "дня", "дней"); cls = "soon"; }
+          else { st = (+due.slice(8)) + " " + MONTHS[+due.slice(5, 7) - 1]; cls = "wait"; }
+        }
+        const env = envById(r.env || "need");
+        const canPay = due && !paid;
+        return `<div class="rec ${paid ? "paid" : ""}"><span class="ri" aria-hidden="true">${r.icon || recIcon(r.name)}</span>
+          <span class="rn"><b>${esc(r.name)}</b><small>${r.per === "y" ? "раз в год, " + MONTHS_N[(r.mon || 1) - 1] + ", " : "каждый месяц, "}${r.day}-го · ${env.icon} ${esc(env.name)}</small></span>
+          <span class="ract"><span class="ra">${money(r.amount)}</span><span class="rs ${cls}">${st}</span>
+          ${canPay ? `<button class="btn sm fin" type="button" data-rpay="${r.id}">Оплатил</button>` : paid ? `<button class="btn sm ghost" type="button" data-runpay="${paid.id}" aria-label="Отменить оплату">↺</button>` : ""}
+          <button class="x rdel" type="button" data-rdel="${r.id}" aria-label="Удалить ${esc(r.name)}">×</button></span></div>`;
+      }).join("");
+      const needBal = envBalance("need");
+      $("recs").innerHTML = rows + (unpaid ? `<div class="recsum">В этом месяце осталось оплатить <b>${money(unpaid)}</b>. В конверте «🏠 Обязательные» сейчас ${money(needBal)}${needBal < unpaid ? " — может не хватить" : ""}.</div>` : `<div class="recsum">✓ Все постоянные расходы за этот месяц оплачены.</div>`);
+    }
+    // form selects
+    const ek = $("rEnv").value || "need";
+    $("rEnv").innerHTML = envList().filter(e => e.id !== "inv").map(e => `<option value="${e.id}" ${e.id === ek ? "selected" : ""}>${e.icon} ${esc(e.name)}</option>`).join("");
+    if (!$("rMon").options.length) $("rMon").innerHTML = MONTHS_N.map((n, i) => `<option value="${i + 1}" ${i === new Date().getMonth() ? "selected" : ""}>${n}</option>`).join("");
+    const have = new Set(list.map(r => r.name.toLowerCase()));
+    $("recIdeas").innerHTML = REC_IDEAS.filter(i => !have.has(i[1].toLowerCase())).map((i, n) => `<button type="button" data-ridea="${esc(i[1])}">${i[0]} ${esc(i[1])}</button>`).join("");
+  }
+  $("rPer").addEventListener("change", () => { $("rMonWrap").hidden = $("rPer").value !== "y"; });
+  $("recIdeas").addEventListener("click", e => {
+    const b = e.target.closest("[data-ridea]"); if (!b) return;
+    const i = REC_IDEAS.find(x => x[1] === b.dataset.ridea); if (!i) return;
+    $("rName").value = i[1]; $("rAmt").value = ""; $("rAmt").placeholder = String(i[2]); $("rEnv").value = i[3]; $("rAmt").focus();
+  });
+  $("recForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const name = $("rName").value.trim(), a = num("rAmt"), d = parseInt($("rDay").value, 10);
+    if (!name || !(a > 0) || !(d >= 1 && d <= 31)){ toast("Заполни название, сумму и день оплаты"); return; }
+    FIN.recurring = FIN.recurring || [];
+    FIN.recurring.push({ id: uid(), name: name.slice(0, 30), icon: recIcon(name), amount: Math.round(a * 100) / 100, day: d, per: $("rPer").value, mon: $("rPer").value === "y" ? +$("rMon").value : null, env: $("rEnv").value || "need" });
+    saveFin(); ["rName", "rAmt", "rDay"].forEach(id => { $(id).value = ""; }); $("recAddBox").open = false;
+    renderFin(); toast("Добавлено: " + name);
+  });
+  $("recs").addEventListener("click", e => {
+    const pay = e.target.closest("[data-rpay]");
+    if (pay){
+      const r = (FIN.recurring || []).find(x => x.id === pay.dataset.rpay); if (!r) return;
+      const d = finMonth === todayKey().slice(0, 7) ? todayKey() : recDue(r, finMonth);
+      FIN.tx.push({ id: uid(), t: "exp", a: r.amount, env: r.env || "need", n: r.name, d, tm: nowTm(), rec: r.id });
+      saveFin(); renderFin(); toast(`Оплачено: ${r.name}. Списано из «${envById(r.env || "need").name}»`);
+      return;
+    }
+    const un = e.target.closest("[data-runpay]");
+    if (un){ FIN.tx = FIN.tx.filter(t => t.id !== un.dataset.runpay); saveFin(); renderFin(); toast("Оплата отменена"); return; }
+    const del = e.target.closest("[data-rdel]");
+    if (del){
+      if (del.dataset.confirm !== "1"){ del.dataset.confirm = "1"; del.textContent = "?"; del.style.color = "var(--warn)"; return; }
+      FIN.recurring = (FIN.recurring || []).filter(r => r.id !== del.dataset.rdel); saveFin(); renderFin();
+    }
+  });
+  $("recEdit").onclick = () => { recEditing = !recEditing; $("recEdit").textContent = recEditing ? "Готово" : "Изменить"; $("recEdit").setAttribute("aria-pressed", recEditing); renderRec(); };
 
   function txDate(){ return finMonth === todayKey().slice(0, 7) ? todayKey() : finMonth + "-01"; }
   function nowTm(){ const t = new Date(); return pad(t.getHours()) + ":" + pad(t.getMinutes()); }
@@ -3716,7 +3847,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.06-5";
+const APP_VERSION = "2026.11.07-1";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

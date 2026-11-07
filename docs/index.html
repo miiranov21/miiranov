@@ -2862,7 +2862,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     let s = norm(String(t).replace(/(\d+):00/g, "$1 o'clock").replace(/-/g, " "));
     [[/\bi'm\b/g, "i am"], [/\b(he|she|it|that|what|where|who|there|here|name)'s\b/g, "$1 is"], [/\b(you|we|they|there)'re\b/g, "$1 are"],
      [/\bisn't\b/g, "is not"], [/\baren't\b/g, "are not"], [/\bdon't\b/g, "do not"], [/\bdoesn't\b/g, "does not"], [/\bdidn't\b/g, "did not"],
-     [/\bcan't\b/g, "can not"], [/\bcannot\b/g, "can not"], [/\bwasn't\b/g, "was not"], [/\bweren't\b/g, "were not"], [/\bwon't\b/g, "will not"],
+     [/\bcan't\b/g, "can not"], [/\bcannot\b/g, "can not"], [/\bwasn't\b/g, "was not"], [/\bweren't\b/g, "were not"], [/\bwon't\b/g, "will not"], [/\b(has|have|had|must|should|could|would|need|might|shall)n't\b/g, "$1 not"], [/\bshan't\b/g, "shall not"],
      [/\b(i|you|we|they)'ve\b/g, "$1 have"], [/\b(i|you|he|she|it|we|they)'ll\b/g, "$1 will"], [/\b(i|you|he|she|we|they)'d\b/g, "$1 would"],
      [/\bapartment\b/g, "flat"], [/\bmom\b/g, "mum"], [/\bdad\b/g, "father"]].forEach(([a, b]) => { s = s.replace(a, b); });
     s = s.replace(/\b\d+\b/g, n => NUMW[n] || n);

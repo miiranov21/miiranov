@@ -615,6 +615,32 @@ body:not([data-view="widget"]) [data-v="widget"]{display:none!important}
 .menuchk .dri{width:22px;height:22px;color:var(--ink-2)}
 .menuchk .dri svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
+/* Book quiz */
+.rqbtn{border-color:var(--read);background:var(--read-soft)}
+.rqprog{height:8px}
+.rqprog i{background:var(--read)}
+.rqq{font-family:var(--f-display);font-size:clamp(19px,5vw,24px);line-height:1.3;margin:0}
+.rqopts{display:flex;flex-direction:column;gap:8px}
+.rqopt{display:flex;align-items:center;gap:10px;border:2px solid var(--line);background:var(--surface);border-radius:14px;padding:12px 14px;text-align:left;font-size:15px;font-weight:600}
+.rqopt .ck{width:22px;height:22px;border-radius:7px;border:2px solid var(--ink-3);display:grid;place-items:center;color:transparent;font-size:13px;flex:none}
+.rqopt[aria-pressed="true"]{border-color:var(--read);background:var(--read-soft)}
+.rqopt[aria-pressed="true"] .ck{background:var(--read);border-color:var(--read);color:#fff}
+.rqopt small{display:block;font-weight:500;color:var(--ink-3);font-size:12.5px}
+.rqfoot{display:flex;justify-content:space-between;gap:8px}
+.rqfoot .btn{padding:12px 18px}
+.rqfoot .btn.primary{background:var(--read);border-color:var(--read)}
+.rqfoot .btn:disabled{opacity:.4;cursor:default}
+.portrait{border:1px solid var(--read);background:var(--read-soft);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:8px}
+.portrait .pt-type{font-family:var(--f-display);font-size:22px}
+.portrait .pt-tags{display:flex;flex-wrap:wrap;gap:6px}
+.recs{display:flex;flex-direction:column;gap:10px}
+.rec1{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.rec1 .rt{font-weight:800;font-size:15.5px;overflow-wrap:anywhere}
+.rec1 .ra{font-size:13px;color:var(--ink-3)}
+.rec1 .rd{font-size:14px;color:var(--ink-2)}
+.rec1 .rw{font-size:12.5px;color:var(--read);font-weight:700}
+.rec1.added{opacity:.6}
+
 /* Section filter */
 .viewbar{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .vb-top{display:flex;flex-direction:column;gap:2px}
@@ -945,6 +971,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
           <button class="btn ghost" type="button" id="pagesSet">Это итог за день</button>
         </div>
       </form>
+      <button class="libbtn rqbtn" type="button" id="rqOpen"><span style="font-size:24px" aria-hidden="true">🎯</span><span><b id="rqBtnT">Подобрать книги для меня</b><small id="rqBtnS">короткий тест: что тебе интересно и какой ты читатель</small></span><span aria-hidden="true">›</span></button>
       <div class="books" id="books"></div>
       <div class="notesbox" id="notesBox" hidden>
         <h3 class="finh">📝 Мои заметки <span id="notesMeta"></span></h3>
@@ -1337,6 +1364,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   </form>
 </dialog>
 
+<div class="lib" id="rq" hidden role="dialog" aria-modal="true" aria-labelledby="rqTitle">
+  <div class="lib-top">
+    <button class="ls-close" type="button" id="rqClose" aria-label="Закрыть">×</button>
+    <h2 id="rqTitle">Подбор книг</h2>
+  </div>
+  <div class="lib-body" id="rqBody"></div>
+</div>
+
 <div class="drawer-bg" id="drawerBg" hidden></div>
 <nav class="drawer" id="drawer" aria-label="Меню" hidden>
   <div class="dr-head"><b>Мой день</b><button class="ls-close" type="button" id="menuClose" aria-label="Закрыть меню">×</button></div>
@@ -1359,6 +1394,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 <script src="course-az.js"></script>
 <script src="foods-ru.js"></script>
 <script src="fin-lessons.js"></script>
+<script src="books-ru.js"></script>
 <script>
 (() => {
   "use strict";
@@ -1948,6 +1984,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     renderIdeas();
     renderVits();
     renderReadExtras();
+    renderRqBtn();
     if (typeof renderToday === "function") renderToday();
     renderFin();
     renderBoard();
@@ -2778,6 +2815,137 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     bb.notes = (bb.notes || []).filter(n => n.id !== x.dataset.ndel);
     S.books = books; persist("books", books, 0); render(); if (!$("libSheet").hidden && $("libSheet").dataset.id === bb.id) openSheet(bb.id);
   });
+
+  // ---------- book quiz: who is this reader, and what to read next ----------
+  const RQ = [
+    { id: "why", q: "Зачем ты обычно читаешь?", multi: 2, hint: "можно выбрать два", o: [
+      ["grow", "📈 Развиваться и узнавать новое"], ["rest", "🛋 Отдохнуть и отвлечься"], ["inspire", "✨ Найти вдохновение и мотивацию"], ["understand", "🫂 Лучше понять себя и людей"]] },
+    { id: "topics", q: "Что тебе интересно по жизни?", multi: 3, hint: "до трёх вариантов", o: [
+      ["productivity", "⚡ Привычки и продуктивность"], ["psych", "🧠 Психология и отношения"], ["money", "💰 Деньги и бизнес"], ["health", "💪 Здоровье и спорт"],
+      ["science", "🔭 Наука и космос"], ["history", "🏛 История и общество"], ["philosophy", "🤔 Философия и смысл жизни"]] },
+    { id: "stories", q: "Какие истории тебе нравятся?", multi: 3, hint: "до трёх вариантов", o: [
+      ["classic_ru", "📜 Русская классика"], ["classic_world", "🌍 Зарубежная классика"], ["fantasy", "🐉 Фэнтези и волшебство"], ["scifi", "🚀 Фантастика и будущее"],
+      ["detective", "🕵️ Детективы и триллеры"], ["romance", "❤️ Истории о любви"], ["drama", "🎭 Драмы о жизни"], ["adventure", "🧭 Приключения"], ["humor", "😄 С юмором"],
+      ["none", "🙅 Художественное не моё"]] },
+    { id: "mood", q: "Какое настроение у книги тебе ближе?", o: [["light", "☀️ Лёгкое, позитивное"], ["deep", "🌊 Глубокое, чтобы задуматься"], ["tense", "🔥 Напряжённое, чтобы не оторваться"]] },
+    { id: "size", q: "Какой объём тебе комфортен?", o: [["short", "Тонкие, до 250 страниц"], ["medium", "Средние, до 450 страниц"], ["long", "Толстые книги не пугают"]] },
+    { id: "type", q: "Какой ты по характеру?", o: [
+      ["practic", "🛠 Практик", "хочу сразу применить в жизни"], ["dreamer", "🌌 Мечтатель", "люблю уходить в другие миры"], ["explorer", "🔍 Исследователь", "хочу понять, как устроен мир"],
+      ["romantic", "💫 Романтик", "мне важны чувства и люди"], ["thinker", "🕯 Мыслитель", "ищу смысл и глубину"], ["solver", "🧩 Любитель загадок", "нравится интрига и напряжение"]] },
+    { id: "time", q: "Сколько времени ты читаешь?", o: [["rare", "Пока редко"], ["some", "Несколько раз в неделю"], ["daily", "Каждый день"]] }
+  ];
+  const RQ_TYPES = {
+    practic: ["🛠 Практик", "Ты читаешь, чтобы менять жизнь: тебе важно, что можно применить уже завтра."],
+    dreamer: ["🌌 Мечтатель", "Тебя тянет в другие миры: фэнтези, фантастика и большие приключения."],
+    explorer: ["🔍 Исследователь", "Ты любишь понимать, как устроен мир: наука, история и факты."],
+    romantic: ["💫 Романтик", "Тебе важны чувства и люди: истории о любви, дружбе и жизни."],
+    thinker: ["🕯 Мыслитель", "Ты ищешь смысл и глубину: книги, после которых долго думаешь."],
+    solver: ["🧩 Любитель загадок", "Тебе нравятся интрига и напряжение: детективы и триллеры."]
+  };
+  const TOPIC_TAGS = { productivity: ["habits", "productivity"], psych: ["psychology", "relationships"], money: ["money", "business"], health: ["health", "sport"], science: ["science", "space"], history: ["history"], philosophy: ["philosophy"] };
+  const STORY_TAGS = { classic_ru: ["classic_ru"], classic_world: ["classic_world"], fantasy: ["fantasy"], scifi: ["scifi", "space", "dystopia"], detective: ["detective", "thriller"], romance: ["romance"], drama: ["drama"], adventure: ["adventure"], humor: ["humor"] };
+  const TYPE_TAGS = { practic: ["practical", "habits", "productivity", "money"], dreamer: ["fantasy", "scifi", "adventure"], explorer: ["science", "history", "space"], romantic: ["romance", "drama"], thinker: ["philosophy", "psychology", "deep"], solver: ["detective", "thriller", "tense"] };
+  const TAG_RU = { habits: "про привычки", productivity: "про продуктивность", psychology: "психология", relationships: "про отношения", money: "про деньги", business: "про бизнес", health: "про здоровье", sport: "про спорт", science: "наука", space: "космос", history: "история", philosophy: "философия", classic_ru: "русская классика", classic_world: "зарубежная классика", fantasy: "фэнтези", scifi: "фантастика", dystopia: "антиутопия", detective: "детектив", thriller: "триллер", romance: "о любви", drama: "драма", adventure: "приключения", humor: "с юмором", inspiration: "вдохновляет", practical: "можно применить сразу", light: "читается легко", deep: "заставляет задуматься", tense: "не оторваться" };
+  let rqState = null;
+  function bookRecs(a){
+    const have = new Set(S.books.list.map(b => b.title.toLowerCase()));
+    return (window.MD_BOOKS || []).filter(b => !have.has(b[0].toLowerCase())).map(([title, author, pages, tagStr, desc]) => {
+      const T = new Set(tagStr.split(" ")); let sc = 0; const why = [];
+      const hit = (tags, pts) => { tags.forEach(t => { if (T.has(t)){ sc += pts; if (TAG_RU[t] && !why.includes(TAG_RU[t])) why.push(TAG_RU[t]); } }); };
+      (a.why || []).forEach(w => {
+        if (w === "grow" && T.has("n")) sc += 2;
+        if (w === "rest" && T.has("f")){ sc += 2; if (T.has("light")) sc += 1; }
+        if (w === "inspire") hit(["inspiration"], 3);
+        if (w === "understand") hit(["psychology", "relationships"], 3);
+      });
+      (a.topics || []).forEach(t => hit(TOPIC_TAGS[t] || [], 3));
+      if ((a.stories || []).includes("none")){ if (T.has("f") && !T.has("n")) sc -= 5; }
+      else (a.stories || []).forEach(t => hit(STORY_TAGS[t] || [], 3));
+      if (a.mood) hit([a.mood], 2);
+      if (a.size === "short"){ if (pages <= 250) sc += 2; else if (pages > 450) sc -= 3; }
+      if (a.size === "medium"){ if (pages <= 450) sc += 1; else if (pages > 600) sc -= 2; }
+      if (a.type) hit(TYPE_TAGS[a.type] || [], 2);
+      if (a.time === "rare" && pages > 450) sc -= 2;
+      if (a.time === "daily" && pages > 450) sc += 1;
+      return { title, author, pages, desc, sc, why: why.slice(0, 3) };
+    }).sort((x, y) => y.sc - x.sc || x.pages - y.pages).slice(0, 8);
+  }
+  function rqRender(){
+    const box = $("rqBody");
+    if (rqState && rqState.step < RQ.length){
+      const qd = RQ[rqState.step], cur0 = rqState.a[qd.id];
+      const sel = v => qd.multi ? (cur0 || []).includes(v) : cur0 === v;
+      box.innerHTML = `<div class="pbar rqprog" aria-hidden="true"><i style="width:${rqState.step / RQ.length * 100}%"></i></div>
+        <span class="mhint">Вопрос ${rqState.step + 1} из ${RQ.length}${qd.hint ? " · " + qd.hint : ""}</span>
+        <h3 class="rqq">${qd.q}</h3>
+        <div class="rqopts">${qd.o.map(([v, t, sub]) => `<button type="button" class="rqopt" data-rqv="${v}" aria-pressed="${sel(v)}"><span class="ck">✓</span><span>${t}${sub ? `<small>${sub}</small>` : ""}</span></button>`).join("")}</div>
+        <div class="rqfoot"><button class="btn ghost" type="button" data-rq="back" ${rqState.step ? "" : "disabled"}>Назад</button><button class="btn primary" type="button" data-rq="next" ${qd.multi ? ((cur0 || []).length ? "" : "disabled") : (cur0 ? "" : "disabled")}>${rqState.step === RQ.length - 1 ? "Показать книги" : "Дальше"}</button></div>`;
+      return;
+    }
+    const prof = S.settings.readQuiz;
+    if (!prof){ rqState = { step: 0, a: {} }; return rqRender(); }
+    const a = prof.a, T = RQ_TYPES[a.type] || ["📚 Читатель", ""];
+    const tags = [].concat((a.topics || []).map(t => RQ[1].o.find(o => o[0] === t)), (a.stories || []).filter(x => x !== "none").map(t => RQ[2].o.find(o => o[0] === t))).filter(Boolean).map(o => o[1]);
+    const recs = bookRecs(a);
+    box.innerHTML = `<div class="portrait"><span class="mhint">Твой читательский портрет</span><div class="pt-type">${T[0]}</div><div>${T[1]}</div>
+        ${tags.length ? `<div class="pt-tags">${tags.map(t => `<span class="chip">${t}</span>`).join("")}</div>` : ""}
+        <div class="mhint">Настроение: ${{ light: "лёгкое", deep: "глубокое", tense: "напряжённое" }[a.mood] || "любое"} · объём: ${{ short: "тонкие книги", medium: "средние", long: "любой" }[a.size] || "любой"}</div></div>
+      <h3 class="rep-h">📚 Тебе могут понравиться</h3>
+      <div class="recs">${recs.length ? recs.map((b, i) => `<div class="rec1" data-ri="${i}"><div class="rt">${esc(b.title)}</div><div class="ra">${esc(b.author)} · ${b.pages} стр.</div><div class="rd">${esc(b.desc)}</div>${b.why.length ? `<div class="rw">Подходит: ${b.why.map(esc).join(", ")}</div>` : ""}
+        <div class="row"><button class="btn sm read" type="button" data-rqadd="${i}" data-mode="want">🔖 Хочу прочитать</button><button class="btn sm" type="button" data-rqadd="${i}" data-mode="now">📖 Читать сейчас</button></div></div>`).join("") : `<div class="empty">Похоже, все подходящие книги уже есть в твоей библиотеке. Пройди тест заново с другими ответами.</div>`}</div>
+      <button class="btn" type="button" data-rq="again">Пройти тест заново</button>
+      <p class="mhint">Подборка из каталога известных книг. Книги, которые уже есть в твоей библиотеке, сюда не попадают. Сколько страниц — примерно, у изданий бывает по-разному: поправить можно в карточке книги.</p>`;
+    box._recs = recs;
+  }
+  function openRq(){ rqState = S.settings.readQuiz ? null : { step: 0, a: {} }; $("rq").hidden = false; document.body.style.overflow = "hidden"; rqRender(); }
+  $("rqOpen").onclick = openRq;
+  $("rqClose").onclick = () => { $("rq").hidden = true; document.body.style.overflow = ""; rqState = null; };
+  $("rqBody").addEventListener("click", e => {
+    const o = e.target.closest("[data-rqv]");
+    if (o && rqState){
+      const qd = RQ[rqState.step], v = o.dataset.rqv;
+      if (qd.multi){
+        let arr = (rqState.a[qd.id] || []).slice();
+        if (arr.includes(v)) arr = arr.filter(x => x !== v);
+        else {
+          if (v === "none") arr = ["none"]; else { arr = arr.filter(x => x !== "none"); if (arr.length >= qd.multi) arr.shift(); arr.push(v); }
+        }
+        rqState.a[qd.id] = arr;
+      } else { rqState.a[qd.id] = v; rqRender(); setTimeout(() => { if (rqState && rqState.step < RQ.length && RQ[rqState.step].id === qd.id){ rqState.step++; finishIfDone(); } }, 220); return; }
+      rqRender(); return;
+    }
+    const b = e.target.closest("[data-rq]");
+    if (b){
+      const a = b.dataset.rq;
+      if (a === "next"){ rqState.step++; finishIfDone(); }
+      else if (a === "back"){ rqState.step = Math.max(0, rqState.step - 1); rqRender(); }
+      else if (a === "again"){ rqState = { step: 0, a: {} }; rqRender(); }
+      return;
+    }
+    const add = e.target.closest("[data-rqadd]");
+    if (add){
+      const r = $("rqBody")._recs[+add.dataset.rqadd]; if (!r) return;
+      const books = clone(S.books); const id = uid(), now = add.dataset.mode === "now";
+      books.list.push({ id, title: r.title, author: r.author, total: r.pages, read: 0, done: false, want: !now, added: todayKey() });
+      if (now) books.current = id;
+      S.books = books; persist("books", books, 0); render();
+      add.closest(".rec1").classList.add("added");
+      add.parentElement.innerHTML = `<span class="chip ok">${now ? "✓ Читаешь сейчас" : "✓ В «Хочу прочитать»"}</span>`;
+      toast(now ? "«" + r.title + "» — читаешь сейчас" : "«" + r.title + "» добавлена в «Хочу прочитать»");
+    }
+  });
+  function finishIfDone(){
+    if (rqState.step >= RQ.length){
+      const st = clone(S.settings); st.readQuiz = { a: rqState.a, date: todayKey() }; S.settings = st; persist("settings", st, 0);
+      rqState = null; render();
+    }
+    rqRender(); $("rqBody").scrollTop = 0;
+  }
+  function renderRqBtn(){
+    const p0 = S.settings.readQuiz;
+    $("rqBtnT").textContent = p0 ? "Книги для тебя" : "Подобрать книги для меня";
+    $("rqBtnS").textContent = p0 ? (RQ_TYPES[p0.a.type] ? RQ_TYPES[p0.a.type][0] + " · подборка по твоим интересам" : "подборка по твоим интересам") : "короткий тест: что тебе интересно и какой ты читатель";
+  }
 
   $("prev").onclick = () => { cur = shift(cur, -1); render(); };
   $("next").onclick = () => { if (cur < todayKey()){ cur = shift(cur, 1); render(); } };
@@ -4034,6 +4202,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       nick: S.settings.nick || "",
       lang: S.settings.lang || null,
       vits: S.settings.vits || [],
+      readQuiz: S.settings.readQuiz || null,
       goals: { kcal: num("gKcal", 800, 6000, g.kcal), water: num("gWater", 500, 6000, g.water), pages: num("gPages", 1, 500, g.pages), glass: num("gGlass", 100, 1000, g.glass), protein: opt("gP", 500), fat: opt("gF", 400), carbs: opt("gC", 1000) },
       habits: draftHabits.map(h => Object.assign({}, h, { name: h.name.trim() })).filter(h => h.name)
     };
@@ -4354,7 +4523,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.08-2";
+const APP_VERSION = "2026.11.08-3";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

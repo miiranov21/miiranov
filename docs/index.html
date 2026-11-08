@@ -881,6 +881,7 @@ body.hide-p-water #p-kcal, body.hide-p-kcal #p-water{grid-column:1/-1}
 .ls-prog i{background:var(--lang)}
 .ls-count{font-size:12px;color:var(--ink-3);flex:none}
 .ls-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 16px 16px;display:flex;flex-direction:column;gap:16px;max-width:640px;width:100%;margin:0 auto}
+#todayCard{display:none!important}
 #lib{z-index:56}
 .stars.ro span{font-size:22px;color:var(--line)}
 .stars.ro span.on{color:#E0A526}
@@ -992,7 +993,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   <div class="cta" id="profileCta" data-v="home" hidden><p>Укажи вес, рост и возраст, и трекер посчитает твою норму КБЖУ и воды.</p><button class="btn primary" type="button" id="ctaBtn">Рассчитать норму</button></div>
 
   <section class="summary" id="summary" data-v="home" aria-label="Сводка дня"></section>
-  <section class="panel todaycard" id="todayCard" data-v="home" aria-labelledby="h-today">
+  <section class="panel todaycard" id="todayCard" data-v="home" aria-labelledby="h-today" hidden>
     <div class="panel-head"><h2 id="h-today"><span class="dot" style="background:var(--accent)"></span>Сегодня</h2><span class="meta" id="todayMeta"></span></div>
     <div class="todo" id="todo"></div>
   </section>
@@ -5566,7 +5567,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.08-11";
+const APP_VERSION = "2026.11.08-12";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

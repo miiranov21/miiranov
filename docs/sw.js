@@ -1,5 +1,5 @@
 // Офлайн-режим: сайт открывается без интернета, свежая версия подтягивается при каждом запуске с сетью.
-const CACHE = "moy-den-2026.11.08-11";
+const CACHE = "moy-den-2026.11.08-12";
 const ASSETS = ["./", "index.html", "config.js", "course-en.js", "course-az.js", "foods-ru.js", "fin-lessons.js", "books-ru.js", "program-en.js", "program-en-m1.js", "program-en-m2.js", "program-en-m3.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting()));

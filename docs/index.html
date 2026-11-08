@@ -1639,7 +1639,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   async function fsHeaders(path, extra){
     const h = Object.assign({}, extra || {});
-    if (AUTH && path.startsWith("users/")) h.Authorization = "Bearer " + await idToken();
+    if (AUTH && (path.startsWith("users/") || path.startsWith("handles/"))) h.Authorization = "Bearer " + await idToken();
     return h;
   }
   // where this person's own records live in the cloud
@@ -1674,10 +1674,16 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const r = await fetch(fsUrl(path), { method: "PATCH", headers: await fsHeaders(path, { "Content-Type": "application/json" }), body: JSON.stringify({ fields: { json: { stringValue: JSON.stringify(obj) } } }) });
     if (!r.ok) throw new Error("HTTP " + r.status);
   }
+  // create only: the server refuses if the document already exists (codes must be unique)
+  async function fsCreate(path, obj, extraFields){
+    const fields = Object.assign({ json: { stringValue: JSON.stringify(obj) } }, extraFields || {});
+    const r = await fetch(fsUrl(path, "currentDocument.exists=false"), { method: "PATCH", headers: await fsHeaders(path, { "Content-Type": "application/json" }), body: JSON.stringify({ fields }) });
+    if (!r.ok){ const e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
+  }
   async function fsGetDoc(path){
     const r = await fetch(fsUrl(path), { headers: await fsHeaders(path) });
     if (r.status === 404) return null;
-    if (!r.ok) throw new Error("HTTP " + r.status);
+    if (!r.ok){ const e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
     const j = await r.json();
     try { return JSON.parse(j.fields.json.stringValue); } catch (e) { return null; }
   }
@@ -1739,7 +1745,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   let invites = [], lastCard = "";
   async function pollInbox(){
     const c = myCode(); if (!CLOUD || !pair || !c) return;
-    const card = JSON.stringify({ nick: S.settings.nick || "", uc: c });
+    const card = JSON.stringify({ nick: S.settings.nick || "", uc: c, uh: S.settings.uhandle || "" });
     if (card !== lastCard){ try { await fsSet(inboxOf(c) + "/card", JSON.parse(card)); lastCard = card; } catch (e) {} }
     try {
       const docs = await fsList(inboxOf(c));
@@ -1793,16 +1799,22 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     await pollBoard();
   }
   async function addByCode(raw){
-    const c = normCode(raw);
-    if (c.length !== 8){ toast("Код — 8 символов, например #ABCD-EFGH"); return; }
-    if (c === myCode()){ toast("Это твой собственный код"); return; }
+    let c = normHandle(raw);
+    if (!HANDLE_RE.test(c)){ toast("Впиши код человека, например #ABCD-EFGH или #MISHA_23"); return; }
+    if (c === myCode() || c === S.settings.uhandle){ toast("Это твой собственный код"); return; }
+    if (!GEN_RE.test(c)){
+      // a chosen code: find whose inbox it points to
+      try { const h = await fsGetDoc("handles/" + c); if (!h || !h.inbox){ toast("Не нашёл #" + c + ". Проверь код"); return; } c = h.inbox; }
+      catch (e) { toast(e.status === 403 ? "Поиск по своим кодам пока не включён (нужно обновить правила Firebase)" : "Нет связи с облаком. Попробуй ещё раз"); return; }
+      if (c === myCode()){ toast("Это твой собственный код"); return; }
+    }
     if (boardDocs.some(d => d.uc === c && d.id !== pair.pid)){ toast("Этот человек уже в комнате"); return; }
     const btn = $("addGo"); if (btn){ btn.disabled = true; btn.textContent = "Ищу…"; }
     try {
       const card = await fsGetDoc(inboxOf(c) + "/card");
       if (!card){ toast("Не нашёл " + fmtCode(c) + ". Проверь код или попроси человека открыть приложение"); return; }
       const n = boardDocs.filter(d => d.updated).length || 1;
-      await fsSet(inboxOf(c) + "/inv_" + myCode(), { room: pair.code, by: S.settings.nick || "", uc: myCode(), n, at: Date.now() });
+      await fsSet(inboxOf(c) + "/inv_" + myCode(), { room: pair.code, by: S.settings.nick || "", uc: myPub(), n, at: Date.now() });
       if ($("addCode")) $("addCode").value = "";
       toast("Приглашение отправлено" + (card.nick ? ": " + card.nick : "") + ". Появится в комнате, когда примет");
     } catch (e) { toast("Нет связи с облаком. Попробуй ещё раз"); }
@@ -1858,7 +1870,12 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
     return S.settings.ucode;
   }
-  const fmtCode = c => c ? "#" + prettyCode(c) : "";
+  const GEN_RE = /^[A-HJ-NP-Z2-9]{8}$/, HANDLE_RE = /^[A-Z0-9_]{4,16}$/;
+  const fmtCode = c => !c ? "" : GEN_RE.test(c) ? "#" + prettyCode(c) : "#" + c;
+  // the code people see and type: a chosen one if set, otherwise the automatic one
+  function myPub(){ return S.settings.uhandle || myCode(); }
+  const pubOf = o => (o && (o.uh || o.uc)) || "";
+  const normHandle = v => String(v || "").toUpperCase().replace(/[#\s-]/g, "");
   const NICK_A = ["Смелый", "Тихий", "Быстрый", "Мудрый", "Солнечный", "Звёздный", "Добрый", "Ловкий", "Весёлый", "Ясный", "Лунный", "Бодрый"];
   const NICK_B = ["Лис", "Кот", "Тигр", "Филин", "Ёж", "Дельфин", "Волк", "Панда", "Сокол", "Енот", "Бобр", "Кит"];
   function randomNick(){ const r = new Uint32Array(3); crypto.getRandomValues(r); return NICK_A[r[0] % NICK_A.length] + " " + NICK_B[r[1] % NICK_B.length] + (r[2] % 3 ? "" : " " + (r[2] % 90 + 10)); }
@@ -1873,13 +1890,38 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     toast(v ? "Никнейм сохранён: " + v : "Никнейм убран");
     return true;
   }
+  async function claimHandle(raw, btn){
+    const h = normHandle(raw);
+    if (!HANDLE_RE.test(h)){ toast("Код: от 4 до 16 символов — латинские буквы, цифры и _"); return; }
+    if (GEN_RE.test(h)){ toast("Такой вид кода занят под автоматические коды. Добавь цифру или _"); return; }
+    if (h === S.settings.uhandle){ toast("Это уже твой код"); return; }
+    if (!CLOUD){ toast("Нужно подключение к облаку"); return; }
+    if (btn){ btn.disabled = true; btn.textContent = "Проверяю…"; }
+    try {
+      const ex = await fsGetDoc("handles/" + h);
+      if (ex && ex.inbox !== myCode()){ toast("Код #" + h + " уже занят. Придумай другой"); return; }
+      if (!ex) await fsCreate("handles/" + h, { inbox: myCode(), nick: S.settings.nick || "", at: Date.now() }, { uid: { stringValue: AUTH ? AUTH.uid : "" } });
+      const old = S.settings.uhandle;
+      const st = clone(S.settings); st.uhandle = h; S.settings = st; persist("settings", st, 0);
+      if (old && AUTH) fsDelete("handles/" + old).catch(() => {});
+      lastCard = ""; lastSummary = ""; scheduleSummary(); if (typeof pollInbox === "function") pollInbox();
+      render(); renderAccount(); renderDrawerAcc();
+      toast("Готово! Теперь твой код #" + h);
+    } catch (e) {
+      toast(e.status === 409 || e.status === 400 ? "Код #" + h + " только что занял кто-то другой. Придумай другой"
+        : e.status === 403 ? "Свои коды пока не включены: нужно обновить правила Firebase" : "Нет связи с облаком. Попробуй ещё раз");
+    } finally { if (btn && btn.isConnected){ btn.disabled = false; btn.textContent = "Занять"; } }
+  }
   function profileCard(){
     const nick = S.settings.nick || "";
     return `<div class="profcard">
-      <div class="accme"><div class="accav">${esc((nick || "?")[0].toUpperCase())}</div><div><b>${esc(nick || "Без никнейма")}</b><div class="ucode">${fmtCode(myCode())}</div></div></div>
+      <div class="accme"><div class="accav">${esc((nick || "?")[0].toUpperCase())}</div><div><b>${esc(nick || "Без никнейма")}</b><div class="ucode">${fmtCode(myPub())}</div></div></div>
       <label class="mhint" for="pNick">Никнейм — так тебя увидят участники комнаты и в «Ваших идеях»</label>
       <div class="row"><input type="text" id="pNick" maxlength="24" autocomplete="nickname" value="${esc(nick)}" placeholder="Придумай никнейм"><button class="btn" type="button" data-prof="rnd" title="Придумать случайный">🎲</button><button class="btn primary" type="button" data-prof="save">Сохранить</button></div>
-      <div class="codebox"><span class="mhint">Твой код</span><span class="num">${fmtCode(myCode())}</span><button class="btn sm" type="button" data-prof="copy">Скопировать</button></div>
+      <div class="codebox"><span class="mhint">Твой код</span><span class="num">${fmtCode(myPub())}</span><button class="btn sm" type="button" data-prof="copy">Скопировать</button></div>
+      <label class="mhint" for="pHandle">Свой код — вместо автоматического. Он уникальный: если его уже кто-то занял, приложение скажет.</label>
+      <div class="row"><input type="text" id="pHandle" maxlength="17" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Например, MISHA_23" value="${esc(S.settings.uhandle || "")}"><button class="btn primary" type="button" data-prof="handle">Занять</button></div>
+      <span class="mhint">От 4 до 16 символов: латинские буквы, цифры и _. ${S.settings.uhandle ? "Автоматический код " + fmtCode(myCode()) + " тоже продолжает работать. " : ""}${S.settings.uhandle && !AUTH ? "Если сменишь свой код, старый останется закреплён за тобой (без аккаунта освободить его нельзя)." : ""}</span>
       <p class="mhint">Код у каждого свой и не меняется. Дай его тому, кто хочет добавить тебя в свою комнату. Никнеймы могут совпасть, а по коду всегда понятно, кто есть кто. ${AUTH ? "Код привязан к аккаунту и одинаковый на всех телефонах." : "Войди в аккаунт, чтобы код был одинаковым на всех твоих телефонах."}</p>
     </div>`;
   }
@@ -1936,6 +1978,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     return {
       nick: (S.settings.nick || "").slice(0, 24),
       uc: myCode(),
+      uh: S.settings.uhandle || "",
       days,
       books: S.books.list.filter(b => b.done).length,
       book: cb ? { t: cb.title, r: cb.read, n: cb.total } : null,
@@ -2019,7 +2062,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const dt = parseKey(k0);
     $("vsMeta").textContent = k0 === today ? "сегодня" : dt.getDate() + " " + MONTHS[dt.getMonth()];
     const L = v => ((v || 0) / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
-    const who = pl => `<span class="cw">${esc(pl.label)}${pl.me && pl.nick ? " (я)" : ""}${pl.uc ? ` <span class="ucode">${fmtCode(pl.uc)}</span>` : ""}</span>`;
+    const who = pl => `<span class="cw">${esc(pl.label)}${pl.me && pl.nick ? " (я)" : ""}${pubOf(pl) ? ` <span class="ucode">${fmtCode(pubOf(pl))}</span>` : ""}</span>`;
     const bar = (v, g, color) => `<div class="pbar"><i style="width:${g ? Math.min(100, v / g * 100) : 0}%;background:${color}"></i></div>`;
     const block = (title, color, lineFn) => `<div class="cmp"><h3>${title}</h3>${players.map(pl => `<div class="cl">${lineFn(pl)}</div>`).join("")}</div>`;
     let html = "";
@@ -2045,8 +2088,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     j.hidden = false;
     $("vsMeta").textContent += " · " + players.length + " " + plural(players.length, "участник", "участника", "участников");
     const addLine = `<b>Добавить в комнату</b>
-      <div class="roomadd"><input type="text" id="addCode" placeholder="Код человека: #XXXX-XXXX" maxlength="12" autocomplete="off" autocapitalize="characters" aria-label="Код человека"><button class="btn primary" type="button" id="addGo">Добавить</button></div>
-      <span class="mhint">Твой код: <b class="num">${fmtCode(myCode())}</b> <button class="btn sm ghost" type="button" id="myCodeCopy">Скопировать</button> — дай его тем, кто хочет добавить тебя. Добавлять может любой участник. Человек получит приглашение и сам решит, принять ли его.</span>
+      <div class="roomadd"><input type="text" id="addCode" placeholder="Код человека: #XXXX-XXXX или #MISHA_23" maxlength="18" autocomplete="off" autocapitalize="characters" aria-label="Код человека"><button class="btn primary" type="button" id="addGo">Добавить</button></div>
+      <span class="mhint">Твой код: <b class="num">${fmtCode(myPub())}</b> <button class="btn sm ghost" type="button" id="myCodeCopy">Скопировать</button> — дай его тем, кто хочет добавить тебя. Добавлять может любой участник. Человек получит приглашение и сам решит, принять ли его.</span>
       <details class="roommore"><summary>Ещё</summary><div>
         <span class="mhint">Код комнаты: <b class="num">${prettyCode(pair.code)}</b> <button class="btn sm ghost" type="button" id="pairCopy">Скопировать</button>. Пригодится, чтобы зайти в комнату с другого телефона.</span>
         <div class="roomadd"><input type="text" id="pairCode" placeholder="Код комнаты: XXXX-XXXX-XXXX" maxlength="16" autocomplete="off" autocapitalize="characters" aria-label="Код комнаты"><button class="btn" type="button" id="pairJoin">Войти</button></div>
@@ -3467,7 +3510,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (partner.length){
       const sumP = (pl, f) => keys.reduce((a, k) => a + (((pl.days || {})[k] || {})[f] || 0), 0);
       const me = buildSummary();
-      const rows = [Object.assign({ label: S.settings.nick ? S.settings.nick + " (я)" : "Я" }, me)].concat(partner.map(x => Object.assign({ label: (x.nick || "Участник") + (x.uc ? " " + fmtCode(x.uc) : "") }, x)));
+      const rows = [Object.assign({ label: S.settings.nick ? S.settings.nick + " (я)" : "Я" }, me)].concat(partner.map(x => Object.assign({ label: (x.nick || "Участник") + (pubOf(x) ? " " + fmtCode(pubOf(x)) : "") }, x)));
       $("repPair").innerHTML = `<h3 class="rep-h">👥 Итоги недели в комнате</h3><div class="h2h"><table><thead><tr><th></th><th>Страниц</th><th>Воды, л</th><th>Привычек</th><th>Язык, мин</th></tr></thead><tbody>` +
         rows.map(r => `<tr><td>${esc(r.label)}</td><td class="c">${sumP(r, "p")}</td><td class="c">${(sumP(r, "w") / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}</td><td class="c">${sumP(r, "h")} из ${sumP(r, "ht")}</td><td class="c">${sumP(r, "lm")}</td></tr>`).join("") +
         `</tbody></table></div>`;
@@ -3517,7 +3560,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const wD = daysWith("w"); const avgW = wD.length ? sum("w") / wD.length : 0;
     const hT = sum("ht"), hD = sum("h"), vN = sum("vn"), vT = sum("vt");
     const lessons = past.reduce((a, k) => a + ((D(k).ll || []).length), 0);
-    let html = selHtml + `<div class="row" style="justify-content:flex-end"><button class="btn sm" type="button" data-flib="${esc(pd.id)}">📚 Библиотека: ${esc(pd.nick || "участник")}</button></div><div class="pthead"><b>${esc(pd.nick || "Участник")}${pd.uc ? ` <span class="ucode">${fmtCode(pd.uc)}</span>` : ""}</b><span class="mhint">обновлено ${ago(pd.updated)}</span></div><div class="repstats">
+    let html = selHtml + `<div class="row" style="justify-content:flex-end"><button class="btn sm" type="button" data-flib="${esc(pd.id)}">📚 Библиотека: ${esc(pd.nick || "участник")}</button></div><div class="pthead"><b>${esc(pd.nick || "Участник")}${pubOf(pd) ? ` <span class="ucode">${fmtCode(pubOf(pd))}</span>` : ""}</b><span class="mhint">обновлено ${ago(pd.updated)}</span></div><div class="repstats">
       <div><span>📖 Прочитано</span><b>${sum("p")} стр.</b><small>цель выполнена ${goalDays("p", "pg")} из ${past.length} дн.</small></div>
       <div><span>💧 Вода в среднем</span><b>${L1(avgW)} л</b><small>цель выполнена ${goalDays("w", "wg")} из ${past.length} дн.</small></div>
       <div><span>✅ Привычки</span><b>${hT ? Math.round(hD / hT * 100) : 0}%</b><small>отмечено ${hD} из ${hT}</small></div>
@@ -3872,7 +3915,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       ["settings", "books", "dict", "course", "recipes"].forEach(k => { if (S[k]) S[k]._u = 0; });
       try { await pullCloud(); render(); toast("Записи восстановлены"); } catch (er) { toast("Не удалось связаться с облаком"); }
     }
-    else if (t.id === "myCodeCopy"){ const txt = fmtCode(myCode()); try { await navigator.clipboard.writeText(txt); toast("Код скопирован"); } catch (er) { toast("Твой код: " + txt); } }
+    else if (t.id === "myCodeCopy"){ const txt = fmtCode(myPub()); try { await navigator.clipboard.writeText(txt); toast("Код скопирован"); } catch (er) { toast("Твой код: " + txt); } }
     else if (t.id === "roomLeave"){
       if (t.dataset.confirm !== "1"){ t.dataset.confirm = "1"; t.textContent = "Точно выйти?"; return; }
       await joinRoom(newCode()); toast("Ты вышел из комнаты. Теперь у тебя своя новая комната");
@@ -5284,7 +5327,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   const authErr = e => { const c = String(e && e.code || ""); if (c.startsWith("WEAK_PASSWORD")) return "Пароль слишком простой: нужно минимум 6 символов."; return AUTH_ERR[c] || (c.startsWith("API_KEY") || c.includes("API key") ? "Неверный ключ Firebase в настройках сайта." : "Не получилось. Проверь интернет и попробуй ещё раз."); };
   function renderDrawerAcc(){
     const nick = S.settings.nick || "";
-    $("drAcc").innerHTML = `<button type="button" class="dr-me" data-dview="account"><span class="accav">${esc((nick || "?")[0].toUpperCase())}</span><span style="min-width:0"><b>${esc(nick || "Придумай никнейм")}</b><span class="ucode">${fmtCode(myCode())}</span></span></button>` + (AUTH ? `👤 ${esc(AUTH.email || "")}` : AUTH_ON ? `Без аккаунта · <button type="button" data-dview="account">Войти</button>` : "");
+    $("drAcc").innerHTML = `<button type="button" class="dr-me" data-dview="account"><span class="accav">${esc((nick || "?")[0].toUpperCase())}</span><span style="min-width:0"><b>${esc(nick || "Придумай никнейм")}</b><span class="ucode">${fmtCode(myPub())}</span></span></button>` + (AUTH ? `👤 ${esc(AUTH.email || "")}` : AUTH_ON ? `Без аккаунта · <button type="button" data-dview="account">Войти</button>` : "");
   }
   function renderAccount(){
     const box = $("accBox");
@@ -5323,11 +5366,12 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   $("accBox").addEventListener("click", async e => {
     const b = e.target.closest("[data-prof]"); if (!b) return;
+    if (b.dataset.prof === "handle"){ claimHandle($("pHandle").value, b); return; }
     if (b.dataset.prof === "rnd"){ $("pNick").value = randomNick(); $("pNick").focus(); }
     else if (b.dataset.prof === "save"){ if (setNick($("pNick").value)) renderAccount(); }
-    else if (b.dataset.prof === "copy"){ const t = fmtCode(myCode()); try { await navigator.clipboard.writeText(t); toast("Код скопирован"); } catch (er) { toast("Твой код: " + t); } }
+    else if (b.dataset.prof === "copy"){ const t = fmtCode(myPub()); try { await navigator.clipboard.writeText(t); toast("Код скопирован"); } catch (er) { toast("Твой код: " + t); } }
   });
-  $("accBox").addEventListener("keydown", e => { if (e.target.id === "pNick" && e.key === "Enter"){ e.preventDefault(); if (setNick(e.target.value)) renderAccount(); } });
+  $("accBox").addEventListener("keydown", e => { if (e.target.id === "pHandle" && e.key === "Enter"){ e.preventDefault(); claimHandle(e.target.value, document.querySelector('[data-prof="handle"]')); return; } if (e.target.id === "pNick" && e.key === "Enter"){ e.preventDefault(); if (setNick(e.target.value)) renderAccount(); } });
   // Google sign-in uses the official Firebase script only for the sign-in window; tokens then work like email accounts
   const FB_VER = "10.12.2";
   function loadScript(src){ return new Promise((ok, bad) => { if (document.querySelector('script[src="' + src + '"]')) return ok(); const el = document.createElement("script"); el.src = src; el.onload = ok; el.onerror = () => bad(new Error("load")); document.head.appendChild(el); }); }
@@ -5539,7 +5583,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     e.preventDefault();
     const t = $("ideaText").value.trim(); if (!t) return;
     const type = (document.querySelector('[name="itype"]:checked') || {}).value || "idea";
-    FB.list.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t, type, sec: $("ideaSec").value, by: S.settings.nick || "", uc: myCode(), byId: ideaMe(), at: Date.now(), st: "new", likes: [], _u: Date.now() });
+    FB.list.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t, type, sec: $("ideaSec").value, by: S.settings.nick || "", uc: myPub(), byId: ideaMe(), at: Date.now(), st: "new", likes: [], _u: Date.now() });
     if (ideaFil === "done") ideaFil = "open";
     saveIdeasLocal(); renderIdeas(); syncIdeas(); toast("Идея записана 💡");
   });
@@ -5583,7 +5627,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.08-13";
+const APP_VERSION = "2026.11.08-14";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

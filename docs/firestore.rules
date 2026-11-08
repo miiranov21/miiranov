@@ -10,6 +10,21 @@ service cloud.firestore {
         && request.resource.data.json is string
         && request.resource.data.json.size() < 900000;
     }
+    // Свои коды пользователей: каждый код может занять только один человек.
+    // Создать можно только код, которого ещё нет; чужой код изменить нельзя.
+    // Освободить код может только владелец аккаунта, который его занял.
+    match /handles/{code} {
+      allow get: if code.matches('^[A-Z0-9_]{4,16}$');
+      allow list: if false;
+      allow create: if code.matches('^[A-Z0-9_]{4,16}$')
+        && request.resource.data.keys().hasOnly(['json', 'uid'])
+        && request.resource.data.json is string
+        && request.resource.data.json.size() < 2000
+        && request.resource.data.uid is string
+        && (request.resource.data.uid == '' || (request.auth != null && request.resource.data.uid == request.auth.uid));
+      allow update: if false;
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
     // Аккаунты: записи каждого видит и меняет только он сам.
     match /users/{uid}/data/{doc} {
       allow read, delete: if request.auth != null && request.auth.uid == uid;

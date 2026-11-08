@@ -882,6 +882,12 @@ body.hide-p-water #p-kcal, body.hide-p-kcal #p-water{grid-column:1/-1}
 .ls-count{font-size:12px;color:var(--ink-3);flex:none}
 .ls-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 16px 16px;display:flex;flex-direction:column;gap:16px;max-width:640px;width:100%;margin:0 auto}
 #todayCard{display:none!important}
+body{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+body > .wrap{width:100%;flex:1 0 auto}
+.bnav{margin-top:auto}
+body.nobnav .bnav{display:none!important}
+.bnavopt{display:flex;gap:10px;align-items:center;font-weight:600;padding:8px 10px;border:1px solid var(--line);border-radius:12px}
+.bnavopt input{width:19px;height:19px;accent-color:var(--accent)}
 #lib{z-index:56}
 .stars.ro span{font-size:22px;color:var(--line)}
 .stars.ro span.on{color:#E0A526}
@@ -1459,6 +1465,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   <form class="dlg" method="dialog" id="menuForm">
     <h2 id="menuDlgT" style="font-size:18px">Настроить меню</h2>
     <p class="mhint" style="margin:0">Отметь разделы, которые нужны тебе сейчас. Остальные исчезнут из меню и нижней панели. Данные в скрытых разделах сохраняются, вернуть их можно в любой момент.</p>
+    <label class="bnavopt"><input type="checkbox" id="bnavShow"> Показывать нижнюю панель с разделами</label>
     <div class="menuchk" id="menuChk"></div>
     <div class="row" style="justify-content:space-between">
       <button class="btn ghost" type="button" id="menuAll">Отметить все</button>
@@ -1487,6 +1494,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <button type="button" data-dview="widget"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><rect x="9" y="6" width="6" height="5" rx="1"/><path d="M11 18.5h2"/></svg></span>Виджет на экран</button>
     <button type="button" data-dview="account"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5"/></svg></span>Аккаунт</button>
     <button type="button" data-dview="ideas"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17.5h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2v1.5h5V16c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/></svg></span>Ваши идеи</button>
+    <button type="button" data-dtool="bnav"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 15h17"/><path d="M7.5 17.3h1M11.5 17.3h1M15.5 17.3h1"/></svg></span><span id="bnavTx">Нижняя панель</span></button>
     <button type="button" data-dtool="menu"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 17h6M18 7h2M14 17h6"/><circle cx="16" cy="7" r="2"/><circle cx="12" cy="17" r="2"/></svg></span>Настроить меню</button>
     <button type="button" data-dtool="update"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4.5v4.2h-4.2"/></svg></span>Обновить приложение</button>
   </div>
@@ -5174,6 +5182,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     else if (a === "settings") $("openSettings").click();
     else if (a === "update") $("updBtn").click();
     else if (a === "menu") openMenuDlg();
+    else if (a === "bnav"){ setBnav(!bnavOn()); toast(bnavOn() ? "Нижняя панель включена" : "Нижняя панель скрыта. Разделы — в меню ☰"); }
   });
   window.addEventListener("hashchange", () => setView((location.hash || "").slice(1) || "home", { noHash: true }));
   // tapping a ring on the home screen opens its section
@@ -5237,7 +5246,13 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     applyView();
   });
   const SEC_ICON = { "p-kcal": "food", "p-read": "read", "p-lang": "lang", "p-hab": "habits", "p-vit": "vit", "p-cal": "habits", "p-fin": "fin", report: "report" };
+  // bottom bar: each person decides whether to use it; the ☰ menu always works
+  function bnavOn(){ try { return localStorage.getItem("moy-den-bnav") !== "0"; } catch (e) { return true; } }
+  function setBnav(on){ try { localStorage.setItem("moy-den-bnav", on ? "1" : "0"); } catch (e) {} applyBnav(); }
+  function applyBnav(){ document.body.classList.toggle("nobnav", !bnavOn()); const t = $("bnavTx"); if (t) t.textContent = bnavOn() ? "Скрыть нижнюю панель" : "Показать нижнюю панель"; }
+  applyBnav();
   function openMenuDlg(){
+    $("bnavShow").checked = bnavOn();
     $("menuChk").innerHTML = SECTIONS.map(([id, name]) => `<label><input type="checkbox" value="${id}" ${hiddenSecs.includes(id) ? "" : "checked"}><span class="dri">${DR_ICONS[SEC_ICON[id]] || ""}</span>${esc(name.replace(/^\S+\s/, ""))}</label>`).join("");
     $("menuDlg").showModal();
   }
@@ -5246,6 +5261,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   $("menuForm").addEventListener("submit", e => {
     e.preventDefault();
     hiddenSecs = [...$("menuChk").querySelectorAll("input")].filter(i => !i.checked).map(i => i.value);
+    setBnav($("bnavShow").checked);
     applyView(); $("menuDlg").close();
     const v = VIEW_SEC[view]; if (v && hiddenSecs.includes(v)) setView("home");
     toast(hiddenSecs.length ? "Меню сохранено. Скрыто разделов: " + hiddenSecs.length : "Меню сохранено: показаны все разделы");
@@ -5567,7 +5583,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.08-12";
+const APP_VERSION = "2026.11.08-13";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

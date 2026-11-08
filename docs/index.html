@@ -881,6 +881,9 @@ body.hide-p-water #p-kcal, body.hide-p-kcal #p-water{grid-column:1/-1}
 .ls-prog i{background:var(--lang)}
 .ls-count{font-size:12px;color:var(--ink-3);flex:none}
 .ls-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 16px 16px;display:flex;flex-direction:column;gap:16px;max-width:640px;width:100%;margin:0 auto}
+#lib{z-index:56}
+.stars.ro span{font-size:22px;color:var(--line)}
+.stars.ro span.on{color:#E0A526}
 .ls-goal{flex:none;margin:8px 16px 0;padding:10px 12px;border:1px solid var(--habit);background:var(--surface);border-radius:12px;font-size:13.5px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .ls-goal span{flex:1 1 200px}
 .ls-foot{flex:none;max-height:55vh;overflow-y:auto;padding:12px 16px 16px;border-top:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:10px}
@@ -1632,9 +1635,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   // where this person's own records live in the cloud
   function syncOn(){ return CLOUD && !!(AUTH || pair); }
-  function dataCol(){ return AUTH ? "users/" + AUTH.uid + "/data" : "pairs/" + pair.code + "/data"; }
-  function unitDocId(u){ return AUTH ? u : pair.pid + "_" + u; }
-  function unitFromId(id){ if (AUTH) return id === "profile" || id === "ideas" ? null : id; return id.startsWith(pair.pid + "_") ? id.slice(pair.pid.length + 1) : null; }
+  // records without an account live in a private space (pair.vault) that only this person knows, never in the shared room
+  function dataCol(){ return AUTH ? "users/" + AUTH.uid + "/data" : "pairs/" + (pair.vault || pair.code) + "/data"; }
+  function privateCol(){ return AUTH || !!(pair && pair.vault); }
+  function unitDocId(u){ return privateCol() ? u : pair.pid + "_" + u; }
+  function unitFromId(id){ if (privateCol()) return id === "profile" || id === "ideas" || id === "card" ? null : id; return id.startsWith(pair.pid + "_") ? id.slice(pair.pid.length + 1) : null; }
 
   function fsUrl(path, extra){
     const q = [];
@@ -1811,6 +1816,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   function savePair(p){
     if (p && AUTH) p.pid = AUTH.uid;
+    if (p && !AUTH && pair && pair.vault && !p.vault) p.vault = pair.vault;
+    if (p && !AUTH && pair && pair.legacy && !p.legacy) p.legacy = pair.legacy;
     pair = p;
     if (AUTH) fsSet("users/" + AUTH.uid + "/data/profile", { pair: p ? p.code : null, nick: S.settings.nick || "" }).catch(() => {});
     try { if (p) localStorage.setItem("moy-den-pair", JSON.stringify(p)); else localStorage.removeItem("moy-den-pair"); } catch (e) {}
@@ -1837,7 +1844,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (!loaded) return S.settings.ucode || "";
     if (!S.settings.ucode){
       const r = new Uint32Array(8); crypto.getRandomValues(r);
-      const st = clone(S.settings); st.ucode = [...r].map(n => CODE_ABC[n % CODE_ABC.length]).join(""); S.settings = st; persist("settings", st, 0);
+      // saved without a new timestamp, so settings already in the cloud still win when they are downloaded
+      const st = clone(S.settings); st.ucode = [...r].map(n => CODE_ABC[n % CODE_ABC.length]).join(""); S.settings = st; localStore.save("settings", st);
     }
     return S.settings.ucode;
   }
@@ -1876,10 +1884,27 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (!syncOn()) return;
     if (AUTH && !pair){ try { await loadProfile(); } catch (e) {} if (!pair) autoRoom(); }
     try { await pullCloud(); migrateBad(); render(); } catch (e) { setSync("offline"); }
+    if (!AUTH && pair && !pair.vault) migrateVault();
+    else if (!AUTH && pair && pair.legacy) cleanupLegacy();
     pollBoard();
   }
+  // older versions kept the backup inside the room; move it to the private space and remove it from the room
+  function migrateVault(){
+    savePair(Object.assign({}, pair, { vault: newCode(), legacy: { code: pair.code, pid: pair.pid } }));
+    markAll();
+    setTimeout(cleanupLegacy, 5000);
+  }
+  async function cleanupLegacy(){
+    const lg = pair && pair.legacy; if (!lg) return;
+    await cloudBusy; if (cloudDirty.size) { setTimeout(cleanupLegacy, 10000); return; }
+    try {
+      const docs = await fsList("pairs/" + lg.code + "/data");
+      for (const d of docs) if (d.id.startsWith(lg.pid + "_")) await fsDelete("pairs/" + lg.code + "/data/" + d.id);
+      const p = Object.assign({}, pair); delete p.legacy; pair = null; savePair(p);
+    } catch (e) {}
+  }
   // everyone gets their own room right away; other people join by invitation
-  function autoRoom(){ savePair({ code: newCode(), pid: AUTH ? AUTH.uid : newPid() }); boardState = "loading"; lastSummary = ""; markAll(); scheduleSummary(); }
+  function autoRoom(){ savePair(Object.assign({ code: newCode(), pid: AUTH ? AUTH.uid : newPid() }, AUTH ? {} : { vault: newCode() })); boardState = "loading"; lastSummary = ""; markAll(); scheduleSummary(); }
   setInterval(pollBoard, 20000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden){ pollBoard(); if (syncOn()) pullCloud().catch(() => {}); } });
 
@@ -1907,6 +1932,11 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       book: cb ? { t: cb.title, r: cb.read, n: cb.total } : null,
       shelf: S.books.list.filter(b => b.done).sort((a, b) => (b.finished || "").localeCompare(a.finished || "")).slice(0, 12).map(b => ({ t: b.title, a: b.author || "", r: b.rating || 0 })),
       want: S.books.list.filter(b => b.want).length,
+      lib: {
+        done: S.books.list.filter(b => b.done).sort((a, b) => (b.finished || "").localeCompare(a.finished || "")).slice(0, 120).map(b => ({ t: b.title, a: b.author || "", n: b.total || 0, r: b.rating || 0, f: b.finished || "" })),
+        read: S.books.list.filter(b => !b.done && !b.want).map(b => ({ t: b.title, a: b.author || "", n: b.total || 0, p: b.read || 0, c: b.id === S.books.current ? 1 : 0 })),
+        want: S.books.list.filter(b => b.want).slice(0, 80).map(b => ({ t: b.title, a: b.author || "", n: b.total || 0 }))
+      },
       habStreaks: S.settings.habits.filter(h => h.type !== "bad").map(h => ({ n: h.name, s: habitStreak(h.id) })).filter(x => x.s > 1),
       todo: (() => {
         const tk = todayKey(), td = day(tk), g0 = goals();
@@ -1993,7 +2023,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       ? `${who(pl)}<span class="cv num">${pl.d.vt || 0} из ${pl.d.vn}</span>${bar(pl.d.vt || 0, pl.d.vn, "var(--vit)")}${(pl.d.vd || []).length ? `<div class="cdone">${pl.d.vd.map(esc).join(" · ")}</div>` : ""}`
       : `${who(pl)}<span class="cv">не пьёт</span>`);
     html += block("✅ Привычки", "var(--habit)", pl => `${who(pl)}<span class="cv num">${pl.d.h || 0} из ${pl.d.ht || 0}</span>${bar(pl.d.h || 0, pl.d.ht, "var(--habit)")}${(pl.d.hd || []).length ? `<div class="cdone">${pl.d.hd.map(n => esc(n)).join(" · ")}</div>` : ""}`);
-    if (players.some(pl => (pl.shelf || []).length || pl.want)) html += block("📚 Библиотека", "var(--read)", pl => `${who(pl)}<span class="cv num">прочитано ${pl.books || 0}${pl.want ? " · хочет " + pl.want : ""}</span>${(pl.shelf || []).length ? `<div class="cdone">${pl.shelf.slice(0, 6).map(b => "«" + esc(b.t) + "»" + (b.r ? " " + "★".repeat(b.r) : "")).join(" · ")}</div>` : ""}`);
+    if (players.some(pl => (pl.shelf || []).length || pl.want)) html += block("📚 Библиотека", "var(--read)", pl => `${who(pl)}<span class="cv num">прочитано ${pl.books || 0}${pl.want ? " · хочет " + pl.want : ""}</span>${(pl.shelf || []).length ? `<div class="cdone">${pl.shelf.slice(0, 6).map(b => "«" + esc(b.t) + "»" + (b.r ? " " + "★".repeat(b.r) : "")).join(" · ")}</div>` : ""}<div><button class="btn sm ghost" type="button" data-flib="${pl.me ? "" : esc(pl.id)}">📚 Открыть полку</button></div>`);
     if (players.some(pl => (pl.habStreaks || []).length)) html += block("🔥 Серии привычек", "var(--habit)", pl => `${who(pl)}<span class="cv">${(pl.habStreaks || []).length ? pl.habStreaks.map(h => `<span class="chip fire">${esc(h.n)}: <span class="num">${h.s}</span> ${plural(h.s, "день", "дня", "дней")}</span>`).join(" ") : "—"}</span>`);
     if (players.some(pl => pl.book)) html += block("📚 Читает сейчас", "var(--read)", pl => `${who(pl)}<span class="cv">${pl.book ? `«${esc(pl.book.t)}» · <span class="num">${pl.book.r} / ${pl.book.n} стр.</span>` : "—"}</span>`);
     if (players.some(pl => (pl.quit || []).length)) html += block("🚭 Вредные привычки", "var(--habit)", pl => `${who(pl)}<span class="cv">${(pl.quit || []).length ? pl.quit.map(q => `<span class="chip fire">${esc(q.n)}: рекорд <span class="num">${q.b != null ? q.b : q.d}</span> · сейчас <span class="num">${q.d}</span></span>`).join(" ") : "—"}</span>`);
@@ -2011,6 +2041,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <details class="roommore"><summary>Ещё</summary><div>
         <span class="mhint">Код комнаты: <b class="num">${prettyCode(pair.code)}</b> <button class="btn sm ghost" type="button" id="pairCopy">Скопировать</button>. Пригодится, чтобы зайти в комнату с другого телефона.</span>
         <div class="roomadd"><input type="text" id="pairCode" placeholder="Код комнаты: XXXX-XXXX-XXXX" maxlength="16" autocomplete="off" autocapitalize="characters" aria-label="Код комнаты"><button class="btn" type="button" id="pairJoin">Войти</button></div>
+        ${!AUTH && pair.vault ? `<span class="mhint">🔐 Код восстановления записей: <b class="num">${prettyCode(pair.vault)}</b> <button class="btn sm ghost" type="button" id="vaultCopy">Скопировать</button>. Он только твой: никому его не показывай. С ним можно вернуть все записи на новом телефоне. Надёжнее всего войти в аккаунт.</span>
+        <div class="roomadd"><input type="text" id="vaultCode" placeholder="Код восстановления: XXXX-XXXX-XXXX" maxlength="16" autocomplete="off" autocapitalize="characters" aria-label="Код восстановления"><button class="btn" type="button" id="vaultGo">Вернуть записи</button></div>` : ""}
         <button class="btn" type="button" id="roomLeave" style="color:var(--warn);border-color:var(--warn);align-self:flex-start">Выйти из комнаты</button>
         <span class="mhint">После выхода у тебя будет своя новая пустая комната, а другие перестанут видеть твой прогресс.</span>
       </div></details>`;
@@ -3476,7 +3508,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const wD = daysWith("w"); const avgW = wD.length ? sum("w") / wD.length : 0;
     const hT = sum("ht"), hD = sum("h"), vN = sum("vn"), vT = sum("vt");
     const lessons = past.reduce((a, k) => a + ((D(k).ll || []).length), 0);
-    let html = selHtml + `<div class="pthead"><b>${esc(pd.nick || "Участник")}${pd.uc ? ` <span class="ucode">${fmtCode(pd.uc)}</span>` : ""}</b><span class="mhint">обновлено ${ago(pd.updated)}</span></div><div class="repstats">
+    let html = selHtml + `<div class="row" style="justify-content:flex-end"><button class="btn sm" type="button" data-flib="${esc(pd.id)}">📚 Библиотека: ${esc(pd.nick || "участник")}</button></div><div class="pthead"><b>${esc(pd.nick || "Участник")}${pd.uc ? ` <span class="ucode">${fmtCode(pd.uc)}</span>` : ""}</b><span class="mhint">обновлено ${ago(pd.updated)}</span></div><div class="repstats">
       <div><span>📖 Прочитано</span><b>${sum("p")} стр.</b><small>цель выполнена ${goalDays("p", "pg")} из ${past.length} дн.</small></div>
       <div><span>💧 Вода в среднем</span><b>${L1(avgW)} л</b><small>цель выполнена ${goalDays("w", "wg")} из ${past.length} дн.</small></div>
       <div><span>✅ Привычки</span><b>${hT ? Math.round(hD / hT * 100) : 0}%</b><small>отмечено ${hD} из ${hT}</small></div>
@@ -3821,6 +3853,16 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const t = e.target.closest("button"); if (!t) return;
     if (t.id === "pairCreate") startPair(newCode(), true);
     else if (t.id === "addGo") addByCode($("addCode").value);
+    else if (t.id === "vaultCopy"){ const txt = prettyCode(pair.vault); try { await navigator.clipboard.writeText(txt); toast("Код скопирован. Сохрани его в надёжном месте"); } catch (er) { toast("Код: " + txt); } }
+    else if (t.id === "vaultGo"){
+      const code = normCode($("vaultCode").value);
+      if (code.length !== 12){ toast("В коде восстановления 12 символов"); return; }
+      if (t.dataset.confirm !== "1"){ t.dataset.confirm = "1"; t.textContent = "Точно? Записи объединятся"; return; }
+      savePair(Object.assign({}, pair, { vault: code }));
+      // on restore the saved copy wins over this phone's settings, library and course
+      ["settings", "books", "dict", "course", "recipes"].forEach(k => { if (S[k]) S[k]._u = 0; });
+      try { await pullCloud(); render(); toast("Записи восстановлены"); } catch (er) { toast("Не удалось связаться с облаком"); }
+    }
     else if (t.id === "myCodeCopy"){ const txt = fmtCode(myCode()); try { await navigator.clipboard.writeText(txt); toast("Код скопирован"); } catch (er) { toast("Твой код: " + txt); } }
     else if (t.id === "roomLeave"){
       if (t.dataset.confirm !== "1"){ t.dataset.confirm = "1"; t.textContent = "Точно выйти?"; return; }
@@ -4841,7 +4883,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const color = SPINE_COLORS[hashStr(b.title + (b.author || "")) % SPINE_COLORS.length];
     const h = Math.round(Math.max(120, Math.min(190, 110 + (b.total || 200) / 7)));
     const w = Math.round(Math.max(24, Math.min(46, 20 + (b.total || 200) / 30)));
-    const isCur = b.id === S.books.current && !b.done && !b.want;
+    const isCur = b.cur !== undefined ? !!b.cur : b.id === S.books.current && !b.done && !b.want;
     return `<button class="spine ${b.want ? "want" : ""}" type="button" data-book="${b.id}" style="height:${h}px;width:${w}px;background:${color}" aria-label="${esc(b.title)}${b.author ? ", " + esc(b.author) : ""}">${isCur ? '<i class="bm" aria-hidden="true"></i>' : ""}<span>${esc(b.title)}</span></button>`;
   }
   function shelfRows(books){
@@ -4856,8 +4898,26 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     if (row.length) rows.push(row);
     return rows.map(r => `<div class="shelf">${r.map(spineHTML).join("")}</div>`).join("");
   }
+  let libOwner = null;   // null — моя библиотека, иначе id участника комнаты
+  function libPeople(){ return (typeof pair !== "undefined" && pair) ? boardDocs.filter(d => d.id !== pair.pid && d.updated && (d.lib || (d.shelf || []).length || d.book)) : []; }
+  function libOf(doc){
+    if (doc.lib) return [].concat(
+      doc.lib.read.map((b, i) => ({ id: "f:r" + i, title: b.t, author: b.a, total: b.n, read: b.p, done: false, want: false, cur: b.c })),
+      doc.lib.done.map((b, i) => ({ id: "f:d" + i, title: b.t, author: b.a, total: b.n, read: b.n, done: true, want: false, rating: b.r, finished: b.f })),
+      doc.lib.want.map((b, i) => ({ id: "f:w" + i, title: b.t, author: b.a, total: b.n, read: 0, done: false, want: true })));
+    // older app version: only the last books on the shelf are known
+    return [].concat(doc.book ? [{ id: "f:r0", title: doc.book.t, author: "", total: doc.book.n, read: doc.book.r, done: false, want: false, cur: 1 }] : [],
+      (doc.shelf || []).map((b, i) => ({ id: "f:d" + i, title: b.t, author: b.a, total: 0, read: 0, done: true, want: false, rating: b.r })));
+  }
+  let libList = [];
   function renderLib(){
-    const list = S.books.list;
+    const owner = libOwner ? boardDocs.find(d => d.id === libOwner) : null;
+    if (libOwner && !owner) libOwner = null;
+    const list = owner ? libOf(owner) : S.books.list;
+    libList = list;
+    const people = libPeople(), who = owner ? (owner.nick || "Участник") : "";
+    $("libTitle").textContent = owner ? "Библиотека: " + who : "Моя библиотека";
+    const switcher = people.length ? `<div class="ptsel">${[{ id: "", nick: "Моя" }].concat(people).map(p => `<button type="button" class="chip ${(p.id || null) === libOwner ? "on" : ""}" data-libown="${esc(p.id)}">${p.id ? "📚 " : ""}${esc(p.nick || "Участник")}</button>`).join("")}</div>` : "";
     const done = list.filter(b => b.done).sort((a, b) => (b.finished || "").localeCompare(a.finished || ""));
     const reading = list.filter(b => !b.done && !b.want);
     const want = list.filter(b => b.want);
@@ -4868,19 +4928,36 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     done.forEach(b => { const y = b.finished ? b.finished.slice(0, 4) : "Без даты"; (byYear[y] = byYear[y] || []).push(b); });
     const years = Object.keys(byYear).sort((a, b) => b.localeCompare(a));
     const sec = (title, meta, inner, emptyText) => `<section class="lib-sec"><h3>${title}<span>${meta}</span></h3><div class="case">${inner || `<div class="shelf empty-shelf">${emptyText}</div>`}</div></section>`;
-    $("libBody").innerHTML = `<div class="lib-stats">
+    $("libBody").innerHTML = switcher + `<div class="lib-stats">
         <span class="chip ok">Прочитано: <span class="num">${done.length}</span> ${plural(done.length, "книга", "книги", "книг")}</span>
         <span class="chip">В ${year} году: <span class="num">${thisYear.length}</span></span>
         <span class="chip">Страниц прочитано: <span class="num">${fmt(pages)}</span></span>
       </div>` +
-      sec("📖 Читаю сейчас", reading.length ? reading.length + "" : "", shelfRows(reading), "Сейчас ничего не читаешь") +
+      sec(owner ? "📖 Читает сейчас" : "📖 Читаю сейчас", reading.length ? reading.length + "" : "", shelfRows(reading), owner ? "Сейчас ничего не читает" : "Сейчас ничего не читаешь") +
       (years.length ? years.map(y => sec(y === "Без даты" ? "✓ Прочитано раньше" : "✓ Прочитано в " + y, byYear[y].length + " " + plural(byYear[y].length, "книга", "книги", "книг"), shelfRows(byYear[y]), "")).join("")
                     : sec("✓ Прочитано", "", "", "Полка ждёт первую книгу. Дочитанные книги появятся здесь")) +
-      sec("🔖 Хочу прочитать", want.length ? want.length + "" : "", shelfRows(want), "Добавь книги, которые хочешь прочитать") +
-      `<p class="mhint">Нажми на корешок, чтобы открыть книгу. Добавить книгу можно в разделе «Чтение» → «+ Добавить книгу».</p>`;
+      sec(owner ? "🔖 Хочет прочитать" : "🔖 Хочу прочитать", want.length ? want.length + "" : "", shelfRows(want), owner ? "Список пока пуст" : "Добавь книги, которые хочешь прочитать") +
+      (owner ? `<p class="mhint">Нажми на корешок: можно посмотреть оценку и добавить книгу себе в «Хочу прочитать». Личные заметки к книгам видны только их автору.${owner.lib ? "" : " Видны только последние книги: полная полка появится, когда " + esc(who) + " обновит приложение."}</p>`
+             : `<p class="mhint">Нажми на корешок, чтобы открыть книгу. Добавить книгу можно в разделе «Чтение» → «+ Добавить книгу».${people.length ? " Полки других участников комнаты — кнопки вверху." : ""}</p>`);
   }
   function fmtDate(k){ if (!k) return ""; const d = parseKey(k); return d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear(); }
+  function openFriendSheet(id){
+    const b = libList.find(x => x.id === id); if (!b) return;
+    const mine = S.books.list.find(x => x.title.trim().toLowerCase() === b.title.trim().toLowerCase());
+    const status = b.done ? "Прочитана" + (b.finished ? " " + fmtDate(b.finished) : "") : b.want ? "Хочет прочитать" : "Читает" + (b.total ? ": " + b.read + " из " + b.total + " стр." : "");
+    const sh = $("libSheet");
+    sh.innerHTML = `<div class="st-t">${esc(b.title)}</div>${b.author ? `<div class="st-a">${esc(b.author)}</div>` : ""}
+      <div class="st-m">${b.total ? b.total + " стр. · " : ""}${status}</div>
+      ${b.done && b.rating ? `<div class="stars ro" aria-label="Оценка ${b.rating} из 5">${[1,2,3,4,5].map(n => `<span class="${b.rating >= n ? "on" : ""}">★</span>`).join("")}</div>` : ""}
+      <div class="row">
+        ${mine ? `<span class="mhint">${mine.done ? "✓ Ты её уже прочитал(а)" : mine.want ? "🔖 Уже в твоём списке «Хочу прочитать»" : "📖 Ты её сейчас читаешь"}</span>` : `<button class="btn sm" type="button" data-fbact="want">🔖 Хочу прочитать</button>`}
+        <button class="btn sm ghost" type="button" data-fbact="close" style="margin-left:auto">Закрыть</button>
+      </div>`;
+    sh.dataset.id = id; sh.dataset.friend = "1"; sh.hidden = false;
+  }
   function openSheet(id){
+    if (String(id).startsWith("f:")) return openFriendSheet(id);
+    $("libSheet").dataset.friend = "";
     const b = S.books.list.find(x => x.id === id); if (!b) return;
     const status = b.done ? "Прочитана" + (b.finished ? " " + fmtDate(b.finished) : "") : b.want ? "Хочу прочитать" : "Читаю: " + b.read + " из " + b.total + " стр.";
     const sh = $("libSheet");
@@ -4898,11 +4975,29 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     sh.dataset.id = id; sh.hidden = false;
   }
   $("libOpen").onclick = () => { $("lib").hidden = false; document.body.style.overflow = "hidden"; renderLib(); };
-  $("libClose").onclick = () => { $("lib").hidden = true; $("libSheet").hidden = true; document.body.style.overflow = ""; };
+  $("libClose").onclick = () => { $("lib").hidden = true; $("libSheet").hidden = true; document.body.style.overflow = ""; libOwner = null; };
+  function openLibOf(id){ libOwner = id || null; $("libSheet").hidden = true; $("lib").hidden = false; document.body.style.overflow = "hidden"; renderLib(); $("libBody").scrollTop = 0; }
+  document.addEventListener("click", e => { const f = e.target.closest("[data-flib]"); if (f){ openLibOf(f.dataset.flib); } });
   window.addEventListener("resize", () => { if (!$("lib").hidden) renderLib(); });
-  $("libBody").addEventListener("click", e => { const sp = e.target.closest("[data-book]"); if (sp) openSheet(sp.dataset.book); });
+  $("libBody").addEventListener("click", e => {
+    const ow = e.target.closest("[data-libown]"); if (ow){ openLibOf(ow.dataset.libown); return; }
+    const sp = e.target.closest("[data-book]"); if (sp) openSheet(sp.dataset.book);
+  });
   $("libSheet").addEventListener("click", e => {
     const sh = $("libSheet"), id = sh.dataset.id;
+    const fb = e.target.closest("[data-fbact]");
+    if (fb){
+      if (fb.dataset.fbact === "want"){
+        const b = libList.find(x => x.id === id);
+        if (b && !S.books.list.some(x => x.title.trim().toLowerCase() === b.title.trim().toLowerCase())){
+          const books = clone(S.books); books.list.push({ id: uid(), title: b.title, author: b.author || "", total: b.total || 300, read: 0, done: false, want: true, added: todayKey() });
+          S.books = books; persist("books", books, 0); render(); toast("Добавлено в «Хочу прочитать»");
+        }
+        openFriendSheet(id); return;
+      }
+      sh.hidden = true; return;
+    }
+    if (sh.dataset.friend === "1") return;
     const rate = e.target.closest("[data-rate]"), act = e.target.closest("[data-bact]");
     if (!rate && !act) return;
     const books = clone(S.books), b = books.list.find(x => x.id === id); if (!b) return;
@@ -5471,7 +5566,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.08-10";
+const APP_VERSION = "2026.11.08-11";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

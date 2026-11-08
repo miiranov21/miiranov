@@ -7,12 +7,12 @@ M.weeks = [
     words: [
       ["set off", "отправиться в путь; вызвать, запустить", "сэт Оф"], ["go over", "просматривать, проверять; повторять", "гоу Оувэ"], ["make out", "разобрать, различить; понять", "мэйк Аут"], ["go through", "пережить (трудное); просматривать", "гоу срУ"], ["work out", "тренироваться; разобраться; получиться", "уёрк Аут"],
       ["take back", "забрать назад (слова); вернуть (товар)", "тэйк бЭк"], ["get through", "дозвониться; пережить, выдержать", "гет срУ"], ["go off", "сработать (о будильнике); испортиться", "гоу Оф"], ["come across", "наткнуться; производить впечатление", "кам экрОс"], ["hold up", "задерживать; грабить", "хоулд Ап"],
-      ["put up with", "терпеть, мириться с", "пут Ап уиз"], ["carry on", "продолжать", "кэри Он"], ["do up", "застегнуть; отремонтировать (жильё)", "ду Ап"], ["fall through", "сорваться (о планах)", "фол срУ"], ["catch on", "становиться популярным; понимать", "кэч Он"],
+      ["talk into", "уговорить (сделать что-то)", "тОк Инту"], ["carry on", "продолжать", "кэри Он"], ["do up", "застегнуть; отремонтировать (жильё)", "ду Ап"], ["fall through", "сорваться (о планах)", "фол срУ"], ["catch on", "становиться популярным; понимать", "кэч Он"],
       ["pull off", "провернуть, суметь сделать", "пул Оф"], ["back out", "отказаться (от обещанного)", "бэк Аут"], ["come round", "прийти в себя; зайти в гости; передумать", "кам рАунд"], ["come up", "возникать (о проблеме); приближаться", "кам Ап"], ["get by", "сводить концы с концами; обходиться", "гет бАй"],
       ["pass out", "потерять сознание", "пас Аут"], ["stick to", "придерживаться", "стик ту"], ["run into", "случайно встретить; столкнуться (с проблемой)", "ран Инту"], ["play down", "преуменьшать", "плэй дАун"], ["take up", "заняться (хобби); занимать (время, место)", "тэйк Ап"],
       ["wear off", "проходить, ослабевать (о действии)", "уэар Оф"], ["end up", "в итоге оказаться, кончить тем, что", "энд Ап"], ["put across", "доносить (мысль)", "пут экрОс"], ["hold on", "подождать; держаться", "хоулд Он"], ["let down", "подвести", "лэт дАун"]
     ],
-    phrases: [["Can you pick me up at eight?", "Можешь заехать за мной в восемь?"], ["We'll have to put the meeting off until Friday.", "Придётся перенести встречу на пятницу."], ["I can't put up with this noise any longer.", "Я больше не могу терпеть этот шум."], ["Don't worry, we'll sort it out.", "Не волнуйся, мы разберёмся."], ["Our plans for the weekend fell through.", "Наши планы на выходные сорвались."], ["You can always count on me.", "Ты всегда можешь на меня рассчитывать."]],
+    phrases: [["Can you pick me up at eight?", "Можешь заехать за мной в восемь?"], ["We'll have to put the meeting off until Friday.", "Придётся перенести встречу на пятницу."], ["She talked me into joining the gym.", "Она уговорила меня записаться в спортзал."], ["Don't worry, we'll sort it out.", "Не волнуйся, мы разберёмся."], ["Our plans for the weekend fell through.", "Наши планы на выходные сорвались."], ["You can always count on me.", "Ты всегда можешь на меня рассчитывать."]],
     grammar: {
       title: "Фразовые глаголы с несколькими значениями",
       text: "Многие фразовые глаголы имеют несколько значений, и выбрать нужное можно только по контексту. Например, pick up: I'll pick you up at six (заеду за тобой), She picked up Spanish in Madrid (выучила «на ходу»), Pick up your clothes! (подними). Turn down: He turned down the job (отказался), но Turn down the music (сделай тише). Work out: I work out three times a week (тренируюсь), We need to work out a plan (продумать), Everything worked out well (всё получилось). Второй важный вопрос: разделяемый ли глагол. У разделяемых глаголов существительное может стоять до или после частицы: turn down the offer = turn the offer down. Но местоимение всегда стоит между глаголом и частицей: turn it down, а не turn down it. Это одна из самых частых ошибок русскоговорящих. Неразделяемые глаголы (come across, count on, get by) и глаголы из трёх слов (put up with, cut down on) не разрываются: I came across an old photo, I can't put up with it. Фразовые глаголы типичны для разговорной речи; в официальном письме у многих есть нейтральная замена: put off = postpone, put up with = tolerate. Учите их не списком, а в коротких фразах-примерах: так запоминаются и значение, и порядок слов.",
@@ -22,7 +22,7 @@ M.weeks = [
         { q: "My alarm didn't ___ , so I overslept. (не сработал)", a: ["go off", "go out", "go on"], c: 0 },
         { q: "I'll ___ you up from the station at seven.", a: ["pick", "take", "bring"], c: 0 },
         { q: "Don't drink that milk, it's ___ off. (испортилось)", a: ["gone", "turned", "fallen"], c: 0 },
-        { q: "I can't put up ___ his rudeness any more.", a: ["with", "for", "on"], c: 0 },
+        { q: "My friends talked me ___ going skydiving. (уговорили)", a: ["into", "in", "onto"], c: 0 },
         { q: "The deal fell ___ at the last minute. (сорвалась)", a: ["through", "down", "out"], c: 0 },
         { q: "Could you turn the music ___ ? I'm trying to sleep.", a: ["down", "over", "away"], c: 0 },
         { q: "She ___ across as very confident, but she's actually quite shy.", a: ["comes", "gets", "goes"], c: 0 }
@@ -66,7 +66,7 @@ M.weeks = [
       trans: [
         ["Перефразируй, используя фразовый глагол (put off): We decided to postpone the trip. → We decided to ___ the trip.", ["put off"]],
         ["Вставь глагол с местоимением в правильном порядке (отказаться, turn): They offered him a loan, but he ___ .", ["turned it down"]],
-        ["Вставь фразовый глагол (терпеть): I don't know how you ___ such noisy neighbours.", ["put up with"]],
+        ["Вставь глагол в прошедшем времени (уговорила, talk): My sister ___ me into buying a new car.", ["talked"]],
         ["Вставь фразовый глагол в нужной форме (сорваться): Our holiday plans ___ because the airline went bankrupt.", ["fell through"]]
       ],
       prompt: "Напиши пост для блога (150+ слов) о случае, когда твои планы сорвались, но в итоге всё получилось. Расскажи, что случилось, как ты решал проблему и чем всё закончилось. Используй фразовые глаголы.",

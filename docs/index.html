@@ -881,6 +881,8 @@ body.hide-p-water #p-kcal, body.hide-p-kcal #p-water{grid-column:1/-1}
 .ls-prog i{background:var(--lang)}
 .ls-count{font-size:12px;color:var(--ink-3);flex:none}
 .ls-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 16px 16px;display:flex;flex-direction:column;gap:16px;max-width:640px;width:100%;margin:0 auto}
+.ls-goal{flex:none;margin:8px 16px 0;padding:10px 12px;border:1px solid var(--habit);background:var(--surface);border-radius:12px;font-size:13.5px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ls-goal span{flex:1 1 200px}
 .ls-foot{flex:none;max-height:55vh;overflow-y:auto;padding:12px 16px 16px;border-top:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;gap:10px}
 .ls-foot .btn{width:100%;max-width:640px;margin:0 auto;padding:13px;font-size:15px}
 .ls-foot .btn.primary{background:var(--lang);border-color:var(--lang)}
@@ -1371,6 +1373,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <div class="pbar ls-prog" aria-hidden="true"><i id="lsProg"></i></div>
     <span class="num ls-count" id="lsCount"></span>
   </div>
+  <div class="ls-goal" id="lsGoal" hidden></div>
   <div class="ls-body" id="lsBody"></div>
   <div class="ls-foot" id="lsFoot"></div>
 </div>
@@ -2670,6 +2673,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     showQ();
   }
   function closeLesson(){
+    $("lsGoal").hidden = true;
     $("lesson").hidden = true; document.body.style.overflow = ""; L = null;
     if (canSpeakNow()) try { speechSynthesis.cancel(); } catch (e) {}
   }
@@ -2681,6 +2685,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     $("lsCount").textContent = (L.i + 1) + " / " + L.q.length;
     const q = L.q[L.i]; L.state = "ask"; L.pick = null; L.built = [];
     body.scrollTop = 0;
+    pgGoalCheck();
     if (PG_SHOW[q.type]){ PG_SHOW[q.type](q, body, foot); return; }
     const sayBtn = t => canSpeakNow() ? `<span class="sayrow"><button class="say" type="button" data-say="${esc(t)}">🔊 Послушать</button><button class="say" type="button" data-say="${esc(t)}" data-slow="1">🐢 Медленно</button></span>` : "";
     if (q.type === "intro"){
@@ -3078,8 +3083,37 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
   };
 
+  // a lesson can be split over several days: closing it saves the exact place
+  const PAUSE_KEY = "moy-den-pgpause";
+  function pgPauseGet(){ try { const p = JSON.parse(localStorage.getItem(PAUSE_KEY) || "null"); return p && PROG() && p.course === PROG().id ? p : null; } catch (e) { return null; } }
+  function pgPauseSet(v){ try { if (v) localStorage.setItem(PAUSE_KEY, JSON.stringify(v)); else localStorage.removeItem(PAUSE_KEY); } catch (e) {} }
+  function pgPauseSave(){
+    if (!L || L.kind !== "pg" || L.finished) return false;
+    const { m, w, d } = L.pg;
+    const i = L.state === "checked" ? L.i + 1 : L.i;
+    if (i >= L.q.length) return false;
+    pgLogTime(`Месяц ${m}, неделя ${w}, день ${d}: часть урока`, 0, 0);
+    pgPauseSet({ course: PROG().id, key: pgKey(m, w, d), pg: L.pg, fresh: L.fresh, q: L.q, i, right: L.right, asked: L.asked, fr: L.fr || 0, ft: L.ft || 0, srsRes: L.srsRes, retried: [...L.retried], at: Date.now() });
+    return true;
+  }
+  function pgGoalCheck(){
+    const box = $("lsGoal");
+    if (!L || L.kind !== "pg" || L.finished || L.goalShown === "closed"){ box.hidden = true; return; }
+    const goal = (S.settings.lang && S.settings.lang.goal) || 0;
+    const done = (((S.days[todayKey()] || {}).lang || {}).min || 0) + Math.floor((Date.now() - L.start) / 60000);
+    if (!goal || done < goal || L.i >= L.q.length - 1){ box.hidden = true; return; }
+    box.hidden = false;
+    box.innerHTML = `<span>🎯 Норма на сегодня (${goal} мин) выполнена. Можешь остановиться: урок сохранится, завтра продолжишь с этого места.</span><button class="btn sm" type="button" data-pgpause="1">Продолжить завтра</button><button class="btn sm ghost" type="button" data-pggoal="hide">Ещё позанимаюсь</button>`;
+  }
   function pgStartDay(m, w, d){
-    const st = pgState(); const { Q, fresh } = pgDayQs(m, w, d, st);
+    const st = pgState(), p = pgPauseGet();
+    if (p && p.key === pgKey(m, w, d)){
+      L = Object.assign({}, p, { kind: "pg", retried: new Set(p.retried || []), start: Date.now(), state: "ask", pick: null, built: [] });
+      $("lesson").hidden = false; document.body.style.overflow = "hidden"; showQ();
+      toast("Продолжаем с того места, где остановился");
+      return;
+    }
+    const { Q, fresh } = pgDayQs(m, w, d, st);
     L = { kind: "pg", pg: { m, w, d }, fresh, q: Q, i: 0, right: 0, asked: 0, fr: 0, ft: 0, srsRes: {}, start: Date.now(), retried: new Set(), state: "ask", pick: null, built: [] };
     $("lesson").hidden = false; document.body.style.overflow = "hidden"; showQ();
   }
@@ -3102,7 +3136,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     d.lang = Object.assign({ min: 0, words: 0, acts: [], note: "" }, d.lang || {});
     d.lang.min = Math.min(1440, d.lang.min + minutes);
     d.lang.words = (d.lang.words || 0) + added;
-    d.lang.lessons = (d.lang.lessons || []).concat(label);
+    d.lang.lessons = (d.lang.lessons || []).filter(x => x !== label).concat(label);
     d.lang.xp = (d.lang.xp || 0) + xp;
     ["Приложение"].forEach(a => { if (!d.lang.acts.includes(a)) d.lang.acts.push(a); });
     commitDay(k, d, 0);
@@ -3110,6 +3144,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   function pgFinish(){
     const st = pgState(), { m, w, d } = L.pg, key = pgKey(m, w, d);
+    const pz = pgPauseGet(); if (pz && pz.key === key) pgPauseSet(null);
     const acc = L.ft ? Math.round(L.fr / L.ft * 100) : 100;
     Object.entries(L.srsRes).forEach(([en, ok]) => srsMark(st, en, ok));
     const pass = acc >= 60, again = !!st.done[key];
@@ -3189,10 +3224,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     let today = "";
     if (nx.kind === "day"){
       const D = PG_DAYS[nx.d - 1], W = M.weeks[nx.w - 1];
+      const pz = pgPauseGet(), resume = pz && pz.key === pgKey(nx.m, nx.w, nx.d) ? pz : null;
+      const goal = (S.settings.lang && S.settings.lang.goal) || 0;
       today = `<span class="tl-day">${todayDone ? "Следующий урок" : "Урок на сегодня"} · неделя ${nx.w}, день ${nx.d} из 6</span>
         <div class="tl-what">${D.icon} ${D.t}</div><div class="tl-sub">Тема недели: ${esc(W.t)}${nx.d === 2 ? " · " + esc(W.grammar.title) : ""}</div>
         <ul class="tl-parts">${due ? `<li>🔁 Повторение слов: ${Math.min(due, 15)} · ≈${Math.min(15, Math.ceil(Math.min(due, 15) * 0.7))} мин</li>` : ""}<li>${D.icon} ${D.t} · ≈${D.min} мин</li><li>🎧 Практика вне приложения (ниже) · ≈10 мин</li></ul>
-        <button class="btn primary" type="button" data-pgday="${nx.m}.${nx.w}.${nx.d}">Начать урок</button>
+        ${resume ? `<div class="tl-sub">⏸ Урок начат: пройдено ${resume.i} из ${resume.q.length} заданий. Продолжишь с того же места.</div>` : ""}
+        <button class="btn primary" type="button" data-pgday="${nx.m}.${nx.w}.${nx.d}">${resume ? "Продолжить урок" : "Начать урок"}</button>
+        ${!resume && goal && goal < D.min ? `<div class="tl-sub">Урок длиннее твоей дневной нормы (${goal} мин): его можно проходить по частям. Закрой урок крестиком, когда хочешь, — прогресс сохранится, и завтра он продолжится с того же задания.</div>` : ""}
         ${todayDone ? `<div class="tl-sub">✓ Сегодня пройдено уроков: ${todayDone}. Один урок в день — норма, больше — по желанию.</div>` : ""}`;
     } else if (nx.kind === "exam"){
       const lock = pgExamLock(st, nx.m);
@@ -3905,6 +3944,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   });
   $("lsClose").onclick = () => {
     const b = $("lsClose");
+    if (L && L.kind === "pg" && !L.finished && L.i > 0){ const ok = pgPauseSave(); closeLesson(); render(); toast(ok ? "Урок сохранён: продолжишь с этого места" : "Урок закрыт"); return; }
+    if (L && L.kind === "exam" && !L.finished && L.i > 0 && b.dataset.confirm !== "1"){ b.dataset.confirm = "1"; toast("Экзамен нельзя поставить на паузу. Нажми × ещё раз, чтобы выйти: попытка не засчитается"); setTimeout(() => { b.dataset.confirm = ""; }, 3000); return; }
     if (L && !L.finished && L.i > 0 && b.dataset.confirm !== "1"){ b.dataset.confirm = "1"; toast("Нажми × ещё раз, чтобы выйти. Урок не засчитается"); setTimeout(() => { b.dataset.confirm = ""; }, 3000); return; }
     b.dataset.confirm = ""; closeLesson();
   };
@@ -3927,6 +3968,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
     const self = e.target.closest("[data-pgself]");
     if (self){ L.self = self.dataset.pgself === "1"; document.querySelectorAll("[data-pgself]").forEach(b => b.classList.toggle("sel", b === self)); $("lsFoot").querySelector('[data-ls="check"]').disabled = false; return; }
+    if (e.target.closest("[data-pgpause]")){ const ok = pgPauseSave(); closeLesson(); render(); toast(ok ? "Отлично! Завтра продолжишь с этого места" : "Урок закрыт"); return; }
+    if (e.target.closest("[data-pggoal]")){ L.goalShown = "closed"; $("lsGoal").hidden = true; return; }
     if (e.target.closest("[data-pgagain]")){ const { m, w, d } = L.pg; closeLesson(); pgStartDay(m, w, d); return; }
     const ls = e.target.closest("[data-ls]");
     if (ls){
@@ -5428,7 +5471,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.08-9";
+const APP_VERSION = "2026.11.08-10";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

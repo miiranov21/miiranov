@@ -819,6 +819,9 @@ body.hide-p-water #p-kcal, body.hide-p-kcal #p-water{grid-column:1/-1}
 .tl-parts{margin:0;padding-left:18px;font-size:13.5px;color:var(--ink-2);display:flex;flex-direction:column;gap:2px}
 .pgprac{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:13.5px}
 .pgprac label{display:flex;gap:8px;align-items:flex-start}
+.pgpi{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:8px}
+.pgpl{display:flex;flex-wrap:wrap;gap:6px;padding-left:26px}
+.pgpl a{text-decoration:none;color:var(--lang)}
 .pgprac input{width:18px;height:18px;flex:none;margin-top:1px;accent-color:var(--lang)}
 .pgsec{border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .pgsec summary{cursor:pointer;font-weight:700}
@@ -3294,6 +3297,16 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     return `<div class="pgexam ${passed ? "ok" : ""}"><div><b>📝 ${lvl ? "Экзамен уровня " + lvl : "Экзамен месяца " + m}</b><div class="mhint">${passed ? "Сдан: " + best + "%" : tries.length ? "Попыток: " + tries.length + ", лучший результат " + best + "%" : "Слова, грамматика, чтение, аудирование, письмо и говорение"}</div></div>
       ${passed ? `<span class="chip ok">✓ сдан</span>` : lock ? `<span class="mhint">Пересдача: ${new Date(lock).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>` : `<button class="btn sm" type="button" data-pgexam="${m}">Сдать${pgNext(st).kind === "exam" ? "" : " досрочно"}</button>`}</div>`;
   }
+  // concrete tasks for the week: one per skill, rotating each week, with the week's topic filled in
+  function pgPractice(M, m, w){
+    const P = PROG(), lv = M ? M.level : "A1", pool = (P.practice || {})[lv];
+    if (!pool || Array.isArray(pool)) return (pool || []).map(t => ({ icon: "•", kind: "Задание", t, l: [] }));
+    const n = (m - 1) * 4 + (w - 1), topic = M && M.weeks && M.weeks[w - 1] ? M.weeks[w - 1].t : (M && M.topics ? M.topics[w - 1] || M.title : "");
+    return [["listen", "🎧", "Слушать"], ["read", "📖", "Читать"], ["speak", "🗣", "Говорить"], ["write", "✍️", "Писать"]].filter(([k]) => (pool[k] || []).length).map(([k, icon, kind]) => {
+      const x = pool[k][n % pool[k].length];
+      return { icon, kind, t: x.t.replace(/\{topic\}/g, topic), l: x.l || [] };
+    });
+  }
   function renderProgram(){
     const P = PROG(), box = $("progBox");
     const on = !!P && !!S.settings.lang;
@@ -3327,7 +3340,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     } else if (nx.kind === "soon"){
       today = `<span class="tl-day">Месяц ${nx.m}: ${esc(M.title)}</span><div class="tl-what">🛠 Материалы месяца готовятся</div><div class="tl-sub">Пока повторяй слова: ${due ? "сегодня к повторению " + due + " " + plural(due, "слово", "слова", "слов") + "." : "на сегодня повторение пройдено."}</div>${due ? `<button class="btn primary" type="button" data-pgsrs="1">Повторить слова</button>` : ""}`;
     } else today = `<div class="tl-what">🎓 Программа пройдена</div><div class="tl-sub">Поддерживай уровень: повторяй слова, смотри фильмы, говори.</div>`;
-    const wkKey = nx.m + "." + (nx.w || 1), prac = (P.practice[M ? M.level : "A1"] || []), pdone = st.prac[wkKey] || [];
+    const wkKey = nx.m + "." + (nx.w || 1), pdone = st.prac[wkKey] || [];
+    const prac = pgPractice(M, nx.m, nx.w || 1);
     const lvls = Object.entries(P.levels);
     box.innerHTML = `<div class="pghead">
         <div><span class="mhint">Уровень</span><b class="${lv ? "" : "none"}">${lv || "нет"}</b><small>${lv ? "подтверждён экзаменом" : "только после экзамена"}</small></div>
@@ -3337,7 +3351,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       ${M && M.weeks ? `<div class="pgbar"><div class="pbar"><i style="width:${Math.round(doneM / allM * 100)}%;background:var(--lang)"></i></div><span class="mhint">Уроки месяца: ${doneM} из ${allM}${pgPassed(st, nx.m) ? " · экзамен сдан" : " · потом экзамен"}</span></div>` : ""}
       <div class="today-lesson">${today}</div>
       ${due && nx.kind === "day" ? `<div class="mhint">🔁 Слова на повторение входят в начало урока. Если урока сегодня не будет, их можно повторить отдельно: <button class="btn sm ghost" type="button" data-pgsrs="1">Повторить ${due}</button></div>` : ""}
-      ${prac.length ? `<div class="pgprac"><b>Практика вне приложения на эту неделю</b>${prac.map((t, i) => `<label><input type="checkbox" data-pgprac="${i}" ${pdone[i] ? "checked" : ""}> ${esc(t)}</label>`).join("")}</div>` : ""}
+      ${prac.length ? `<div class="pgprac"><b>Практика вне приложения на эту неделю</b><span class="mhint">4 задания, по одному на каждый навык, примерно по 10–20 минут. Можно делать в любой день недели. Отметь галочкой, что сделал.</span>${prac.map((x, i) => `<div class="pgpi"><label><input type="checkbox" data-pgprac="${i}" ${pdone[i] ? "checked" : ""}><span><b>${x.icon} ${x.kind}.</b> ${esc(x.t)}</span></label>${x.l.length ? `<div class="pgpl">${x.l.map(([n, u]) => `<a class="btn sm ghost" href="${esc(u)}" target="_blank" rel="noopener">${esc(n)} ↗</a>`).join("")}</div>` : ""}</div>`).join("")}</div>` : ""}
       ${M && M.weeks ? `<details class="pgsec"><summary>🗓 План месяца ${nx.m}: ${esc(M.title)}</summary><div class="pgmon">${pgDayList(st, nx.m)}${pgExamRow(st, nx.m)}
         <div class="mhint">День 1 — слова, 2 — грамматика, 3 — слова и фразы, 4 — чтение, 5 — аудирование и говорение, 6 — слова, письмо и проверка недели. Седьмой день — отдых или практика вне приложения. Пройденный урок можно повторить.</div></div></details>` : ""}
       <details class="pgsec"><summary>🧭 Вся программа: A0 → ${Object.keys(P.levels).slice(-1)[0]} за ${total} месяцев</summary><div class="pgall">
@@ -5627,7 +5641,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.08-14";
+const APP_VERSION = "2026.11.09-1";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

@@ -47,14 +47,672 @@
       write: "Пишешь сложные тексты в нужном стиле: статьи, рецензии, профессиональные документы."
     }}
   },
-  // практика вне приложения: по уровню, отмечается раз в неделю
+  // практика вне приложения: по 4 задания в неделю (слушать, читать, говорить, писать), чередуются по неделям
   practice: {
-    A1: ["Послушать 10–15 минут простого английского: подкаст для начинающих или детский мультфильм", "Сказать вслух 5 предложений о своём дне и записать себя на диктофон", "Прочитать короткий адаптированный текст уровня A1"],
-    A2: ["Посмотреть серию простого сериала с английскими субтитрами", "Поговорить 10 минут по-английски друг с другом или с собеседником онлайн", "Прочитать адаптированную книгу уровня A2 (2–3 главы)"],
-    B1: ["Посмотреть 2 серии сериала с английскими субтитрами", "Разговор с собеседником 20–30 минут", "Прочитать статью или главу книги без адаптации", "Написать короткий текст и попросить проверить носителя или учителя"],
-    B2: ["Фильм или 2–3 серии без субтитров или с английскими", "Разговор с носителем или учителем 30+ минут", "Прочитать длинную статью и пересказать её вслух", "Написать эссе или деловое письмо и получить проверку"],
-    C1: ["Подкаст или лекция на английском 30+ минут без субтитров", "Обсуждение сложной темы с носителем или учителем 45+ минут", "Прочитать главу книги или большую статью в оригинале", "Написать эссе 250+ слов и получить подробную проверку"],
-    C2: ["Фильм, стендап или радиопередача без субтитров", "Дискуссия или выступление на английском перед людьми", "Прочитать художественную книгу или научную статью в оригинале", "Написать статью или рецензию и разобрать её с учителем"]
+   "A1": {
+    "listen": [
+     {
+      "t": "Посмотри серию «Peppa Pig» на английском (около 5 минут) два раза: сначала без субтитров, потом с английскими. Выпиши 5 новых слов в «Мой словарь».",
+      "l": [
+       [
+        "YouTube: Peppa Pig на английском",
+        "https://www.youtube.com/results?search_query=peppa+pig+english+full+episodes"
+       ]
+      ]
+     },
+     {
+      "t": "British Council → раздел Skills → Listening → A1: выбери одно аудио, послушай и сделай упражнения под ним.",
+      "l": [
+       [
+        "British Council LearnEnglish",
+        "https://learnenglish.britishcouncil.org/"
+       ]
+      ]
+     },
+     {
+      "t": "Найди на YouTube «English listening practice for beginners», послушай 10 минут и повторяй фразы вслух.",
+      "l": [
+       [
+        "YouTube: listening для начинающих",
+        "https://www.youtube.com/results?search_query=english+listening+practice+for+beginners+A1"
+       ]
+      ]
+     }
+    ],
+    "read": [
+     {
+      "t": "British Council → Skills → Reading → A1: прочитай один текст и сделай задания.",
+      "l": [
+       [
+        "British Council LearnEnglish",
+        "https://learnenglish.britishcouncil.org/"
+       ]
+      ]
+     },
+     {
+      "t": "English E-Reader: выбери книгу уровня Starter или Beginner и прочитай 1 главу.",
+      "l": [
+       [
+        "English E-Reader",
+        "https://english-e-reader.net/"
+       ]
+      ]
+     },
+     {
+      "t": "Breaking News English: выбери новость уровня 0 или 1, прочитай и послушай её.",
+      "l": [
+       [
+        "Breaking News English",
+        "https://breakingnewsenglish.com/"
+       ]
+      ]
+     }
+    ],
+    "speak": [
+     {
+      "t": "Запиши на диктофон 1 минуту о себе по теме недели «{topic}». Послушай запись. Слова, в которых сомневаешься, проверь в YouGlish: там их произносят носители.",
+      "l": [
+       [
+        "YouGlish (произношение)",
+        "https://youglish.com/"
+       ]
+      ]
+     },
+     {
+      "t": "Шэдоуинг: открой диалог из урока «Аудирование» этой недели и повторяй каждую фразу сразу за диктором по 3 раза.",
+      "l": []
+     },
+     {
+      "t": "Найди собеседника в Tandem или HelloTalk и обменяйся 5 голосовыми сообщениями о себе.",
+      "l": [
+       [
+        "Tandem",
+        "https://www.tandem.net/"
+       ],
+       [
+        "HelloTalk",
+        "https://www.hellotalk.com/"
+       ]
+      ]
+     }
+    ],
+    "write": [
+     {
+      "t": "Напиши 5 предложений по теме недели «{topic}» и проверь их в LanguageTool.",
+      "l": [
+       [
+        "LanguageTool (проверка текста)",
+        "https://languagetool.org/"
+       ]
+      ]
+     },
+     {
+      "t": "British Council → Skills → Writing → A1: выполни одно задание (анкета, сообщение, открытка).",
+      "l": [
+       [
+        "British Council LearnEnglish",
+        "https://learnenglish.britishcouncil.org/"
+       ]
+      ]
+     }
+    ]
+   },
+   "A2": {
+    "listen": [
+     {
+      "t": "British Council → Skills → Listening → A2: одно аудио с упражнениями.",
+      "l": [
+       [
+        "British Council LearnEnglish",
+        "https://learnenglish.britishcouncil.org/"
+       ]
+      ]
+     },
+     {
+      "t": "News in Levels: новость уровня 1 или 2 — сначала послушай без текста, потом прочитай.",
+      "l": [
+       [
+        "News in Levels",
+        "https://www.newsinlevels.com/"
+       ]
+      ]
+     },
+     {
+      "t": "Посмотри серию ситкома «Extr@ English» с английскими субтитрами. Выпиши 5 фраз, которые пригодятся в жизни.",
+      "l": [
+       [
+        "YouTube: Extr@ English",
+        "https://www.youtube.com/results?search_query=extra+english+episode+1"
+       ]
+      ]
+     }
+    ],
+    "read": [
+     {
+      "t": "British Council → Skills → Reading → A2: один текст с заданиями.",
+      "l": [
+       [
+        "British Council LearnEnglish",
+        "https://learnenglish.britishcouncil.org/"
+       ]
+      ]
+     },
+     {
+      "t": "English E-Reader: книга уровня Elementary, 2 главы. Незнакомые слова — в «Мой словарь».",
+      "l": [
+       [
+        "English E-Reader",
+        "https://english-e-reader.net/"
+       ]
+      ]
+     },
+     {
+      "t": "Breaking News English: новость уровня 2, прочитай и ответь на вопросы под ней.",
+      "l": [
+       [
+        "Breaking News English",
+        "https://breakingnewsenglish.com/"
+       ]
+      ]
+     }
+    ],
+    "speak": [
+     {
+      "t": "Расскажи на диктофон за 2 минуты, что ты делал в выходные. Тема недели «{topic}» — используй её слова.",
+      "l": [
+       [
+        "YouGlish (произношение)",
+        "https://youglish.com/"
+       ]
+      ]
+     },
+     {
+      "t": "Созвонись на 10 минут с собеседником в Tandem или HelloTalk.",
+      "l": [
+       [
+        "Tandem",
+        "https://www.tandem.net/"
+       ],
+       [
+        "HelloTalk",
+        "https://www.hellotalk.com/"
+       ]
+      ]
+     },
+     {
+      "t": "Открой 3 фото в галерее телефона и опиши каждое вслух по-английски (что на фото, где, когда).",
+      "l": []
+     }
+    ],
+    "write": [
+     {
+      "t": "Напиши сообщение другу на 60–80 слов по теме «{topic}» и проверь в LanguageTool.",
+      "l": [
+       [
+        "LanguageTool (проверка текста)",
+        "https://languagetool.org/"
+       ]
+      ]
+     },
+     {
+      "t": "Опубликуй короткий текст (5–8 предложений) в r/WriteStreakEN: носители бесплатно поправят ошибки.",
+      "l": [
+       [
+        "Reddit r/WriteStreakEN",
+        "https://www.reddit.com/r/WriteStreakEN/"
+       ]
+      ]
+     },
+     {
+      "t": "British Council → Skills → Writing → A2: одно задание.",
+      "l": [
+       [
+        "British Council LearnEnglish",
+        "https://learnenglish.britishcouncil.org/"
+       ]
+      ]
+     }
+    ]
+   },
+   "B1": {
+    "listen": [
+     {
+      "t": "BBC 6 Minute English: один выпуск. Сначала послушай без текста, потом с транскриптом под видео.",
+      "l": [
+       [
+        "BBC 6 Minute English",
+        "https://www.bbc.co.uk/learningenglish/english/features/6-minute-english"
+       ]
+      ]
+     },
+     {
+      "t": "British Council → Skills → Listening → B1: одно аудио с упражнениями.",
+      "l": [
+       [
+        "British Council LearnEnglish",
+        "https://learnenglish.britishcouncil.org/"
+       ]
+      ]
+     },
+     {
+      "t": "Подкаст All Ears English: один выпуск (15–20 минут). Выпиши 3 разговорные фразы.",
+      "l": [
+       [
+        "All Ears English",
+        "https://www.allearsenglish.com/"
+       ]
+      ]
+     },
+     {
+      "t": "2 серии «Friends» или другого сериала с английскими субтитрами.",
+      "l": []
+     }
+    ],
+    "read": [
+     {
+      "t": "News in Levels: новость уровня 3. Перескажи её вслух в 3–4 предложениях.",
+      "l": [
+       [
+        "News in Levels",
+        "https://www.newsinlevels.com/"
+       ]
+      ]
+     },
+     {
+      "t": "British Council → Skills → Reading → B1: один текст с заданиями.",
+      "l": [
+       [
+        "British Council LearnEnglish",
+        "https://learnenglish.britishcouncil.org/"
+       ]
+      ]
+     },
+     {
+      "t": "English E-Reader: книга уровня Pre-Intermediate или Intermediate, 1–2 главы.",
+      "l": [
+       [
+        "English E-Reader",
+        "https://english-e-reader.net/"
+       ]
+      ]
+     }
+    ],
+    "speak": [
+     {
+      "t": "Разговор 20–30 минут с собеседником (Tandem, HelloTalk) или с учителем (italki, Preply). Тема — «{topic}».",
+      "l": [
+       [
+        "Tandem",
+        "https://www.tandem.net/"
+       ],
+       [
+        "HelloTalk",
+        "https://www.hellotalk.com/"
+       ],
+       [
+        "italki",
+        "https://www.italki.com/"
+       ],
+       [
+        "Preply",
+        "https://preply.com/"
+       ]
+      ]
+     },
+     {
+      "t": "Перескажи вслух выпуск 6 Minute English за 2 минуты и запиши себя.",
+      "l": [
+       [
+        "BBC 6 Minute English",
+        "https://www.bbc.co.uk/learningenglish/english/features/6-minute-english"
+       ]
+      ]
+     },
+     {
+      "t": "Запиши голосом своё мнение на 2 минуты по теме недели «{topic}»: «I think… because…».",
+      "l": []
+     }
+    ],
+    "write": [
+     {
+      "t": "Напиши текст на 120 слов по теме «{topic}» и опубликуй в r/WriteStreakEN для проверки носителями.",
+      "l": [
+       [
+        "Reddit r/WriteStreakEN",
+        "https://www.reddit.com/r/WriteStreakEN/"
+       ]
+      ]
+     },
+     {
+      "t": "British Council → Skills → Writing → B1: одно задание (письмо, эссе, отзыв).",
+      "l": [
+       [
+        "British Council LearnEnglish",
+        "https://learnenglish.britishcouncil.org/"
+       ]
+      ]
+     },
+     {
+      "t": "Дневник: каждый вечер этой недели 5 предложений о прошедшем дне. В конце недели проверь всё в LanguageTool.",
+      "l": [
+       [
+        "LanguageTool (проверка текста)",
+        "https://languagetool.org/"
+       ]
+      ]
+     }
+    ]
+   },
+   "B2": {
+    "listen": [
+     {
+      "t": "Luke's English Podcast: один выпуск без транскрипта. Запиши 5 выражений.",
+      "l": [
+       [
+        "Luke's English Podcast",
+        "https://teacherluke.co.uk/"
+       ]
+      ]
+     },
+     {
+      "t": "TED: выступление до 15 минут с английскими субтитрами, потом пересмотри без субтитров.",
+      "l": [
+       [
+        "TED Talks",
+        "https://www.ted.com/talks"
+       ]
+      ]
+     },
+     {
+      "t": "BBC The English We Speak: 3 коротких выпуска о живых выражениях.",
+      "l": [
+       [
+        "BBC Learning English",
+        "https://www.bbc.co.uk/learningenglish/"
+       ]
+      ]
+     },
+     {
+      "t": "Серия сериала без русских субтитров (можно с английскими).",
+      "l": []
+     }
+    ],
+    "read": [
+     {
+      "t": "The Guardian: одна статья по теме недели «{topic}». Выпиши 10 сочетаний слов.",
+      "l": [
+       [
+        "The Guardian",
+        "https://www.theguardian.com/international"
+       ]
+      ]
+     },
+     {
+      "t": "British Council → Skills → Reading → B2: один текст с заданиями.",
+      "l": [
+       [
+        "British Council LearnEnglish",
+        "https://learnenglish.britishcouncil.org/"
+       ]
+      ]
+     },
+     {
+      "t": "BBC News: 2 новости. Перескажи каждую в 3 предложениях.",
+      "l": [
+       [
+        "BBC News",
+        "https://www.bbc.com/news"
+       ]
+      ]
+     }
+    ],
+    "speak": [
+     {
+      "t": "Урок или разговор с учителем 30+ минут (italki, Preply). Попроси исправлять ошибки.",
+      "l": [
+       [
+        "italki",
+        "https://www.italki.com/"
+       ],
+       [
+        "Preply",
+        "https://preply.com/"
+       ]
+      ]
+     },
+     {
+      "t": "Перескажи TED-выступление за 3 минуты и запиши себя. Сравни с оригиналом.",
+      "l": [
+       [
+        "TED Talks",
+        "https://www.ted.com/talks"
+       ]
+      ]
+     },
+     {
+      "t": "Запиши 3-минутное мнение по теме «{topic}» с аргументами «за» и «против».",
+      "l": []
+     }
+    ],
+    "write": [
+     {
+      "t": "Эссе на 180 слов по теме «{topic}». Проверь в LanguageTool, потом опубликуй в r/WriteStreakEN.",
+      "l": [
+       [
+        "LanguageTool (проверка текста)",
+        "https://languagetool.org/"
+       ],
+       [
+        "Reddit r/WriteStreakEN",
+        "https://www.reddit.com/r/WriteStreakEN/"
+       ]
+      ]
+     },
+     {
+      "t": "British Council → Skills → Writing → B2: одно задание.",
+      "l": [
+       [
+        "British Council LearnEnglish",
+        "https://learnenglish.britishcouncil.org/"
+       ]
+      ]
+     },
+     {
+      "t": "Cambridge English (B2 First): найди бесплатные примеры заданий Writing и выполни одно.",
+      "l": [
+       [
+        "Cambridge English: подготовка к экзаменам",
+        "https://www.cambridgeenglish.org/"
+       ]
+      ]
+     }
+    ]
+   },
+   "C1": {
+    "listen": [
+     {
+      "t": "BBC Radio 4 «In Our Time»: один выпуск (45 минут) без текста. Запиши 3 главные мысли.",
+      "l": [
+       [
+        "BBC Radio 4: In Our Time",
+        "https://www.bbc.co.uk/programmes/b006qykl"
+       ]
+      ]
+     },
+     {
+      "t": "British Council → Skills → Listening → C1: одно аудио с упражнениями.",
+      "l": [
+       [
+        "British Council LearnEnglish",
+        "https://learnenglish.britishcouncil.org/"
+       ]
+      ]
+     },
+     {
+      "t": "TED: выступление 15–20 минут без субтитров. Пересмотри сложные места.",
+      "l": [
+       [
+        "TED Talks",
+        "https://www.ted.com/talks"
+       ]
+      ]
+     }
+    ],
+    "read": [
+     {
+      "t": "Guardian Long Read: одна большая статья. Перескажи её позицию автора в 5 предложениях.",
+      "l": [
+       [
+        "Guardian: The Long Read",
+        "https://www.theguardian.com/news/series/the-long-read"
+       ]
+      ]
+     },
+     {
+      "t": "British Council → Skills → Reading → C1: один текст с заданиями.",
+      "l": [
+       [
+        "British Council LearnEnglish",
+        "https://learnenglish.britishcouncil.org/"
+       ]
+      ]
+     },
+     {
+      "t": "Глава книги в оригинале (бесплатные классические книги — Project Gutenberg).",
+      "l": [
+       [
+        "Project Gutenberg (бесплатные книги)",
+        "https://www.gutenberg.org/"
+       ]
+      ]
+     }
+    ],
+    "speak": [
+     {
+      "t": "Обсуждение сложной темы с носителем или учителем 45+ минут (italki, Preply). Тема — «{topic}».",
+      "l": [
+       [
+        "italki",
+        "https://www.italki.com/"
+       ],
+       [
+        "Preply",
+        "https://preply.com/"
+       ]
+      ]
+     },
+     {
+      "t": "Подготовь и запиши выступление на 5 минут по теме недели «{topic}», как на презентации.",
+      "l": []
+     }
+    ],
+    "write": [
+     {
+      "t": "Эссе на 250+ слов по теме «{topic}». Отдай на проверку учителю или в r/WriteStreakEN.",
+      "l": [
+       [
+        "Reddit r/WriteStreakEN",
+        "https://www.reddit.com/r/WriteStreakEN/"
+       ],
+       [
+        "italki",
+        "https://www.italki.com/"
+       ]
+      ]
+     },
+     {
+      "t": "Cambridge English (C1 Advanced): бесплатные примеры заданий Writing, выполни одно.",
+      "l": [
+       [
+        "Cambridge English: подготовка к экзаменам",
+        "https://www.cambridgeenglish.org/"
+       ]
+      ]
+     }
+    ]
+   },
+   "C2": {
+    "listen": [
+     {
+      "t": "Стендап британского комика без субтитров: попробуй понять все шутки.",
+      "l": [
+       [
+        "YouTube: British stand-up",
+        "https://www.youtube.com/results?search_query=british+stand+up+comedy"
+       ]
+      ]
+     },
+     {
+      "t": "BBC Radio 4 «In Our Time»: выпуск на незнакомую тему.",
+      "l": [
+       [
+        "BBC Radio 4: In Our Time",
+        "https://www.bbc.co.uk/programmes/b006qykl"
+       ]
+      ]
+     }
+    ],
+    "read": [
+     {
+      "t": "Художественная книга в оригинале, 30–50 страниц (бесплатная классика на Project Gutenberg).",
+      "l": [
+       [
+        "Project Gutenberg (бесплатные книги)",
+        "https://www.gutenberg.org/"
+       ]
+      ]
+     },
+     {
+      "t": "Guardian Long Read: статья. Найди в ней иронию и приёмы автора.",
+      "l": [
+       [
+        "Guardian: The Long Read",
+        "https://www.theguardian.com/news/series/the-long-read"
+       ]
+      ]
+     }
+    ],
+    "speak": [
+     {
+      "t": "Выступи перед людьми по-английски: клуб Toastmasters в твоём городе или онлайн.",
+      "l": [
+       [
+        "Toastmasters (клубы ораторов)",
+        "https://www.toastmasters.org/"
+       ]
+      ]
+     },
+     {
+      "t": "Дискуссия с носителем 60 минут на абстрактную тему (italki).",
+      "l": [
+       [
+        "italki",
+        "https://www.italki.com/"
+       ]
+      ]
+     }
+    ],
+    "write": [
+     {
+      "t": "Рецензия или статья на 300 слов по теме «{topic}» и разбор с учителем.",
+      "l": [
+       [
+        "italki",
+        "https://www.italki.com/"
+       ]
+      ]
+     },
+     {
+      "t": "Cambridge English (C2 Proficiency): бесплатные примеры заданий, выполни одно Writing.",
+      "l": [
+       [
+        "Cambridge English: подготовка к экзаменам",
+        "https://www.cambridgeenglish.org/"
+       ]
+      ]
+     }
+    ]
+   }
   },
   months: [
     { n: 1, level: "A1", title: "Знакомство и основы", topics: ["Знакомство", "Семья", "Числа и время", "Мой дом"], grammar: ["to be: am, is, are", "my, your, his, her, this, that", "Множественное число", "there is / there are, a / an / the, предлоги места"] },

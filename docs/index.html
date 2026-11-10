@@ -2849,7 +2849,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const v = fold(norm($("lsInput").value));
       if (!v) return;
       const a = fold(norm(q.answer));
-      ok = v === a || v === a.replace(/^to /, "") || "to " + v === a;
+      ok = v === a || v === a.replace(/^to /, "") || "to " + v === a
+        || (!!PROG() && q.ru && pgAltAnswers(q.ru).some(x => fold(norm(x)) === v));
       correctText = q.answer; $("lsInput").disabled = true;
     } else if (q.type === "tiles"){
       ok = norm(L.built.map(i => q.pool[i]).join(" ")) === norm(q.tokens.join(" "));
@@ -3039,8 +3040,8 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const k = i % 4;
       if (k === 0) Q.push({ type: "mc", kind: "Выбери перевод", prompt: e, speak: e, options: pgOpts(r, ru), answer: r });
       else if (k === 1) Q.push({ type: "mc", kind: "Как это по-английски?", prompt: r, options: pgOpts(e, en), answer: e });
-      else if (k === 2) Q.push({ type: "type", ru: r, answer: e });
-      else Q.push(canSpeakNow() ? { type: "listen", say: e, options: pgOpts(r, ru), answer: r } : { type: "type", ru: r, answer: e });
+      else if (k === 2) Q.push(pgTypable(e) ? { type: "type", ru: r, answer: e } : { type: "mc", kind: "Как это по-английски?", prompt: r, options: pgOpts(e, en), answer: e });
+      else Q.push(canSpeakNow() ? { type: "listen", say: e, options: pgOpts(r, ru), answer: r } : pgTypable(e) ? { type: "type", ru: r, answer: e } : { type: "mc", kind: "Выбери перевод", prompt: e, options: pgOpts(r, ru), answer: r });
     });
     return Q;
   }
@@ -3049,7 +3050,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     return list.map((en, i) => {
       const x = pgWordInfo(en); if (!x) return null;
       const k = i % 3, q = k === 0 ? { type: "mc", kind: "Повторение · выбери перевод", prompt: x[0], speak: x[0], options: pgOpts(x[1], pool.map(w => w[1])), answer: x[1] }
-        : k === 1 ? { type: "type", ru: x[1], answer: x[0] }
+        : k === 1 && pgTypable(x[0]) ? { type: "type", ru: x[1], answer: x[0] }
         : { type: "mc", kind: "Повторение · как это по-английски?", prompt: x[1], options: pgOpts(x[0], pool.map(w => w[0])), answer: x[0] };
       q.srs = en; return q;
     }).filter(Boolean);
@@ -3086,7 +3087,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       // weekly check: words of the whole week and the grammar
       const wk = shuffle(W.words).slice(0, 6), gq = shuffle(W.grammar.quiz).slice(0, 4);
       Q.push({ type: "note", title: "Проверка недели", text: "10 вопросов по словам и грамматике этой недели. Ошибки попадут в повторение." });
-      wk.forEach(([e, r], i) => Q.push(i % 2 ? { type: "type", ru: r, answer: e, srs: e } : { type: "mc", kind: "Проверка недели", prompt: e, options: pgOpts(r, pool.map(x => x[1])), answer: r, srs: e }));
+      wk.forEach(([e, r], i) => Q.push(i % 2 && pgTypable(e) ? { type: "type", ru: r, answer: e, srs: e } : { type: "mc", kind: "Проверка недели", prompt: e, options: pgOpts(r, pool.map(x => x[1])), answer: r, srs: e }));
       gq.forEach(q => Q.push({ type: "mc", kind: "Проверка недели · грамматика", prompt: q.q, options: shuffle(q.a), answer: q.a[q.c] }));
     }
     return { Q, fresh };
@@ -3103,7 +3104,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     Q.push({ type: "note", title: "Часть 1 из 6 · Слова", text: "20 вопросов. Подсказок и второй попытки на экзамене нет." });
     words.slice(0, 20).forEach(([e, r], i) => Q.push(sec(i < 8 ? { type: "mc", kind: "Слова · выбери перевод", prompt: e, options: pgOpts(r, pool.map(x => x[1])), answer: r }
       : i < 14 ? { type: "mc", kind: "Слова · как это по-английски?", prompt: r, options: pgOpts(e, pool.map(x => x[0])), answer: e }
-      : { type: "type", ru: r, answer: e }, "voc")));
+      : pgTypable(e) ? { type: "type", ru: r, answer: e } : { type: "mc", kind: "Слова · как это по-английски?", prompt: r, options: pgOpts(e, pool.map(x => x[0])), answer: e }, "voc")));
     Q.push({ type: "note", title: "Часть 2 из 6 · Грамматика", text: "12 вопросов." });
     const gpool = shuffle(ms.flatMap(i => pgMonth(i).weeks.flatMap(w => w.grammar.quiz)));
     E.grammar.concat(gpool.slice(0, 12 - E.grammar.length)).forEach(q => Q.push(sec({ type: "mc", kind: "Грамматика", prompt: q.q, options: shuffle(q.a), answer: q.a[q.c] }, "gram")));
@@ -3171,10 +3172,19 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       foot.innerHTML = `<button class="btn primary" type="button" data-ls="check">Проверить</button>`;
     }
   };
+  // a required word or phrase in any grammatical form; one extra word may stand inside a phrase
+  function useRe(u){
+    const toks = normEn(u).split(" ").filter(Boolean).map(t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    return new RegExp(" " + toks.map(t => (t.length >= 4 ? t.slice(0, -1) : t) + "[a-z']*").join("(?: [a-z']+)? ") + " ");
+  }
+  // long expressions are chosen from options, not typed letter by letter
+  const pgTypable = e => e.length <= 20 && e.split(" ").length <= 3;
+  // other course words with exactly the same Russian translation are right answers too
+  function pgAltAnswers(ru){ const k = norm(ru); return pgAllWords().filter(x => norm(x[1]) === k).map(x => x[0]); }
   function pgWriteEval(q){
     const txt = ($("lsWrite") || {}).value || "";
     const n = wordsOf(txt).length, low = " " + normEn(txt) + " ";
-    const used = q.w.use.filter(u => low.includes(" " + normEn(u) + " "));
+    const used = q.w.use.filter(u => low.includes(" " + normEn(u) + " ") || useRe(u).test(low));
     const latin = /[a-z]/i.test(txt) && !/[а-яё]/i.test(txt);
     const okLen = n >= q.w.minWords && latin, okUse = used.length >= Math.ceil(q.w.use.length * 0.75);
     return { n, used, okLen, okUse };
@@ -5693,7 +5703,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 </script>
 <script>
 // ---------- app updates ----------
-const APP_VERSION = "2026.11.10-2";
+const APP_VERSION = "2026.11.10-3";
 (function(){
   const $ = id => document.getElementById(id);
   const vEl = $("appVer"); if (vEl) vEl.textContent = "Версия приложения: " + APP_VERSION;

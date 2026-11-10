@@ -11,7 +11,7 @@ catch (e) { console.log("ERROR: file does not load as JSON: " + e.message); proc
 let err = 0, warn = 0;
 const E = m => { err++; if (err <= 40) console.log("ERROR " + m); };
 const W = m => { warn++; if (warn <= 20) console.log("WARN  " + m); };
-const ph = s => (s.match(/\{\d+\}/g) || []).sort().join(",");
+const ph = s => (s.match(/\{(?:\d+|[a-z]+)\}/g) || []).sort().join(",");
 for (const s of src){
   if (!(s in tr)) { E("missing: " + JSON.stringify(s)); continue; }
   const t = tr[s];

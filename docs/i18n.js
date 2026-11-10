@@ -28,14 +28,22 @@
   function build(dict){
     for (const [src, dst] of Object.entries(dict)){
       if (!dst) continue;
-      if (!/\{\d+\}/.test(src)){ exact.set(src, dst); const lo = src.toLowerCase(); if (!lower.has(lo)) lower.set(lo, dst); continue; }
+      if (!/\{(\d+|[a-z]+)\}/.test(src)){ exact.set(src, dst); const lo = src.toLowerCase(); if (!lower.has(lo)) lower.set(lo, dst); continue; }
       // template: literal parts must match exactly, {n} matches any text
-      const parts = src.split(/(\{\d+\})/);
+      const parts = src.split(/(\{(?:\d+|[a-z]+)\})/).filter(p => p !== "");
       const order = [];
-      const re = new RegExp("^" + parts.map(p => { const m = p.match(/^\{(\d+)\}$/); if (m){ order.push(+m[1]); return "(.*?)"; } return esc(p).replace(/ /g, "\\s*"); }).join("") + "$");
-      const lead = parts[0] && parts[0].length >= 3 ? parts[0].slice(0, 3).toLowerCase() : "*";
+      const isPh = p => /^\{(?:\d+|[a-z]+)\}$/.test(p);
+      const re = new RegExp("^" + parts.map((p, i) => {
+        const m = p.match(/^\{(\d+|[a-z]+)\}$/); if (m){ order.push(m[1]); return "(.*?)"; }
+        // spaces between words stay required; only a space before a final, possibly empty value may vanish
+        const tailOptional = i === parts.length - 2 && isPh(parts[parts.length - 1]);
+        let r = esc(p).replace(/ +/g, "\\s+");
+        if (tailOptional) r = r.replace(/\\s\+$/, "\\s*");
+        return r;
+      }).join("") + "$");
+      const lead = parts[0] && !isPh(parts[0]) && parts[0].length >= 3 ? parts[0].slice(0, 3).toLowerCase() : "*";
       if (!buckets.has(lead)) buckets.set(lead, []);
-      buckets.get(lead).push({ re, order, dst, lits: parts.filter(p => !/^\{\d+\}$/.test(p)).join("").length });
+      buckets.get(lead).push({ re, order, dst, lits: parts.filter(p => !/^\{(?:\d+|[a-z]+)\}$/.test(p)).join("").length });
     }
     // longer literal text first: more specific templates win
     for (const list of buckets.values()) list.sort((a, b) => b.lits - a.lits);
@@ -50,7 +58,7 @@
     for (const t of cands){
       const m = core.match(t.re); if (!m) continue;
       const vals = {}; t.order.forEach((n, i) => { const v = m[i + 1]; vals[n] = CYR.test(v) ? (tr(v.trim(), depth + 1) || piecewise(v) || v) : v; });
-      return t.dst.replace(/\{(\d+)\}/g, (a, n) => vals[n] !== undefined ? vals[n] : a);
+      return t.dst.replace(/\{(\d+|[a-z]+)\}/g, (a, n) => vals[n] !== undefined ? vals[n] : a);
     }
     return null;
   }

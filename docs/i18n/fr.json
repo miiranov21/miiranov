@@ -346,7 +346,6 @@
  "Вставь токен целиком": "Colle le jeton en entier",
  "Всё блюдо:": "Plat entier :",
  "Всё приложение": "Toute l’appli",
- "Всё, что ты вносишь здесь, хранится только на этом телефоне: не отправляется в облако, не попадает в блок «Пара» и не видно партнёру. Имя, банк и номера карт не нужны.": "Tout ce que tu saisis ici reste uniquement sur ce téléphone : rien n’est envoyé dans le cloud, rien n’apparaît dans le bloc « Duo » ni n’est visible par ton partenaire. Pas besoin de nom, de banque ni de numéro de carte.",
  "Всё, что уже записано на этом телефоне, перенесётся в новый аккаунт.": "Tout ce qui est déjà enregistré sur ce téléphone sera transféré dans le nouveau compte.",
  "Вход выполнен": "Connecté",
  "Вход отменён.": "Connexion annulée.",
@@ -2128,5 +2127,7 @@
  "Перед крупной покупкой посчитай, сколько часов работы она стоит.": "Avant un gros achat, calcule combien d'heures de travail il te coûte.",
  "Повышение дохода — повод увеличить долю сбережений и инвестиций, а не только расходы.": "Une augmentation est une raison d'épargner et d'investir davantage, pas seulement de dépenser plus.",
  "Подписки легко забыть. Раз в месяц проверь, за что списываются деньги, и отмени ненужное.": "On oublie facilement les abonnements. Une fois par mois, vérifie ce qui est prélevé et résilie l'inutile.",
- "Сначала подушка безопасности на 3–6 месяцев расходов, потом инвестиции.": "D'abord une épargne de secours de 3 à 6 mois de dépenses, ensuite les investissements."
+ "Сначала подушка безопасности на 3–6 месяцев расходов, потом инвестиции.": "D'abord une épargne de secours de 3 à 6 mois de dépenses, ensuite les investissements.",
+ "Настройки": "Réglages",
+ "Всё, что ты вносишь здесь, хранится только на этом телефоне: не отправляется в облако, не попадает в комнату и не видно другим участникам. Имя, банк и номера карт не нужны.": "Tout ce que tu saisis ici reste uniquement sur ce téléphone : rien n’est envoyé dans le cloud, rien n’apparaît dans le bloc « Duo » ni n’est visible par ton partenaire. Pas besoin de nom, de banque ni de numéro de carte."
 }

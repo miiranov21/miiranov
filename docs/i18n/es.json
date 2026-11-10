@@ -346,7 +346,6 @@
  "Вставь токен целиком": "Pega el token entero",
  "Всё блюдо:": "Plato entero:",
  "Всё приложение": "Toda la app",
- "Всё, что ты вносишь здесь, хранится только на этом телефоне: не отправляется в облако, не попадает в блок «Пара» и не видно партнёру. Имя, банк и номера карт не нужны.": "Todo lo que introduces aquí se guarda solo en este teléfono: no se envía a la nube, no aparece en el bloque «Pareja» y tu pareja no lo ve. No hacen falta nombre, banco ni números de tarjeta.",
  "Всё, что уже записано на этом телефоне, перенесётся в новый аккаунт.": "Todo lo que ya está registrado en este teléfono pasará a la nueva cuenta.",
  "Вход выполнен": "Sesión iniciada",
  "Вход отменён.": "Inicio de sesión cancelado.",
@@ -2128,5 +2127,7 @@
  "Перед крупной покупкой посчитай, сколько часов работы она стоит.": "Antes de una compra grande, calcula cuántas horas de trabajo cuesta.",
  "Повышение дохода — повод увеличить долю сбережений и инвестиций, а не только расходы.": "Un aumento de sueldo es motivo para ahorrar e invertir más, no solo para gastar más.",
  "Подписки легко забыть. Раз в месяц проверь, за что списываются деньги, и отмени ненужное.": "Las suscripciones se olvidan fácilmente. Una vez al mes revisa qué pagas y cancela lo que no necesitas.",
- "Сначала подушка безопасности на 3–6 месяцев расходов, потом инвестиции.": "Primero un fondo de emergencia para 3–6 meses de gastos, después inversiones."
+ "Сначала подушка безопасности на 3–6 месяцев расходов, потом инвестиции.": "Primero un fondo de emergencia para 3–6 meses de gastos, después inversiones.",
+ "Настройки": "Ajustes",
+ "Всё, что ты вносишь здесь, хранится только на этом телефоне: не отправляется в облако, не попадает в комнату и не видно другим участникам. Имя, банк и номера карт не нужны.": "Todo lo que introduces aquí se guarda solo en este teléfono: no se envía a la nube, no aparece en el bloque «Pareja» y tu pareja no lo ve. No hacen falta nombre, banco ni números de tarjeta."
 }

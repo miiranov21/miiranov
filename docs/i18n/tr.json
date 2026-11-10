@@ -346,7 +346,6 @@
  "Вставь токен целиком": "Token'ı eksiksiz yapıştır",
  "Всё блюдо:": "Yemeğin tamamı:",
  "Всё приложение": "Tüm uygulama",
- "Всё, что ты вносишь здесь, хранится только на этом телефоне: не отправляется в облако, не попадает в блок «Пара» и не видно партнёру. Имя, банк и номера карт не нужны.": "Burada girdiğin her şey sadece bu telefonda saklanır: buluta gönderilmez, “Çift” bölümüne girmez ve partnerin görmez. İsim, banka ve kart numarası gerekmez.",
  "Всё, что уже записано на этом телефоне, перенесётся в новый аккаунт.": "Bu telefonda kayıtlı olan her şey yeni hesaba taşınacak.",
  "Вход выполнен": "Giriş yapıldı",
  "Вход отменён.": "Giriş iptal edildi.",
@@ -2128,5 +2127,7 @@
  "Перед крупной покупкой посчитай, сколько часов работы она стоит.": "Büyük bir alışverişten önce kaç saatlik çalışmaya mal olduğunu hesapla.",
  "Повышение дохода — повод увеличить долю сбережений и инвестиций, а не только расходы.": "Gelirin artması harcamayı değil, birikim ve yatırım payını artırmak için bir fırsattır.",
  "Подписки легко забыть. Раз в месяц проверь, за что списываются деньги, и отмени ненужное.": "Abonelikler kolayca unutulur. Ayda bir neye para ödediğini kontrol et, gereksiz olanları iptal et.",
- "Сначала подушка безопасности на 3–6 месяцев расходов, потом инвестиции.": "Önce 3–6 aylık harcamayı karşılayan bir acil durum fonu, sonra yatırım."
+ "Сначала подушка безопасности на 3–6 месяцев расходов, потом инвестиции.": "Önce 3–6 aylık harcamayı karşılayan bir acil durum fonu, sonra yatırım.",
+ "Настройки": "Ayarlar",
+ "Всё, что ты вносишь здесь, хранится только на этом телефоне: не отправляется в облако, не попадает в комнату и не видно другим участникам. Имя, банк и номера карт не нужны.": "Burada girdiğin her şey sadece bu telefonda saklanır: buluta gönderilmez, “Çift” bölümüne girmez ve partnerin görmez. İsim, banka ve kart numarası gerekmez."
 }

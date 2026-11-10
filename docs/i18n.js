@@ -54,16 +54,42 @@
     const lo = core.toLowerCase();
     if (lower.has(lo)) return cap(core, lower.get(lo));
     if (depth > 2) return null;
+    // several patterns can fit ("{0}: {1}" and "{0}, {1}"): keep the result with the least Russian left
     const cands = (buckets.get(lo.slice(0, 3)) || []).concat(buckets.get("*") || []);
+    let best = null, bestLeft = Infinity, tried = 0;
     for (const t of cands){
       const m = core.match(t.re); if (!m) continue;
-      const vals = {}; t.order.forEach((n, i) => { const v = m[i + 1]; vals[n] = CYR.test(v) ? (tr(v.trim(), depth + 1) || piecewise(v) || v) : v; });
-      return t.dst.replace(/\{(\d+|[a-z]+)\}/g, (a, n) => vals[n] !== undefined ? vals[n] : a);
+      const vals = {}; t.order.forEach((n, i) => { const v = m[i + 1]; vals[n] = CYR.test(v) ? (exactEdge(v.trim()) || tr(v.trim(), depth + 1) || piecewise(v) || v) : v; });
+      const out = t.dst.replace(/\{(\d+|[a-z]+)\}/g, (a, n) => vals[n] !== undefined ? vals[n] : a);
+      const left = (out.match(/[А-Яа-яЁё]/g) || []).length;
+      if (left < bestLeft){ best = out; bestLeft = left; }
+      if (!left || ++tried >= 12) break;
     }
+    return best;
+  }
+  // exact phrase, also when emoji or bullets stand around it ("✅ Без сладкого")
+  function exactEdge(core){
+    if (exact.has(core)) return exact.get(core);
+    const lo = core.toLowerCase(); if (lower.has(lo)) return cap(core, lower.get(lo));
+    const e = core.match(/^([^0-9A-Za-zА-Яа-яЁё]*)([\s\S]*?)([^0-9A-Za-zА-Яа-яЁё]*)$/);
+    if (!e || !(e[1] || e[3]) || !e[2]) return null;
+    const look = k => exact.get(k) || (lower.has(k.toLowerCase()) ? cap(k, lower.get(k.toLowerCase())) : null);
+    // the phrase may keep its own final dot or closing bracket: try with and without them
+    for (const [pre, mid, post] of [[e[1], e[2], e[3]], [e[1], e[2] + e[3], ""], ["", e[1] + e[2], e[3]]]){ if (!mid.trim()) continue; const x = look(mid.trim()); if (x) return pre + x + post; }
     return null;
   }
   // last resort: translate the known words and phrases between numbers and punctuation
   function piecewise(core){
+    // first by strong separators (": ", " — ", " · ", ". "), so names like "Зарядка / спорт" stay whole
+    const coarse = core.split(/(\s*[:·•—–]\s+|\.\s+)/);
+    if (coarse.length > 1){
+      let ch = false;
+      const out = coarse.map(b => { if (!b || !CYR.test(b)) return b; const t = exactEdge(b.trim()) || tr(b.trim(), 3) || fine(b); if (t && t !== b.trim()){ ch = true; return b.replace(b.trim(), t); } return b; });
+      if (ch) return out.join("");
+    }
+    return fine(core);
+  }
+  function fine(core){
     const bits = core.split(/(\s*[0-9]+(?:[.,][0-9]+)?\s*|\s*[,:;·•\/()«»"!?.—–+=%]+\s*)/);
     let changed = false;
     const out = bits.map(b => { if (!b || !CYR.test(b)) return b; const t = tr(b.trim(), 3); if (t){ changed = true; return b.replace(b.trim(), t); } return b; });
@@ -73,7 +99,8 @@
     if (!s || !CYR.test(s)) return null;
     const m = s.match(/^(\s*)([\s\S]*?)(\s*)$/);
     const core = m[2].replace(/\s+/g, " ");
-    let t = tr(core, 0);
+    let t = exactEdge(core);
+    if (t === null) t = tr(core, 0);
     if (t === null){
       // emoji, bullets and quotes around a phrase: translate what is inside
       const e = core.match(/^([^0-9A-Za-zА-Яа-яЁё]*)([\s\S]*?)([^0-9A-Za-zА-Яа-яЁё]*)$/);

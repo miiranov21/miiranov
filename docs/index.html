@@ -12,6 +12,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Мой день">
 <link rel="manifest" href="manifest.webmanifest">
+<style>html.i18n-wait body{visibility:hidden}</style>
+<script src="i18n.js"></script>
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -889,6 +891,10 @@ body{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
 body > .wrap{width:100%;flex:1 0 auto}
 .bnav{margin-top:auto}
 body.nobnav .bnav{display:none!important}
+.lang-cur{margin-left:auto;font-size:12px;color:var(--ink-3);font-weight:600}
+.langlist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.langlist button{border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:10px;font-weight:600;text-align:left}
+.langlist button.on{border-color:var(--accent);color:var(--accent)}
 .bnavopt{display:flex;gap:10px;align-items:center;font-weight:600;padding:8px 10px;border:1px solid var(--line);border-radius:12px}
 .bnavopt input{width:19px;height:19px;accent-color:var(--accent)}
 #lib{z-index:56}
@@ -1464,6 +1470,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   </div>
 </div>
 
+<dialog id="langDlg" aria-labelledby="langDlgT">
+  <div class="dlg">
+    <h2 id="langDlgT" style="font-size:18px">🌐 Язык приложения</h2>
+    <div class="langlist" id="langList2" data-noi18n></div>
+    <p class="mhint" style="margin:0">Уроки английского объясняются на русском языке.</p>
+    <div class="row" style="justify-content:flex-end"><button class="btn ghost" type="button" id="langClose">Закрыть</button></div>
+  </div>
+</dialog>
 <dialog id="menuDlg" aria-labelledby="menuDlgT">
   <form class="dlg" method="dialog" id="menuForm">
     <h2 id="menuDlgT" style="font-size:18px">Настроить меню</h2>
@@ -1497,6 +1511,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     <button type="button" data-dview="widget"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><rect x="9" y="6" width="6" height="5" rx="1"/><path d="M11 18.5h2"/></svg></span>Виджет на экран</button>
     <button type="button" data-dview="account"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20.5c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5"/></svg></span>Аккаунт</button>
     <button type="button" data-dview="ideas"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17.5h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2v1.5h5V16c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/></svg></span>Ваши идеи</button>
+    <button type="button" data-dtool="langpick"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.3 2.5 3.5 5.3 3.5 8.5s-1.2 6-3.5 8.5c-2.3-2.5-3.5-5.3-3.5-8.5s1.2-6 3.5-8.5z"/></svg></span><span>Язык приложения</span><span class="lang-cur" id="langCur" data-noi18n></span></button>
     <button type="button" data-dtool="bnav"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 15h17"/><path d="M7.5 17.3h1M11.5 17.3h1M15.5 17.3h1"/></svg></span><span id="bnavTx">Нижняя панель</span></button>
     <button type="button" data-dtool="menu"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 17h6M18 7h2M14 17h6"/><circle cx="16" cy="7" r="2"/><circle cx="12" cy="17" r="2"/></svg></span>Настроить меню</button>
     <button type="button" data-dtool="update"><span class="dri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4.5v4.2h-4.2"/></svg></span>Обновить приложение</button>
@@ -1516,6 +1531,9 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
+  const LOC = (window.MD_I18N && window.MD_I18N.locale) || "ru-RU";
+  // "4 ноя" in Russian, "4 Nov" in English: the browser formats the date for the chosen language
+  function shortDate(d){ try { return d.toLocaleDateString(LOC, { day: "numeric", month: "short" }).replace(/\.$/, ""); } catch (e) { return d.getDate() + "." + (d.getMonth() + 1); } }
   const DEFAULT_SETTINGS = {
     goals: { kcal: 2200, water: 2500, pages: 20, glass: 250, protein: 0, fat: 0, carbs: 0 },
     profile: null,
@@ -1566,7 +1584,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   }
   function goals(){ return Object.assign({}, DEFAULT_SETTINGS.goals, S.settings.goals || {}); }
   function esc(s){ return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
-  function fmt(n){ return Math.round(n).toLocaleString("ru-RU"); }
+  function fmt(n){ return Math.round(n).toLocaleString(LOC); }
   function plural(n, a, b, c){ n = Math.abs(n) % 100; const n1 = n % 10; if (n > 10 && n < 20) return c; if (n1 > 1 && n1 < 5) return b; if (n1 === 1) return a; return c; }
 
   // ---------- persistence ----------
@@ -2064,7 +2082,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     });
     const dt = parseKey(k0);
     $("vsMeta").textContent = k0 === today ? "сегодня" : dt.getDate() + " " + MONTHS[dt.getMonth()];
-    const L = v => ((v || 0) / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
+    const L = v => ((v || 0) / 1000).toLocaleString(LOC, { maximumFractionDigits: 2 });
     const who = pl => `<span class="cw">${esc(pl.label)}${pl.me && pl.nick ? " (я)" : ""}${pubOf(pl) ? ` <span class="ucode">${fmtCode(pubOf(pl))}</span>` : ""}</span>`;
     const bar = (v, g, color) => `<div class="pbar"><i style="width:${g ? Math.min(100, v / g * 100) : 0}%;background:${color}"></i></div>`;
     const block = (title, color, lineFn) => `<div class="cmp"><h3>${title}</h3>${players.map(pl => `<div class="cl">${lineFn(pl)}</div>`).join("")}</div>`;
@@ -2222,7 +2240,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
         <div><div class="lbl">Калории</div><div class="val">${fmt(t.kcal)} <small>/ ${fmt(g.kcal)}</small></div>
         <div class="hint">${left >= 0 ? "осталось " + fmt(left) + " ккал" : "перебор " + fmt(-left) + " ккал"}</div></div></div>
       <div class="ring-card" data-sec="p-water"><div class="ring">${ring(d.water / g.water, "var(--water)")}<span class="pct">${Math.round(d.water / g.water * 100)}%</span></div>
-        <div><div class="lbl">Вода</div><div class="val">${(d.water / 1000).toFixed(2).replace(".", ",")} <small>/ ${(g.water / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} л</small></div>
+        <div><div class="lbl">Вода</div><div class="val">${(d.water / 1000).toFixed(2).replace(".", ",")} <small>/ ${(g.water / 1000).toLocaleString(LOC, { maximumFractionDigits: 2 })} л</small></div>
         <div class="hint">${t.waterOk ? "цель выполнена" : "ещё " + Math.ceil((g.water - d.water) / g.glass) + " " + plural(Math.ceil((g.water - d.water) / g.glass), "стакан", "стакана", "стаканов")}</div></div></div>
       <div class="ring-card" data-sec="p-read"><div class="ring">${ring(d.pages / g.pages, "var(--read)")}<span class="pct">${Math.round(d.pages / g.pages * 100)}%</span></div>
         <div><div class="lbl">Чтение</div><div class="val">${d.pages} <small>/ ${g.pages} стр.</small></div>
@@ -2580,7 +2598,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
     const area = `M${x(0)},${y(0)} L${pts.join(" L")} L${x(days.length - 1)},${y(0)} Z`;
     const ticks = [0, max / 2, max].map(v => Math.round(v));
-    const lab = k => { const d = parseKey(k); return d.getDate() + " " + MONTHS[d.getMonth()].slice(0, 3); };
+    const lab = k => shortDate(parseKey(k));
     const last = vals[vals.length - 1];
     const lx = x(days.length - 1), ly = y(last);
     box.innerHTML = head + `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Прогресс по языку: ${last} ${unit}">
@@ -3213,7 +3231,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const st = pgState(); const lock = pgExamLock(st, m);
     const need = (() => { const P = PROG(), lv = P.levelExams[m]; if (!lv) return [m]; const out = []; for (let i = P.levels[lv].months[0]; i <= m; i++) out.push(i); return out; })();
     if (need.some(i => !pgReady(i))){ need.forEach(pgLoad); toast("Загружаю материалы для экзамена, попробуй через пару секунд"); return; }
-    if (lock){ toast("Пересдача будет доступна " + new Date(lock).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })); return; }
+    if (lock){ toast("Пересдача будет доступна " + new Date(lock).toLocaleString(LOC, { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })); return; }
     L = { kind: "exam", pg: { m }, q: pgExamQs(m), i: 0, right: 0, asked: 0, fr: 0, ft: 0, srsRes: {}, secs: {}, plays: 0, start: Date.now(), retried: new Set(), state: "ask", pick: null, built: [] };
     $("lesson").hidden = false; document.body.style.overflow = "hidden"; showQ();
   }
@@ -3295,7 +3313,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const tries = st.ex[m] || [], best = tries.reduce((a, r) => Math.max(a, r.pct), 0), passed = pgPassed(st, m), lock = pgExamLock(st, m);
     const P = PROG(), lvl = P.levelExams[m];
     return `<div class="pgexam ${passed ? "ok" : ""}"><div><b>📝 ${lvl ? "Экзамен уровня " + lvl : "Экзамен месяца " + m}</b><div class="mhint">${passed ? "Сдан: " + best + "%" : tries.length ? "Попыток: " + tries.length + ", лучший результат " + best + "%" : "Слова, грамматика, чтение, аудирование, письмо и говорение"}</div></div>
-      ${passed ? `<span class="chip ok">✓ сдан</span>` : lock ? `<span class="mhint">Пересдача: ${new Date(lock).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>` : `<button class="btn sm" type="button" data-pgexam="${m}">Сдать${pgNext(st).kind === "exam" ? "" : " досрочно"}</button>`}</div>`;
+      ${passed ? `<span class="chip ok">✓ сдан</span>` : lock ? `<span class="mhint">Пересдача: ${new Date(lock).toLocaleString(LOC, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>` : `<button class="btn sm" type="button" data-pgexam="${m}">Сдать${pgNext(st).kind === "exam" ? "" : " досрочно"}</button>`}</div>`;
   }
   // concrete tasks for the week: one per skill, rotating each week, with the week's topic filled in
   function pgPractice(M, m, w){
@@ -3334,7 +3352,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const lock = pgExamLock(st, nx.m);
       today = `<span class="tl-day">Конец месяца ${nx.m}</span><div class="tl-what">📝 ${P.levelExams[nx.m] ? "Экзамен уровня " + P.levelExams[nx.m] : "Экзамен месяца"}</div>
         <div class="tl-sub">6 частей: слова, грамматика, чтение, аудирование, письмо, говорение. Чтобы сдать, нужно ${P.passTotal}% в сумме и не меньше ${P.passSection}% в каждой части. Около 40 минут.</div>
-        ${lock ? `<div class="tl-sub">Пересдача будет доступна ${new Date(lock).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}. Пока повтори слабые темы.</div>` : `<button class="btn primary" type="button" data-pgexam="${nx.m}">Начать экзамен</button>`}`;
+        ${lock ? `<div class="tl-sub">Пересдача будет доступна ${new Date(lock).toLocaleString(LOC, { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}. Пока повтори слабые темы.</div>` : `<button class="btn primary" type="button" data-pgexam="${nx.m}">Начать экзамен</button>`}`;
     } else if (nx.kind === "loading"){
       today = `<span class="tl-day">Месяц ${nx.m}: ${esc(M.title)}</span><div class="tl-what">⏳ Загружаю уроки месяца…</div><div class="tl-sub">Нужен интернет один раз: потом уроки будут работать и без сети.</div>`;
     } else if (nx.kind === "soon"){
@@ -3472,7 +3490,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     renderPartnerReport(keys, end);
     if (repTab === "both") setTimeout(renderBoard, 0);
     const a = parseKey(keys[0]), b = parseKey(end);
-    $("repRange").textContent = a.getDate() + " " + MONTHS[a.getMonth()].slice(0, 3) + " — " + b.getDate() + " " + MONTHS[b.getMonth()].slice(0, 3);
+    $("repRange").textContent = shortDate(a) + " — " + shortDate(b);
     $("repNext").disabled = end >= todayKey();
     const past = keys.filter(k => k <= todayKey());
     const tt = past.map(k => totals(k)), dd = past.map(k => day(k));
@@ -3486,7 +3504,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const daysOk = (f) => past.filter(f).length;
     $("repStats").innerHTML = `
       <div><span>🍎 Калории в среднем</span><b>${fmt(avgK)}</b><small>норма ${fmt(g0.kcal)} · в норме ${daysOk(k => totals(k).kcalOk)} из ${past.length} дн.</small></div>
-      <div><span>💧 Вода в среднем</span><b>${(avgW / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} л</b><small>цель выполнена ${daysOk(k => totals(k).waterOk)} из ${past.length} дн.</small></div>
+      <div><span>💧 Вода в среднем</span><b>${(avgW / 1000).toLocaleString(LOC, { maximumFractionDigits: 1 })} л</b><small>цель выполнена ${daysOk(k => totals(k).waterOk)} из ${past.length} дн.</small></div>
       <div><span>📖 Прочитано</span><b>${pagesW} стр.</b><small>цель выполнена ${daysOk(k => totals(k).readOk)} из ${past.length} дн.</small></div>
       <div><span>✅ Привычки</span><b>${hTot ? Math.round(hDone / hTot * 100) : 0}%</b><small>отмечено ${hDone} из ${hTot}</small></div>
       <div><span>🌍 Язык</span><b>${langMin} мин</b><small>${S.settings.lang ? esc(S.settings.lang.name) : "язык не выбран"}</small></div>`;
@@ -3518,7 +3536,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       $("repStats").innerHTML += `<div><span>💊 Витамины</span><b>${Math.round(vOk / vTot * 100)}%</b><small>выпито ${vOk} из ${vTot} приёмов</small></div>`; }
     // finance (this phone only)
     const finW = (typeof FIN !== "undefined" ? FIN.tx : []).filter(t => t.t === "exp" && t.d >= keys[0] && t.d <= end).reduce((a, t) => a + t.a, 0);
-    if (typeof FIN !== "undefined" && FIN.tx.length) $("repStats").innerHTML += `<div><span>💰 Расходы за неделю</span><b>${(Math.round(finW)).toLocaleString("ru-RU")} ${FIN.cur}</b><small>видно только тебе</small></div>`;
+    if (typeof FIN !== "undefined" && FIN.tx.length) $("repStats").innerHTML += `<div><span>💰 Расходы за неделю</span><b>${(Math.round(finW)).toLocaleString(LOC)} ${FIN.cur}</b><small>видно только тебе</small></div>`;
     // partner
     const partner = (typeof pair !== "undefined" && pair) ? boardDocs.filter(x => x.id !== pair.pid) : [];
     if (partner.length){
@@ -3526,7 +3544,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const me = buildSummary();
       const rows = [Object.assign({ label: S.settings.nick ? S.settings.nick + " (я)" : "Я" }, me)].concat(partner.map(x => Object.assign({ label: (x.nick || "Участник") + (pubOf(x) ? " " + fmtCode(pubOf(x)) : "") }, x)));
       $("repPair").innerHTML = `<h3 class="rep-h">👥 Итоги недели в комнате</h3><div class="h2h"><table><thead><tr><th></th><th>Страниц</th><th>Воды, л</th><th>Привычек</th><th>Язык, мин</th></tr></thead><tbody>` +
-        rows.map(r => `<tr><td>${esc(r.label)}</td><td class="c">${sumP(r, "p")}</td><td class="c">${(sumP(r, "w") / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}</td><td class="c">${sumP(r, "h")} из ${sumP(r, "ht")}</td><td class="c">${sumP(r, "lm")}</td></tr>`).join("") +
+        rows.map(r => `<tr><td>${esc(r.label)}</td><td class="c">${sumP(r, "p")}</td><td class="c">${(sumP(r, "w") / 1000).toLocaleString(LOC, { maximumFractionDigits: 1 })}</td><td class="c">${sumP(r, "h")} из ${sumP(r, "ht")}</td><td class="c">${sumP(r, "lm")}</td></tr>`).join("") +
         `</tbody></table></div>`;
     } else $("repPair").innerHTML = "";
     const labels = keys.map(k => { const d = parseKey(k); return WD[d.getDay()] + " " + d.getDate(); });
@@ -3570,7 +3588,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     const sum = f => past.reduce((a, k) => a + (D(k)[f] || 0), 0);
     const daysWith = f => past.filter(k => D(k)[f] > 0);
     const goalDays = (v, g) => past.filter(k => D(k)[g] && (D(k)[v] || 0) >= D(k)[g]).length;
-    const L1 = v => (v / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 });
+    const L1 = v => (v / 1000).toLocaleString(LOC, { maximumFractionDigits: 1 });
     const wD = daysWith("w"); const avgW = wD.length ? sum("w") / wD.length : 0;
     const hT = sum("ht"), hD = sum("h"), vN = sum("vn"), vT = sum("vt");
     const lessons = past.reduce((a, k) => a + ((D(k).ll || []).length), 0);
@@ -4220,7 +4238,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       <div class="pres" id="pRes"></div>`;
     box.hidden = false;
   }
-  const fmt1 = v => (Math.round(v * 10) / 10).toLocaleString("ru-RU");
+  const fmt1 = v => (Math.round(v * 10) / 10).toLocaleString(LOC);
   function applyPortion(){
     const f = FSEL; if (!f) return;
     const m = f.grams / 100;
@@ -4395,7 +4413,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     return out;
   }
   function saveFin(){ try { localStorage.setItem(FIN_KEY, JSON.stringify(FIN)); } catch (e) { toast("Не удалось сохранить на телефоне"); } }
-  const money = v => (Math.round(v * 100) / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 }) + " " + FIN.cur;
+  const money = v => (Math.round(v * 100) / 100).toLocaleString(LOC, { maximumFractionDigits: 2 }) + " " + FIN.cur;
   const envById = id => FIN.alloc.find(e => e.id === id) || (FIN.archived || []).find(e => e.id === id) || { id, icon: "📦", name: "Старый конверт", pct: 0 };
   // envelopes in the current scheme plus old ones that still hold money
   function envList(){
@@ -4526,7 +4544,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     }
     tState.busy = false; renderTinv();
   }
-  const rub = v => (Math.round(v * 100) / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 }) + " ₽";
+  const rub = v => (Math.round(v * 100) / 100).toLocaleString(LOC, { maximumFractionDigits: 2 }) + " ₽";
   function renderTinv(){
     const box = $("tinv"); if (!box) return;
     if (!FIN.tToken){
@@ -4545,13 +4563,13 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       const cost = d.accounts.reduce((s, a) => s + a.positions.reduce((x, p) => x + p.cost, 0), 0);
       const val = d.accounts.reduce((s, a) => s + a.positions.reduce((x, p) => x + p.value, 0), 0);
       const pl = val - cost, plp = cost > 0 ? pl / cost * 100 : 0;
-      html += `<div class="invsum"><div><span>Портфель</span><b class="num">${rub(tot)}</b></div><div><span>Бумаги: результат</span><b class="num ${pl >= 0 ? "pos" : "neg"}">${pl >= 0 ? "+" : ""}${rub(pl)} · ${pl >= 0 ? "+" : ""}${plp.toFixed(1).replace(".", ",")}%</b></div><div><span>Обновлено</span><b class="num" style="font-size:13px">${new Date(d.at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</b></div></div>`;
+      html += `<div class="invsum"><div><span>Портфель</span><b class="num">${rub(tot)}</b></div><div><span>Бумаги: результат</span><b class="num ${pl >= 0 ? "pos" : "neg"}">${pl >= 0 ? "+" : ""}${rub(pl)} · ${pl >= 0 ? "+" : ""}${plp.toFixed(1).replace(".", ",")}%</b></div><div><span>Обновлено</span><b class="num" style="font-size:13px">${new Date(d.at).toLocaleString(LOC, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</b></div></div>`;
       d.accounts.forEach(a => {
         html += `<div class="mhint" style="margin-top:4px"><b>${esc(a.name)}</b> · ${rub(a.total)}${a.cash ? " · свободные деньги " + rub(a.cash) : ""}</div>`;
         html += a.positions.length ? a.positions.sort((x, y) => y.value - x.value).map(p => {
           const n = d.names[p.key] || { name: p.key, ticker: "" };
           const y = p.value - p.cost, yp = p.cost > 0 ? y / p.cost * 100 : 0;
-          return `<div class="tpos"><span class="tn">${esc(n.name)}<small>${esc(n.ticker)} · ${p.qty.toLocaleString("ru-RU", { maximumFractionDigits: 4 })} шт.</small></span><span class="tv">${p.cur === "rub" ? rub(p.value) : (Math.round(p.value * 100) / 100).toLocaleString("ru-RU") + " " + p.cur.toUpperCase()}<small class="${y >= 0 ? "pos" : "neg"}">${y >= 0 ? "+" : ""}${yp.toFixed(1).replace(".", ",")}%</small></span></div>`;
+          return `<div class="tpos"><span class="tn">${esc(n.name)}<small>${esc(n.ticker)} · ${p.qty.toLocaleString(LOC, { maximumFractionDigits: 4 })} шт.</small></span><span class="tv">${p.cur === "rub" ? rub(p.value) : (Math.round(p.value * 100) / 100).toLocaleString(LOC) + " " + p.cur.toUpperCase()}<small class="${y >= 0 ? "pos" : "neg"}">${y >= 0 ? "+" : ""}${yp.toFixed(1).replace(".", ",")}%</small></span></div>`;
         }).join("") : `<div class="mhint">На этом счёте пока нет бумаг.</div>`;
       });
     } else if (!tState.busy && !tState.err) html += `<div class="mhint">Нажми «Обновить», чтобы загрузить портфель.</div>`;
@@ -5100,7 +5118,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
       return null;
     }
     const p = readProfile();
-    $("calcResult").innerHTML = `<div><b>${fmt(r.kcal)}</b><span>ккал</span></div><div><b>${r.protein}</b><span>белки</span></div><div><b>${r.fat}</b><span>жиры</span></div><div><b>${r.carbs}</b><span>углев.</span></div><div><b>${(r.water / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}</b><span>л воды</span></div>`;
+    $("calcResult").innerHTML = `<div><b>${fmt(r.kcal)}</b><span>ккал</span></div><div><b>${r.protein}</b><span>белки</span></div><div><b>${r.fat}</b><span>жиры</span></div><div><b>${r.carbs}</b><span>углев.</span></div><div><b>${(r.water / 1000).toLocaleString(LOC, { maximumFractionDigits: 2 })}</b><span>л воды</span></div>`;
     $("calcExpl").textContent = `Обмен в покое ${fmt(r.bmr)} ккал, с учётом активности ${fmt(r.tdee)} ккал, цель: ${GOAL_TXT[p.goal]}. Белки ${PROT[p.goal]} г на кг веса. Вода 30 мл на кг плюс запас на тренировки. Расчёт ориентировочный; при болезнях, беременности или спорте высокого уровня лучше сверить норму с врачом.`;
     return r;
   }
@@ -5239,6 +5257,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
     else if (a === "settings") $("openSettings").click();
     else if (a === "update") $("updBtn").click();
     else if (a === "menu") openMenuDlg();
+    else if (a === "langpick") openLangDlg();
     else if (a === "bnav"){ setBnav(!bnavOn()); toast(bnavOn() ? "Нижняя панель включена" : "Нижняя панель скрыта. Разделы — в меню ☰"); }
   });
   window.addEventListener("hashchange", () => setView((location.hash || "").slice(1) || "home", { noHash: true }));
@@ -5249,7 +5268,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   function renderToday(){
     const k = cur, d = day(k), g = goals(), t = totals(k);
     const items = [];
-    const L1 = v => (v / 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 });
+    const L1 = v => (v / 1000).toLocaleString(LOC, { maximumFractionDigits: 1 });
     items.push({ sec: "Главное", icon: "💧", name: "Выпить воду", sub: t.waterOk ? `выпито ${L1(d.water)} л` : `ещё ${L1(g.water - d.water)} л из ${L1(g.water)}`, done: t.waterOk, go: "food" });
     items.push({ sec: "Главное", icon: "📖", name: "Почитать", sub: t.readOk ? `прочитано ${d.pages} стр.` : `ещё ${g.pages - d.pages} стр.`, done: t.readOk, go: "read" });
     if (S.settings.lang && COURSE && COURSE.units && COURSE.units.length){
@@ -5308,6 +5327,14 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
   function setBnav(on){ try { localStorage.setItem("moy-den-bnav", on ? "1" : "0"); } catch (e) {} applyBnav(); }
   function applyBnav(){ document.body.classList.toggle("nobnav", !bnavOn()); const t = $("bnavTx"); if (t) t.textContent = bnavOn() ? "Скрыть нижнюю панель" : "Показать нижнюю панель"; }
   applyBnav();
+  function openLangDlg(){
+    const I = window.MD_I18N; if (!I) return;
+    $("langList2").innerHTML = Object.entries(I.langs).map(([c, v]) => `<button type="button" class="${c === I.lang ? "on" : ""}" data-setlang="${c}">${c === I.lang ? "✓ " : ""}${esc(v.name)}</button>`).join("");
+    $("langDlg").showModal();
+  }
+  $("langList2").addEventListener("click", e => { const b = e.target.closest("[data-setlang]"); if (b && window.MD_I18N) window.MD_I18N.set(b.dataset.setlang); });
+  $("langClose").onclick = () => $("langDlg").close();
+  if (window.MD_I18N) $("langCur").textContent = window.MD_I18N.langs[window.MD_I18N.lang].name;
   function openMenuDlg(){
     $("bnavShow").checked = bnavOn();
     $("menuChk").innerHTML = SECTIONS.map(([id, name]) => `<label><input type="checkbox" value="${id}" ${hiddenSecs.includes(id) ? "" : "checked"}><span class="dri">${DR_ICONS[SEC_ICON[id]] || ""}</span>${esc(name.replace(/^\S+\s/, ""))}</label>`).join("");

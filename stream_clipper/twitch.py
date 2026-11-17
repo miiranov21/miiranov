@@ -1,4 +1,4 @@
-"""Работа с Twitch через yt-dlp: инфо о VOD, проверка эфира, скачивание кусков."""
+"""Работа с Twitch и YouTube через yt-dlp: инфо, проверка эфира, скачивание кусков."""
 from __future__ import annotations
 
 import glob
@@ -10,9 +10,40 @@ from yt_dlp.utils import DownloadError, download_range_func
 _BASE = {"quiet": True, "no_warnings": True, "noprogress": True}
 
 
-def get_info(url: str) -> dict:
-    with yt_dlp.YoutubeDL(_BASE) as ydl:
+def set_cookies_browser(browser: str | None) -> None:
+    """Брать куки из браузера (chrome/firefox/edge...) — помогает, если YouTube просит
+    «подтвердить, что вы не бот»."""
+    if browser:
+        _BASE["cookiesfrombrowser"] = (browser,)
+
+
+def is_youtube(url: str) -> bool:
+    return "youtube.com" in url or "youtu.be" in url
+
+
+def get_info(url: str, extra: dict | None = None) -> dict:
+    with yt_dlp.YoutubeDL(dict(_BASE, **(extra or {}))) as ydl:
         return ydl.extract_info(url, download=False)
+
+
+def youtube_live_url(spec: str) -> str:
+    """@handle / ссылка на канал -> https://www.youtube.com/@handle/live"""
+    s = spec.strip()
+    if s.startswith("yt:"):
+        s = s[3:]
+    if s.startswith("@"):
+        return f"https://www.youtube.com/{s}/live"
+    if "watch?v=" in s or "youtu.be/" in s or s.rstrip("/").endswith("/live"):
+        return s
+    return s.rstrip("/") + "/live"
+
+
+def youtube_is_live(live_url: str) -> bool:
+    try:
+        info = get_info(live_url)
+    except DownloadError:
+        return False  # канал не в эфире
+    return info.get("live_status") == "is_live" or bool(info.get("is_live"))
 
 
 def is_live(channel: str) -> bool:
@@ -49,8 +80,11 @@ def _download(url: str, out_base: str, extra: dict) -> str:
 
 def download_section(url: str, start: float, end: float, out_base: str, max_height: int = 1080) -> str:
     """Скачивает только нужный кусок VOD (не весь 6-часовой стрим)."""
+    fmt = (f"bv*[height<={max_height}]+ba/b[height<={max_height}]/b" if is_youtube(url)
+           else f"best[height<={max_height}]/best")
     return _download(url, out_base, {
-        "format": f"best[height<={max_height}]/best",
+        "format": fmt,
+        "merge_output_format": "mp4",
         "download_ranges": download_range_func(None, [(start, end)]),
         "force_keyframes_at_cuts": True,
     })

@@ -114,14 +114,15 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
     from .audio import loudness_per_second
 
     done = list(done or [])
-    vid = twitch.vod_id(url)
-    work = os.path.join(cfg.out_dir, "_work", vid)
-    os.makedirs(work, exist_ok=True)
-
     log(f"VOD {url}{'  (идёт эфир)' if live else ''}")
     info = twitch.get_info(url)
+    yt = twitch.is_youtube(url)
+    vid = str(info.get("id") or "") if yt else twitch.vod_id(url)
+    vid = vid or twitch.vod_id(url)
+    work = os.path.join(cfg.out_dir, "_work", vid)
+    os.makedirs(work, exist_ok=True)
     title = info.get("title") or vid
-    channel = info.get("uploader_id") or info.get("uploader") or "stream"
+    channel = (info.get("uploader_id") or info.get("channel") or info.get("uploader") or "stream").lstrip("@")
     msgs = download_chat(url, os.path.join(work, "chat.json"), refresh=live, log=log)
     duration = float(info.get("duration") or 0) or (msgs[-1].t if msgs else 0)
     if live and msgs:
@@ -147,7 +148,10 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
         skip.append({"start": max(0.0, duration - tail), "end": duration + tail})
     hl = _analyze(msgs, duration, audio_db, cfg, skip, log)
     new = []
-    link = lambda s: twitch.timestamp_link(url, s)
+    if yt:
+        link = lambda s: f"https://youtu.be/{vid}?t={int(s)}"
+    else:
+        link = lambda s: twitch.timestamp_link(url, s)
     for i, h in enumerate(hl, 1):
         d = dict(h.to_dict(), vod_url=url, vod_title=title, link=link(h.start))
         if not cfg.dry_run:

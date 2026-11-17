@@ -96,7 +96,7 @@ def write_day_report(folder: str) -> str:
         L += ["", "| # | Создан | Момент на стриме | Длина | Оценка | Файл | Что писал чат |",
               "|---|---|---|---|---|---|---|"]
         for i, c in enumerate(sorted(cs, key=lambda c: (c.get("vod_url", ""), c["start"])), 1):
-            moment = _fmt(c["start"])
+            moment = _fmt(c.get("moment", c["start"]))
             if c.get("link"):
                 moment = f"[{moment}]({c['link']})"
             chat = " · ".join(c.get("top_messages", [])[:4]).replace("|", "/")

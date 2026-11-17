@@ -1,12 +1,34 @@
-"""Режим слежки: ждёт эфир канала и сам режет хайлайты, пока ты спишь."""
+"""Режим слежки: ждёт эфир каналов (Twitch и YouTube) и сам режет хайлайты."""
 from __future__ import annotations
 
 import json
 import os
 import time
+from dataclasses import dataclass
 
 from . import daily, twitch
 from .pipeline import Settings, process_vod
+
+
+@dataclass
+class Source:
+    kind: str      # "twitch" | "youtube"
+    name: str      # для логов
+    target: str    # twitch: логин; youtube: ссылка .../live
+
+
+def parse_source(spec: str) -> Source:
+    s = spec.strip()
+    if twitch.is_youtube(s) or s.startswith(("@", "yt:")):
+        url = twitch.youtube_live_url(s)
+        name = s[3:] if s.startswith("yt:") else s
+        if "v=" in name:
+            name = "yt_" + name.split("v=")[1].split("&")[0]
+        elif "youtube.com/" in name:
+            name = name.split("youtube.com/")[1].split("/")[0]
+        return Source("youtube", name.lstrip("@") or "youtube", url)
+    login = s.lower().rstrip("/").split("/")[-1]
+    return Source("twitch", login, login)
 
 
 def _load(path):
@@ -21,65 +43,125 @@ def _save(path, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: int = 1800, log=print) -> None:
+def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: int = 900,
+          record_twitch: bool = False, log=print) -> None:
     """poll — как часто проверять эфир (сек); live_interval — как часто резать во время эфира
-    (0 = только после окончания стрима)."""
-    os.makedirs(cfg.out_dir, exist_ok=True)
+    (0 = только после окончания). record_twitch — писать Twitch-эфир самим (если стример не сохраняет VOD)."""
+    sources = [parse_source(c) for c in channels]
     os.makedirs(os.path.join(cfg.out_dir, "_work"), exist_ok=True)
     state_path = os.path.join(cfg.out_dir, "_work", "watch_state.json")
-    state = _load(state_path)  # {vod_id: [clips...]}
-    was_live = {c: False for c in channels}
-    first_check = {c: True for c in channels}
-    last_run = {c: 0.0 for c in channels}
-    log(f"Слежу за: {', '.join(channels)}. Ctrl+C — выход.")
+    state = _load(state_path)  # Twitch: {vod_id: [clips...]}
+    was_live = {s.name: False for s in sources}
+    first_check = {s.name: True for s in sources}
+    last_run = {s.name: 0.0 for s in sources}
+    sessions: dict = {}  # name -> LiveSession (запись эфира)
+    log("Слежу за: " + ", ".join(f"{s.name} ({s.kind})" for s in sources) + ". Ctrl+C — выход.")
 
-    def run(channel, live):
-        url = twitch.latest_vod_url(channel)
+    def uses_recorder(src: Source) -> bool:
+        return src.kind == "youtube" or record_twitch
+
+    def run_vod(src: Source, live: bool):
+        url = twitch.latest_vod_url(src.target)
         if not url:
-            log(f"[{channel}] VOD не найден (возможно, стример отключил сохранение записей)")
+            log(f"[{src.name}] VOD не найден — стример не сохраняет записи. Запусти с --record, "
+                f"тогда программа будет записывать эфир сама")
+            daily.log_event(cfg.out_dir, f"{src.name}: нет VOD (нужен --record)")
             return
         vid = twitch.vod_id(url)
         done = state.get(vid, [])
         try:
             new = process_vod(url, cfg, done=done, live=live, log=log)
         except Exception as e:
-            log(f"[{channel}] ошибка обработки: {e}")
-            daily.log_event(cfg.out_dir, f"{channel}: ошибка обработки — {e}")
+            log(f"[{src.name}] ошибка обработки: {e}")
+            daily.log_event(cfg.out_dir, f"{src.name}: ошибка обработки — {e}")
             return
         state[vid] = done + new
         if not cfg.dry_run:
             _save(state_path, state)
-        log(f"[{channel}] новых шортсов: {len(new)}")
-        daily.log_event(cfg.out_dir, f"{channel}: {'проход во время эфира' if live else 'финальный проход'}, "
+        _report(src, new, live)
+
+    def run_rec(src: Source, final: bool):
+        sess = sessions.get(src.name)
+        if not sess:
+            return
+        try:
+            new = sess.process(final=final)
+        except Exception as e:
+            log(f"[{src.name}] ошибка обработки: {e}")
+            daily.log_event(cfg.out_dir, f"{src.name}: ошибка обработки — {e}")
+            return
+        _report(src, new, not final)
+
+    def _report(src, new, live):
+        log(f"[{src.name}] новых шортсов: {len(new)}")
+        daily.log_event(cfg.out_dir, f"{src.name}: {'проход во время эфира' if live else 'финальный проход'}, "
                                      f"новых шортсов: {len(new)}")
 
-    while True:
-        for ch in channels:
+    def start_recorder(src: Source):
+        from .live import LiveSession
+        url = src.target if src.kind == "youtube" else f"https://www.twitch.tv/{src.target}"
+        sess = LiveSession(url, cfg, log=log, max_height=min(cfg.max_height, 1080))
+        try:
+            sess.start()
+            sessions[src.name] = sess
+        except Exception as e:
+            log(f"[{src.name}] не смог начать запись: {e}")
+            daily.log_event(cfg.out_dir, f"{src.name}: не смог начать запись — {e}")
+
+    try:
+        while True:
+            for src in sources:
+                try:
+                    live = twitch.youtube_is_live(src.target) if src.kind == "youtube" else twitch.is_live(src.target)
+                except Exception as e:
+                    log(f"[{src.name}] не смог проверить эфир: {e}")
+                    continue
+                now = time.time()
+                rec = uses_recorder(src)
+                if live:
+                    if not was_live[src.name]:
+                        log(f"[{src.name}] В ЭФИРЕ!")
+                        daily.log_event(cfg.out_dir, f"{src.name}: стрим начался"
+                                        + (" (запущено посреди эфира)" if first_check[src.name] else ""))
+                        last_run[src.name] = now
+                        if rec:
+                            start_recorder(src)
+                            if first_check[src.name]:
+                                log(f"[{src.name}] запись идёт с этого момента; первые шортсы — через "
+                                    f"{live_interval // 60} мин")
+                        elif first_check[src.name]:
+                            log(f"[{src.name}] стрим уже идёт — режу то, что было до этого момента")
+                            run_vod(src, live=True)
+                            last_run[src.name] = time.time()
+                    elif rec and src.name not in sessions:
+                        start_recorder(src)  # повторная попытка, если запись не стартовала
+                    elif live_interval and now - last_run[src.name] >= live_interval:
+                        log(f"[{src.name}] промежуточная нарезка во время эфира")
+                        run_rec(src, final=False) if rec else run_vod(src, live=True)
+                        last_run[src.name] = time.time()
+                elif was_live[src.name]:
+                    log(f"[{src.name}] стрим закончился — финальная нарезка")
+                    daily.log_event(cfg.out_dir, f"{src.name}: стрим закончился")
+                    if rec:
+                        sess = sessions.get(src.name)
+                        if sess:
+                            sess.stop()
+                            run_rec(src, final=True)
+                            sess.cleanup()
+                            sessions.pop(src.name, None)
+                    else:
+                        time.sleep(60)  # даём Twitch дописать VOD
+                        run_vod(src, live=False)
+                was_live[src.name] = live
+                first_check[src.name] = False
+            time.sleep(poll)
+    finally:
+        # Ctrl+C посреди эфира: дорезаем то, что записали
+        for name, sess in list(sessions.items()):
+            log(f"[{name}] останавливаю запись, дорезаю записанное...")
+            sess.stop()
             try:
-                live = twitch.is_live(ch)
+                sess.process(final=True)
             except Exception as e:
-                log(f"[{ch}] не смог проверить эфир: {e}")
-                continue
-            now = time.time()
-            if live:
-                if not was_live[ch]:
-                    log(f"[{ch}] В ЭФИРЕ!")
-                    daily.log_event(cfg.out_dir, f"{ch}: стрим начался")
-                    last_run[ch] = now  # первая нарезка через live_interval
-                    if first_check[ch]:
-                        # программу запустили посреди эфира — режем то, что уже есть, сразу
-                        log(f"[{ch}] стрим уже идёт — режу то, что было до этого момента")
-                        run(ch, live=True)
-                        last_run[ch] = time.time()
-                elif live_interval and now - last_run[ch] >= live_interval:
-                    log(f"[{ch}] промежуточная нарезка во время эфира")
-                    run(ch, live=True)
-                    last_run[ch] = time.time()
-            elif was_live[ch]:
-                log(f"[{ch}] стрим закончился — финальная нарезка")
-                daily.log_event(cfg.out_dir, f"{ch}: стрим закончился")
-                time.sleep(60)  # даём Twitch дописать VOD
-                run(ch, live=False)
-            was_live[ch] = live
-            first_check[ch] = False
-        time.sleep(poll)
+                log(f"[{name}] ошибка: {e}")
+            sess.cleanup()

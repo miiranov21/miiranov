@@ -29,6 +29,7 @@ def _common(p: argparse.ArgumentParser) -> None:
     g.add_argument("--max-height", type=int, default=1080, help="макс. качество исходника (720/1080)")
     p.add_argument("-o", "--out", default="output",
                    help="корневая папка: внутри создаются папки по датам ДД.ММ.ГГГГ с шортсами, отчётом и zip")
+    p.add_argument("--cookies-browser", help="брать куки из браузера (chrome/firefox/edge) — если YouTube просит войти")
     p.add_argument("--dry-run", action="store_true", help="только найти моменты и сделать отчёт, без нарезки")
     p.add_argument("--keep-raw", action="store_true", help="не удалять исходные горизонтальные куски")
 
@@ -60,12 +61,15 @@ def main(argv=None) -> None:
                                 description="Автонарезка хайлайтов из Twitch-стримов в YouTube Shorts")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    v = sub.add_parser("vod", help="обработать запись стрима (ссылка на twitch.tv/videos/...)")
+    v = sub.add_parser("vod", help="обработать запись стрима (twitch.tv/videos/... или youtube.com/watch?v=...)")
     v.add_argument("urls", nargs="+")
     _common(v)
 
     w = sub.add_parser("watch", help="следить за каналами и резать автоматически")
-    w.add_argument("channels", nargs="+", help="логины каналов, например kaicenat xqc")
+    w.add_argument("channels", nargs="+",
+                   help="Twitch: логин (kaicenat). YouTube: @handle или ссылка на канал (@MrBeast, https://www.youtube.com/@xyz)")
+    w.add_argument("--record", action="store_true",
+                   help="Twitch: записывать эфир самим (для стримеров, которые не сохраняют VOD)")
     w.add_argument("--poll", type=int, default=120, help="проверять эфир каждые N сек")
     w.add_argument("--live-every", type=int, default=15,
                    help="резать во время эфира каждые N минут (0 = только после стрима)")
@@ -88,14 +92,16 @@ def main(argv=None) -> None:
         print("Архив:", daily.build_zip(folder) or "нет шортсов за этот день")
         return
     cfg = _settings(a)
+    if a.cookies_browser:
+        from . import twitch
+        twitch.set_cookies_browser(a.cookies_browser)
     try:
         if a.cmd == "vod":
             for u in a.urls:
                 process_vod(u, cfg)
         elif a.cmd == "watch":
             from .watch import watch
-            watch([c.lower().strip("/").split("/")[-1] for c in a.channels], cfg,
-                  poll=a.poll, live_interval=a.live_every * 60)
+            watch(a.channels, cfg, poll=a.poll, live_interval=a.live_every * 60, record_twitch=a.record)
         else:
             process_local(a.video, a.chat, cfg)
     except KeyboardInterrupt:

@@ -41,17 +41,29 @@ def youtube_live_url(spec: str) -> str:
 def youtube_is_live(live_url: str) -> bool:
     try:
         info = get_info(live_url)
-    except DownloadError:
-        return False  # канал не в эфире
+    except DownloadError as e:
+        if _is_offline_error(e) or "will begin" in str(e).lower() or "premieres" in str(e).lower():
+            return False  # канал не в эфире
+        raise RuntimeError("нет связи с YouTube: " + str(e)[:200])
     return info.get("live_status") == "is_live" or bool(info.get("is_live"))
+
+
+_OFFLINE_MARKERS = ("not currently live", "is offline", "does not exist", "not live", "no video formats")
+
+
+def _is_offline_error(e: Exception) -> bool:
+    msg = str(e).lower()
+    return any(m in msg for m in _OFFLINE_MARKERS)
 
 
 def is_live(channel: str) -> bool:
     try:
         info = get_info(f"https://www.twitch.tv/{channel}")
         return bool(info.get("is_live"))
-    except DownloadError:
-        return False  # yt-dlp кидает ошибку, если канал оффлайн
+    except DownloadError as e:
+        if _is_offline_error(e):
+            return False  # канал оффлайн
+        raise RuntimeError("нет связи с Twitch (провайдер блокирует? включи VPN): " + str(e)[:200])
 
 
 def latest_vod_url(channel: str) -> str | None:

@@ -1,0 +1,5 @@
+yt-dlp>=2025.1.1
+chat-downloader>=0.2.8
+numpy>=1.24
+# для авто-субтитров (--subs), необязательно:
+# faster-whisper>=1.0

@@ -151,17 +151,25 @@ def download_chat(url: str, cache_path: str, refresh: bool = False, log=print) -
     new = 0
     last_log = 0.0
     import time
-    for m in source:
-        key = (m.t, m.author, m.text)
-        if key in seen:
-            continue
-        seen.add(key)
-        msgs.append(m)
-        new += 1
-        if time.time() - last_log > 10:  # прогресс раз в 10 секунд
-            last_log = time.time()
-            log(f"    ...{new} сообщений, позиция {int(m.t // 3600)}ч{int(m.t % 3600 // 60):02d}м")
-            _save(msgs, cache_path)  # промежуточное сохранение
+    log("    (нажми Ctrl+C один раз, чтобы перестать качать чат и резать из уже скачанного)")
+    try:
+        for m in source:
+            key = (m.t, m.author, m.text)
+            if key in seen:
+                continue
+            seen.add(key)
+            msgs.append(m)
+            new += 1
+            if time.time() - last_log > 10:  # прогресс раз в 10 секунд
+                last_log = time.time()
+                log(f"    ...{new} сообщений, позиция {int(m.t // 3600)}ч{int(m.t % 3600 // 60):02d}м")
+                _save(msgs, cache_path)  # промежуточное сохранение
+    except KeyboardInterrupt:
+        if not msgs:
+            raise
+        t = msgs[-1].t
+        log(f"  Ctrl+C: останавливаю загрузку чата на {int(t // 3600)}ч{int(t % 3600 // 60):02d}м, "
+            f"режу из того, что есть (ещё раз Ctrl+C — полный выход)")
     msgs.sort(key=lambda m: m.t)
     _save(msgs, cache_path)
     log(f"  чат: {len(msgs)} сообщений (+{new} новых)")

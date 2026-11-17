@@ -29,6 +29,7 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
     state_path = os.path.join(cfg.out_dir, "_work", "watch_state.json")
     state = _load(state_path)  # {vod_id: [clips...]}
     was_live = {c: False for c in channels}
+    first_check = {c: True for c in channels}
     last_run = {c: 0.0 for c in channels}
     log(f"Слежу за: {', '.join(channels)}. Ctrl+C — выход.")
 
@@ -46,7 +47,8 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
             daily.log_event(cfg.out_dir, f"{channel}: ошибка обработки — {e}")
             return
         state[vid] = done + new
-        _save(state_path, state)
+        if not cfg.dry_run:
+            _save(state_path, state)
         log(f"[{channel}] новых шортсов: {len(new)}")
         daily.log_event(cfg.out_dir, f"{channel}: {'проход во время эфира' if live else 'финальный проход'}, "
                                      f"новых шортсов: {len(new)}")
@@ -64,6 +66,11 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                     log(f"[{ch}] В ЭФИРЕ!")
                     daily.log_event(cfg.out_dir, f"{ch}: стрим начался")
                     last_run[ch] = now  # первая нарезка через live_interval
+                    if first_check[ch]:
+                        # программу запустили посреди эфира — режем то, что уже есть, сразу
+                        log(f"[{ch}] стрим уже идёт — режу то, что было до этого момента")
+                        run(ch, live=True)
+                        last_run[ch] = time.time()
                 elif live_interval and now - last_run[ch] >= live_interval:
                     log(f"[{ch}] промежуточная нарезка во время эфира")
                     run(ch, live=True)
@@ -74,4 +81,5 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                 time.sleep(60)  # даём Twitch дописать VOD
                 run(ch, live=False)
             was_live[ch] = live
+            first_check[ch] = False
         time.sleep(poll)

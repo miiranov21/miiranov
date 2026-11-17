@@ -39,6 +39,97 @@ def load_chat_file(path: str) -> list[ChatMessage]:
     return msgs
 
 
+GQL_URL = "https://gql.twitch.tv/gql"
+GQL_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"  # публичный client-id веб-плеера Twitch
+COMMENTS_HASH = "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c582044aa76adf6a"
+
+
+def _twitch_video_id(url: str) -> str | None:
+    import re
+    m = re.search(r"twitch\.tv/(?:[^/]+/)?(?:videos?|v)/(\d+)", url)
+    return m.group(1) if m else None
+
+
+def iter_twitch_vod_chat(video_id: str, start: float = 0, log=print, session=None):
+    """Реплей чата Twitch VOD через GQL (как TwitchDownloader). Отдаёт ChatMessage по порядку.
+    Сначала листает по курсору; если Twitch требует integrity — листает по смещению в секундах."""
+    import time
+    import requests
+
+    sess = session or requests.Session()
+    headers = {"Client-Id": GQL_CLIENT_ID, "Content-Type": "text/plain;charset=UTF-8"}
+
+    def query(variables):
+        body = [{"operationName": "VideoCommentsByOffsetOrCursor", "variables": variables,
+                 "extensions": {"persistedQuery": {"version": 1, "sha256Hash": COMMENTS_HASH}}}]
+        for attempt in range(6):
+            try:
+                r = sess.post(GQL_URL, json=body, headers=headers, timeout=30)
+                r.raise_for_status()
+                data = r.json()
+                data = data[0] if isinstance(data, list) else data
+                if data.get("errors"):
+                    raise RuntimeError(data["errors"][0].get("message", str(data["errors"])))
+                video = (data.get("data") or {}).get("video")
+                if video is None:
+                    raise RuntimeError("Twitch не отдал видео (удалено или только для сабов?)")
+                return video.get("comments") or {"edges": [], "pageInfo": {}}
+            except RuntimeError:
+                raise
+            except Exception as e:
+                wait = 2 * (attempt + 1)
+                log(f"    сеть: {e} — повтор через {wait} с")
+                time.sleep(wait)
+        raise RuntimeError("не удалось получить чат Twitch после 6 попыток (проверь VPN)")
+
+    def parse(edge):
+        n = edge.get("node") or {}
+        frags = (n.get("message") or {}).get("fragments") or []
+        text = "".join(f.get("text", "") for f in frags)
+        who = (n.get("commenter") or {}).get("displayName") or ""
+        return n.get("id"), ChatMessage(t=float(n.get("contentOffsetSeconds") or 0), author=who, text=text)
+
+    seen: set = set()
+    use_cursor = True
+    cursor = None
+    offset = int(start)
+    while True:
+        if use_cursor and cursor:
+            try:
+                comments = query({"videoID": video_id, "cursor": cursor})
+            except RuntimeError as e:
+                if "integrity" in str(e).lower():
+                    log("    Twitch не даёт листать по курсору — переключаюсь на смещение")
+                    use_cursor = False
+                    continue
+                raise
+        else:
+            comments = query({"videoID": video_id, "contentOffsetSeconds": offset})
+        edges = comments.get("edges") or []
+        max_t = None
+        for e in edges:
+            cid, m = parse(e)
+            max_t = m.t if max_t is None else max(max_t, m.t)
+            if cid in seen or m.t < start:
+                continue
+            seen.add(cid)
+            yield m
+        if not edges:
+            return
+        has_next = (comments.get("pageInfo") or {}).get("hasNextPage")
+        if use_cursor:
+            cursor = edges[-1].get("cursor")
+            if not has_next or not cursor:
+                return
+        else:
+            nxt = int(max_t)
+            if nxt <= offset:
+                nxt = offset + 1
+            if not has_next and nxt <= offset + 1 and len(edges) < 2:
+                return
+            offset = nxt
+
+
 def download_chat(url: str, cache_path: str, refresh: bool = False, log=print) -> list[ChatMessage]:
     """Скачивает реплей чата VOD (с кэшем). refresh=True докачивает новые сообщения
     (нужно для VOD, который ещё идёт в прямом эфире)."""
@@ -49,32 +140,40 @@ def download_chat(url: str, cache_path: str, refresh: bool = False, log=print) -
             log(f"  чат из кэша: {len(msgs)} сообщений")
             return msgs
 
-    from chat_downloader import ChatDownloader  # импорт тут, чтобы локальный режим работал без пакета
-
     start = msgs[-1].t if msgs else 0
     seen = {(m.t, m.author, m.text) for m in msgs if m.t >= start}
     log(f"  скачиваю чат с {int(start)} сек...")
-    chat = ChatDownloader().get_chat(url, start_time=start if start > 0 else None)
+    vid = _twitch_video_id(url)
+    if vid:
+        source = iter_twitch_vod_chat(vid, start, log=log)
+    else:
+        source = _iter_chat_downloader(url, start)
     new = 0
-    for item in chat:
-        t = item.get("time_in_seconds")
-        if t is None:
-            continue
-        m = ChatMessage(
-            t=float(t),
-            author=(item.get("author") or {}).get("name", "") or "",
-            text=item.get("message", "") or "",
-        )
+    last_log = 0.0
+    import time
+    for m in source:
         key = (m.t, m.author, m.text)
         if key in seen:
             continue
         seen.add(key)
         msgs.append(m)
         new += 1
-        if new % 5000 == 0:
+        if time.time() - last_log > 10:  # прогресс раз в 10 секунд
+            last_log = time.time()
             log(f"    ...{new} сообщений, позиция {int(m.t // 3600)}ч{int(m.t % 3600 // 60):02d}м")
             _save(msgs, cache_path)  # промежуточное сохранение
     msgs.sort(key=lambda m: m.t)
     _save(msgs, cache_path)
     log(f"  чат: {len(msgs)} сообщений (+{new} новых)")
     return msgs
+
+
+def _iter_chat_downloader(url: str, start: float):
+    """YouTube и прочее — через пакет chat-downloader."""
+    from chat_downloader import ChatDownloader
+    for item in ChatDownloader().get_chat(url, start_time=start if start > 0 else None):
+        t = item.get("time_in_seconds")
+        if t is None:
+            continue
+        yield ChatMessage(t=float(t), author=(item.get("author") or {}).get("name", "") or "",
+                          text=item.get("message", "") or "")

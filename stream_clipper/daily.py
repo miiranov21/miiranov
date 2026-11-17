@@ -18,7 +18,19 @@ def day_dir(root: str, label: str | None = None) -> str:
     return path
 
 
+STATE_DIR: str | None = None  # служебная папка (задаётся из настроек)
+
+
+def set_state_dir(path: str) -> None:
+    global STATE_DIR
+    STATE_DIR = path
+
+
 def _log_path(folder: str) -> str:
+    if STATE_DIR:
+        d = os.path.join(STATE_DIR, "days")
+        os.makedirs(d, exist_ok=True)
+        return os.path.join(d, os.path.basename(os.path.normpath(folder)) + ".json")
     return os.path.join(folder, "_day.json")
 
 
@@ -47,7 +59,13 @@ def deliver_clip(root: str, tmp_file: str, clip: dict, channel: str) -> str:
     folder = day_dir(root)
     sub = os.path.join(folder, _safe(channel))
     os.makedirs(sub, exist_ok=True)
-    dest = os.path.join(sub, os.path.basename(tmp_file))
+    n = len([f for f in os.listdir(sub) if f.lower().endswith(".mp4")]) + 1
+    sec = int(clip.get("moment", clip.get("start", 0)))
+    nice = f"{n:02d}_{sec // 3600}ч{sec % 3600 // 60:02d}м{sec % 60:02d}с.mp4"
+    dest = os.path.join(sub, nice)
+    while os.path.exists(dest):
+        n += 1
+        dest = os.path.join(sub, f"{n:02d}_{sec // 3600}ч{sec % 3600 // 60:02d}м{sec % 60:02d}с.mp4")
     tmp_dest = dest + ".part"
     shutil.move(tmp_file, tmp_dest)
     os.replace(tmp_dest, dest)

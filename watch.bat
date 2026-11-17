@@ -1,8 +1,7 @@
 @echo off
 cd /d "%~dp0"
-rem Channels separated by spaces: Twitch = login (kaicenat), YouTube = @handle (@MrBeast)
-set CHANNELS=kaicenat xqc @MrBeast
-rem Folder for shorts (date folders are created automatically):
-set OUT=D:\Shorts
-python -m stream_clipper watch %CHANNELS% -o "%OUT%" --layout blur --zoom 1.3 -n 8
+rem Channels separated by spaces: Twitch = login (evelone2004), YouTube = @handle (@MrBeast)
+set CHANNELS=evelone2004
+rem Clips go to Desktop\YouTube\DATE\STREAMER\
+python -m stream_clipper watch %CHANNELS% --layout blur --zoom 1.3 -n 8
 pause

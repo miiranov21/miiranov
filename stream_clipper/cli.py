@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from . import paths
 from .pipeline import Settings, process_local, process_vod
 
 
@@ -27,15 +28,15 @@ def _common(p: argparse.ArgumentParser) -> None:
     g.add_argument("--lang", default=None, help="язык речи (ru, en...). По умолчанию — автоопределение")
     g.add_argument("--preset", default="medium", help="скорость кодирования x264: ultrafast..slow (быстрее = файл больше)")
     g.add_argument("--max-height", type=int, default=1080, help="макс. качество исходника (720/1080)")
-    p.add_argument("-o", "--out", default="output",
-                   help="корневая папка: внутри создаются папки по датам ДД.ММ.ГГГГ с шортсами, отчётом и zip")
+    p.add_argument("-o", "--out", default=None,
+                   help="куда складывать клипы (по умолчанию Рабочий стол\\YouTube): папки ДД.ММ.ГГГГ\\стример\\клипы")
     p.add_argument("--cookies-browser", help="брать куки из браузера (chrome/firefox/edge) — если YouTube просит войти")
     p.add_argument("--dry-run", action="store_true", help="только найти моменты и сделать отчёт, без нарезки")
     p.add_argument("--keep-raw", action="store_true", help="не удалять исходные горизонтальные куски")
 
 
 def _settings(a) -> Settings:
-    cfg = Settings(out_dir=a.out, top=a.top, clip_pre=a.pre, clip_post=a.post, chat_lag=a.lag,
+    cfg = Settings(out_dir=a.out or paths.default_out_dir(), top=a.top, clip_pre=a.pre, clip_post=a.post, chat_lag=a.lag,
                    min_score=a.min_score, audio=not a.no_audio, audio_weight=a.audio_weight,
                    layout=a.layout, zoom=a.zoom, subs=a.subs, whisper_model=a.whisper_model,
                    language=a.lang, max_height=a.max_height, dry_run=a.dry_run, keep_raw=a.keep_raw,
@@ -82,16 +83,18 @@ def main(argv=None) -> None:
 
     r = sub.add_parser("report", help="пересобрать отчёт и zip за день")
     r.add_argument("date", nargs="?", help="ДД.ММ.ГГГГ (по умолчанию сегодня)")
-    r.add_argument("-o", "--out", default="output")
+    r.add_argument("-o", "--out", default=None)
 
     a = p.parse_args(argv)
+    from . import daily
+    daily.set_state_dir(paths.default_work_dir())
     if a.cmd == "report":
-        from . import daily
-        folder = daily.day_dir(a.out, a.date)
+        folder = daily.day_dir(a.out or paths.default_out_dir(), a.date)
         print("Отчёт:", daily.write_day_report(folder))
         print("Архив:", daily.build_zip(folder) or "нет шортсов за этот день")
         return
     cfg = _settings(a)
+    print(f"Клипы будут здесь: {cfg.out_dir}")
     from .ffmpeg_setup import ensure_ffmpeg
     if not ensure_ffmpeg():
         sys.exit(1)

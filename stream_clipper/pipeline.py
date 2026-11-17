@@ -7,13 +7,14 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from . import daily, detect, render
+from . import daily, detect, paths, render
 from .chat import ChatMessage, download_chat, load_chat_file
 
 
 @dataclass
 class Settings:
-    out_dir: str = "output"
+    out_dir: str = field(default_factory=lambda: paths.default_out_dir())
+    work_dir: str = field(default_factory=lambda: paths.default_work_dir())
     top: int = 10
     clip_pre: float = 20
     clip_post: float = 15
@@ -119,7 +120,7 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
     yt = twitch.is_youtube(url)
     vid = str(info.get("id") or "") if yt else twitch.vod_id(url)
     vid = vid or twitch.vod_id(url)
-    work = os.path.join(cfg.out_dir, "_work", vid)
+    work = os.path.join(cfg.work_dir, vid)
     os.makedirs(work, exist_ok=True)
     title = info.get("title") or vid
     channel = (info.get("uploader_id") or info.get("channel") or info.get("uploader") or "stream").lstrip("@")
@@ -180,7 +181,7 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
     from .audio import loudness_per_second
 
     name = os.path.splitext(os.path.basename(video))[0]
-    work = os.path.join(cfg.out_dir, "_work", name)
+    work = os.path.join(cfg.work_dir, name)
     os.makedirs(work, exist_ok=True)
     msgs = load_chat_file(chat_path)
     audio_db = None

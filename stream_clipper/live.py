@@ -52,7 +52,7 @@ class LiveSession:
         self.is_youtube = "youtube" in (info.get("extractor") or "").lower()
         self.stream_start = info.get("release_timestamp") or info.get("timestamp")
         self.rec_start = time.time()
-        self.work = os.path.join(self.cfg.out_dir, "_work",
+        self.work = os.path.join(self.cfg.work_dir,
                                  f"live_{self.vid}_{datetime.now().strftime('%Y%m%d-%H%M%S')}")
         self.chunks_dir = os.path.join(self.work, "chunks")
         os.makedirs(self.chunks_dir, exist_ok=True)

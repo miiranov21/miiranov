@@ -48,8 +48,8 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
     """poll — как часто проверять эфир (сек); live_interval — как часто резать во время эфира
     (0 = только после окончания). record_twitch — писать Twitch-эфир самим (если стример не сохраняет VOD)."""
     sources = [parse_source(c) for c in channels]
-    os.makedirs(os.path.join(cfg.out_dir, "_work"), exist_ok=True)
-    state_path = os.path.join(cfg.out_dir, "_work", "watch_state.json")
+    os.makedirs(cfg.work_dir, exist_ok=True)
+    state_path = os.path.join(cfg.work_dir, "watch_state.json")
     state = _load(state_path)  # Twitch: {vod_id: [clips...]}
     was_live = {s.name: False for s in sources}
     first_check = {s.name: True for s in sources}

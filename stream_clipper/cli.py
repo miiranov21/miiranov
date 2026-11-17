@@ -92,6 +92,9 @@ def main(argv=None) -> None:
         print("Архив:", daily.build_zip(folder) or "нет шортсов за этот день")
         return
     cfg = _settings(a)
+    from .ffmpeg_setup import ensure_ffmpeg
+    if not ensure_ffmpeg():
+        sys.exit(1)
     if a.cookies_browser:
         from . import twitch
         twitch.set_cookies_browser(a.cookies_browser)

@@ -5,7 +5,7 @@ import json
 import os
 import time
 
-from . import twitch
+from . import daily, twitch
 from .pipeline import Settings, process_vod
 
 
@@ -25,7 +25,8 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
     """poll — как часто проверять эфир (сек); live_interval — как часто резать во время эфира
     (0 = только после окончания стрима)."""
     os.makedirs(cfg.out_dir, exist_ok=True)
-    state_path = os.path.join(cfg.out_dir, "watch_state.json")
+    os.makedirs(os.path.join(cfg.out_dir, "_work"), exist_ok=True)
+    state_path = os.path.join(cfg.out_dir, "_work", "watch_state.json")
     state = _load(state_path)  # {vod_id: [clips...]}
     was_live = {c: False for c in channels}
     last_run = {c: 0.0 for c in channels}
@@ -42,10 +43,13 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
             new = process_vod(url, cfg, done=done, live=live, log=log)
         except Exception as e:
             log(f"[{channel}] ошибка обработки: {e}")
+            daily.log_event(cfg.out_dir, f"{channel}: ошибка обработки — {e}")
             return
         state[vid] = done + new
         _save(state_path, state)
         log(f"[{channel}] новых шортсов: {len(new)}")
+        daily.log_event(cfg.out_dir, f"{channel}: {'проход во время эфира' if live else 'финальный проход'}, "
+                                     f"новых шортсов: {len(new)}")
 
     while True:
         for ch in channels:
@@ -58,6 +62,7 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
             if live:
                 if not was_live[ch]:
                     log(f"[{ch}] В ЭФИРЕ!")
+                    daily.log_event(cfg.out_dir, f"{ch}: стрим начался")
                     last_run[ch] = now  # первая нарезка через live_interval
                 elif live_interval and now - last_run[ch] >= live_interval:
                     log(f"[{ch}] промежуточная нарезка во время эфира")
@@ -65,6 +70,7 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                     last_run[ch] = time.time()
             elif was_live[ch]:
                 log(f"[{ch}] стрим закончился — финальная нарезка")
+                daily.log_event(cfg.out_dir, f"{ch}: стрим закончился")
                 time.sleep(60)  # даём Twitch дописать VOD
                 run(ch, live=False)
             was_live[ch] = live

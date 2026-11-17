@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from . import detect, render
+from . import daily, detect, render
 from .chat import ChatMessage, download_chat, load_chat_file
 
 
@@ -95,20 +95,33 @@ def _analyze(msgs: list[ChatMessage], duration: float, audio_db, cfg: Settings, 
     return hl
 
 
+def _finish(cfg: Settings, new: list[dict], work: str, all_clips: list[dict], title: str, link_fn, log) -> None:
+    write_report(work, all_clips, title, link_fn)  # служебный отчёт по стриму
+    if cfg.dry_run:
+        log(f"Найденные моменты (без нарезки): {os.path.join(work, 'highlights.md')}")
+        return
+    folder = daily.day_dir(cfg.out_dir)
+    if new:
+        z = daily.build_zip(folder)
+        log(f"Архив дня обновлён: {z}")
+    log(f"Отчёт за день: {daily.write_day_report(folder)}")
+
+
 def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: bool = False, log=print) -> list[dict]:
-    """Обрабатывает Twitch VOD. done — уже нарезанные клипы (чтобы не повторяться)."""
+    """Обрабатывает Twitch VOD. done — уже нарезанные клипы (чтобы не повторяться).
+    live=True — запись ещё идёт (стрим в эфире): докачиваем чат и не трогаем последние минуты."""
     from . import twitch
     from .audio import loudness_per_second
 
     done = list(done or [])
     vid = twitch.vod_id(url)
-    folder = os.path.join(cfg.out_dir, vid)
-    work = os.path.join(folder, "_work")
+    work = os.path.join(cfg.out_dir, "_work", vid)
     os.makedirs(work, exist_ok=True)
 
-    log(f"VOD {url}")
+    log(f"VOD {url}{'  (идёт эфир)' if live else ''}")
     info = twitch.get_info(url)
     title = info.get("title") or vid
+    channel = info.get("uploader_id") or info.get("uploader") or "stream"
     msgs = download_chat(url, os.path.join(work, "chat.json"), refresh=live, log=log)
     duration = float(info.get("duration") or 0) or (msgs[-1].t if msgs else 0)
     if live and msgs:
@@ -126,29 +139,35 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
             np.save(npy, audio_db)
             os.remove(a)
 
-    hl = _analyze(msgs, duration, audio_db, cfg, done, log)
+    skip = list(done)
+    if live:
+        # Последние минуты эфира ещё не «отреагированы» чатом и могут отсутствовать в записи —
+        # их возьмём на следующем проходе.
+        tail = cfg.clip_post + cfg.chat_lag + 60
+        skip.append({"start": max(0.0, duration - tail), "end": duration + tail})
+    hl = _analyze(msgs, duration, audio_db, cfg, skip, log)
     new = []
+    link = lambda s: twitch.timestamp_link(url, s)
     for i, h in enumerate(hl, 1):
-        d = h.to_dict()
+        d = dict(h.to_dict(), vod_url=url, vod_title=title, link=link(h.start))
         if not cfg.dry_run:
-            name = f"short_{_fmt(h.start)}"
+            name = f"{vid}_{_fmt(h.start)}"
             log(f"  [{i}/{len(hl)}] качаю кусок {_fmt(h.start)}...")
             try:
-                seg = twitch.download_section(url, h.start, h.end, os.path.join(work, name), cfg.max_height)
-                out = os.path.join(folder, name + ".mp4")
-                _make_short(seg, out, cfg, log)
-                d["file"] = out
+                seg = twitch.download_section(url, h.start, h.end, os.path.join(work, name + "_raw"), cfg.max_height)
+                tmp = os.path.join(work, name + ".mp4")
+                _make_short(seg, tmp, cfg, log)
                 if not cfg.keep_raw:
                     os.remove(seg)
-                log(f"    готово: {out}")
+                d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, channel)
+                log(f"    готово -> {d['file']}")
             except Exception as e:
                 log(f"    ошибка: {e}")
+                daily.log_event(cfg.out_dir, f"{channel}: не удалось сделать клип {_fmt(h.start)} — {e}")
                 continue
         new.append(d)
 
-    all_clips = done + new
-    write_report(folder, all_clips, title, lambda s: twitch.timestamp_link(url, s))
-    log(f"Отчёт: {os.path.join(folder, 'highlights.md')}")
+    _finish(cfg, new, work, done + new, title, link, log)
     return new
 
 
@@ -157,8 +176,7 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
     from .audio import loudness_per_second
 
     name = os.path.splitext(os.path.basename(video))[0]
-    folder = os.path.join(cfg.out_dir, name)
-    work = os.path.join(folder, "_work")
+    work = os.path.join(cfg.out_dir, "_work", name)
     os.makedirs(work, exist_ok=True)
     msgs = load_chat_file(chat_path)
     audio_db = None
@@ -169,17 +187,16 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
     hl = _analyze(msgs, duration, audio_db, cfg, [], log)
     clips = []
     for i, h in enumerate(hl, 1):
-        d = h.to_dict()
+        d = dict(h.to_dict(), vod_title=name)
         if not cfg.dry_run:
-            base = f"short_{_fmt(h.start)}"
+            base = f"{name}_{_fmt(h.start)}"
             seg = render.cut_segment(video, h.start, h.end, os.path.join(work, base + "_raw.mp4"))
-            out = os.path.join(folder, base + ".mp4")
-            _make_short(seg, out, cfg, log)
+            tmp = os.path.join(work, base + ".mp4")
+            _make_short(seg, tmp, cfg, log)
             if not cfg.keep_raw:
                 os.remove(seg)
-            d["file"] = out
-            log(f"  [{i}/{len(hl)}] готово: {out}")
+            d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, name)
+            log(f"  [{i}/{len(hl)}] готово -> {d['file']}")
         clips.append(d)
-    write_report(folder, clips, name)
-    log(f"Отчёт: {os.path.join(folder, 'highlights.md')}")
+    _finish(cfg, clips, work, clips, name, None, log)
     return clips

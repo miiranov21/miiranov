@@ -27,7 +27,8 @@ def _common(p: argparse.ArgumentParser) -> None:
     g.add_argument("--lang", default=None, help="язык речи (ru, en...). По умолчанию — автоопределение")
     g.add_argument("--preset", default="medium", help="скорость кодирования x264: ultrafast..slow (быстрее = файл больше)")
     g.add_argument("--max-height", type=int, default=1080, help="макс. качество исходника (720/1080)")
-    p.add_argument("-o", "--out", default="output", help="папка для результатов")
+    p.add_argument("-o", "--out", default="output",
+                   help="корневая папка: внутри создаются папки по датам ДД.ММ.ГГГГ с шортсами, отчётом и zip")
     p.add_argument("--dry-run", action="store_true", help="только найти моменты и сделать отчёт, без нарезки")
     p.add_argument("--keep-raw", action="store_true", help="не удалять исходные горизонтальные куски")
 
@@ -66,7 +67,7 @@ def main(argv=None) -> None:
     w = sub.add_parser("watch", help="следить за каналами и резать автоматически")
     w.add_argument("channels", nargs="+", help="логины каналов, например kaicenat xqc")
     w.add_argument("--poll", type=int, default=120, help="проверять эфир каждые N сек")
-    w.add_argument("--live-every", type=int, default=30,
+    w.add_argument("--live-every", type=int, default=15,
                    help="резать во время эфира каждые N минут (0 = только после стрима)")
     _common(w)
 
@@ -75,7 +76,17 @@ def main(argv=None) -> None:
     l.add_argument("chat", help="JSON чата (TwitchDownloader или формат этой программы)")
     _common(l)
 
+    r = sub.add_parser("report", help="пересобрать отчёт и zip за день")
+    r.add_argument("date", nargs="?", help="ДД.ММ.ГГГГ (по умолчанию сегодня)")
+    r.add_argument("-o", "--out", default="output")
+
     a = p.parse_args(argv)
+    if a.cmd == "report":
+        from . import daily
+        folder = daily.day_dir(a.out, a.date)
+        print("Отчёт:", daily.write_day_report(folder))
+        print("Архив:", daily.build_zip(folder) or "нет шортсов за этот день")
+        return
     cfg = _settings(a)
     try:
         if a.cmd == "vod":

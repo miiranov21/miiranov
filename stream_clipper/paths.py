@@ -32,3 +32,8 @@ def default_work_dir() -> str:
     if os.name == "nt" and os.environ.get("LOCALAPPDATA"):
         return os.path.join(os.environ["LOCALAPPDATA"], "StreamClipper")
     return os.path.join(os.path.expanduser("~"), ".stream_clipper")
+
+
+def program_dir() -> str:
+    """Папка программы (где лежат START.bat и streamers.txt)."""
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -55,6 +55,16 @@ def _settings(a) -> Settings:
     return cfg
 
 
+def _channels_from_file() -> list[str]:
+    """streamers.txt в папке программы: по одному стримеру в строке, # — комментарий."""
+    import os
+    path = os.path.join(paths.program_dir(), "streamers.txt")
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8-sig") as f:
+        return [ln.split("#")[0].strip() for ln in f if ln.split("#")[0].strip()]
+
+
 def main(argv=None) -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -67,7 +77,7 @@ def main(argv=None) -> None:
     _common(v)
 
     w = sub.add_parser("watch", help="следить за каналами и резать автоматически")
-    w.add_argument("channels", nargs="+",
+    w.add_argument("channels", nargs="*",
                    help="Twitch: логин (kaicenat). YouTube: @handle или ссылка на канал (@MrBeast, https://www.youtube.com/@xyz)")
     w.add_argument("--record", action="store_true",
                    help="Twitch: записывать эфир самим (для стримеров, которые не сохраняют VOD)")
@@ -107,7 +117,10 @@ def main(argv=None) -> None:
                 process_vod(u, cfg)
         elif a.cmd == "watch":
             from .watch import watch
-            watch(a.channels, cfg, poll=a.poll, live_interval=a.live_every * 60, record_twitch=a.record)
+            channels = a.channels or _channels_from_file()
+            if not channels:
+                sys.exit("Не указаны стримеры. Впиши их в streamers.txt (по одному в строке)")
+            watch(channels, cfg, poll=a.poll, live_interval=a.live_every * 60, record_twitch=a.record)
         else:
             process_local(a.video, a.chat, cfg)
     except KeyboardInterrupt:

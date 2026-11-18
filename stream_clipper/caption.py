@@ -12,10 +12,12 @@ _LAT = re.compile(r"[a-zA-Z]")
 SYSTEM_PROMPT = """You write the on-screen caption for a short vertical video (YouTube Shorts / TikTok) cut from a Twitch or YouTube livestream.
 
 The caption sits in a white box over the video and is the hook that makes people stop scrolling. Write ONE caption:
-- 4 to 9 words, at most 60 characters, no hashtags, no quotes around it, at most one emoji;
-- name the streamer the way fans call them (a short nickname is fine) and say what happens in this moment, e.g. "Спид первый попробовал сыграть в GTA 6", "xQc lost his mind over the GTA 6 map";
-- base it only on the information given: the chat reaction and the transcript show what happened; do not invent events;
-- if the details are unclear, describe the reaction instead ("Эвелон не ожидал такого от GTA 6");
+- 4 to 9 words, at most 60 characters, no hashtags, at most one emoji;
+- it is about THE STREAMER: what they do, say or how they react in this exact moment, e.g. "Спид впервые угнал самолёт в GTA 6", "xQc crashed in the first 5 minutes of GTA 6", "Эвелон не поверил своим глазам";
+- never mention the chat, viewers, comments or "W"/"L" spam — people watching the Short do not see the chat; the chat reaction is only a hint about the kind of moment (funny, shocking, epic, fail);
+- rely first on the frames (what happens on screen) and on what the streamer says (transcript); a short punchy quote of the streamer is great if it fits;
+- do not invent events that the frames or transcript do not show; if unsure, describe the streamer's reaction;
+- name the streamer the way fans call them (a short nickname is fine);
 - write in the language you are told to use.
 
 Reply with the caption text only."""
@@ -45,37 +47,52 @@ _HYPE = ("pog", "gg", "ez", "имба", "sheesh", "w ", "красава", "то�
 _FAIL = ("f", "rip", "кринж", "l ", "лох", "позор", "упал", "fail", "😭", "💀", "ну ты")
 _CLIP = ("clip", "клип")
 
+# надписи — про стримера, а не про чат (чат только подсказывает, какой это момент)
 TEMPLATES = {
     "ru": {
-        "laugh": ["{s} рассмешил весь чат{g}", "Чат умер со смеху с {s}{g}", "{s} выдал лучший момент стрима{g}",
-                  "Этот момент {s} чат пересматривал 10 раз", "{s} не смог сдержаться{g}", "Чат плачет от смеха{g}"],
+        "laugh": ["{s} не смог сдержать смех{g}", "{s} выдал лучший момент стрима{g}", "{s} угарает{g}",
+                  "{s} и самый смешной момент дня{g}", "{s} просто лёг от смеха{g}", "{s} такого не ожидал{g}"],
         "shock": ["{s} в шоке{g}", "{s} не поверил своим глазам{g}", "Такого {s} точно не ожидал{g}",
-                  "Чат в шоке от того, что сделал {s}", "{s}: «ЧТО ЭТО БЫЛО?!»", "Никто не ожидал такого{g}"],
+                  "{s}: «ЧТО ЭТО БЫЛО?!»", "{s} потерял дар речи{g}", "Реакция {s} говорит сама за себя"],
         "hype": ["{s} сделал невозможное{g}", "{s} показал класс{g}", "Самый эпичный момент {s}{g}",
-                 "{s} затащил{g}", "Чат взорвался после этого момента{g}"],
-        "fail": ["{s} опозорился на весь стрим{g}", "Самый неловкий момент {s}{g}", "{s}, что ты делаешь?!",
-                 "Так {s} ещё не ошибался{g}", "Чат не простит {s} этот момент"],
-        "clip": ["Чат требовал клипнуть этот момент {s}", "Момент, который все клипнули{g}",
-                 "{s} — момент для клипа{g}"],
+                 "{s} затащил{g}", "{s} на максималках{g}"],
+        "fail": ["{s} опозорился{g}", "Самый неловкий момент {s}{g}", "{s}, что ты делаешь?!",
+                 "Так {s} ещё не ошибался{g}", "{s} пожалел об этом через секунду"],
+        "clip": ["{s} — момент, который надо видеть{g}", "{s} и этот момент{g}"],
         "general": ["{s}: момент, который надо видеть{g}", "Лучший момент стрима {s}{g}", "{s} и его реакция{g}",
-                    "Вот за это смотрят {s}", "Момент стрима {s}, который обсуждает чат"],
-        "quote": ["Чат в один голос: «{q}»", "«{q}» — реакция чата на {s}", "{s}, а чат пишет «{q}»"],
+                    "Вот за это смотрят {s}", "{s} в своём репертуаре{g}"],
     },
     "en": {
-        "laugh": ["{s} had chat crying{g}", "{s} can't stop laughing{g}", "Chat lost it at {s}{g}",
-                  "{s}'s funniest moment yet{g}", "This {s} moment broke chat"],
-        "shock": ["{s} can't believe this{g}", "{s} was NOT ready for this{g}", "Nobody expected this from {s}",
-                  "{s}'s reaction says it all{g}", "Wait... what just happened?!"],
-        "hype": ["{s} just did the impossible{g}", "{s} went crazy{g}", "{s}'s cleanest play{g}",
-                 "Chat went wild for {s}{g}"],
-        "fail": ["{s}'s biggest fail{g}", "{s} will never live this down", "This is so embarrassing for {s}",
-                 "{s} really thought this would work"],
-        "clip": ["Chat begged to clip this {s} moment", "The moment everyone clipped{g}"],
+        "laugh": ["{s} couldn't stop laughing{g}", "{s}'s funniest moment yet{g}", "{s} lost it{g}",
+                  "{s} was crying laughing{g}"],
+        "shock": ["{s} can't believe this{g}", "{s} was NOT ready for this{g}", "{s}'s reaction says it all{g}",
+                  "{s} was speechless{g}"],
+        "hype": ["{s} just did the impossible{g}", "{s} went crazy{g}", "{s}'s cleanest play{g}", "Peak {s}{g}"],
+        "fail": ["{s}'s biggest fail{g}", "{s} will never live this down", "{s} really thought this would work",
+                 "{s} regretted this instantly"],
+        "clip": ["You have to see this {s} moment", "{s}'s moment of the day{g}"],
         "general": ["{s}'s craziest moment{g}", "You have to see this {s} moment", "{s} in a nutshell{g}",
                     "Peak {s} content{g}"],
-        "quote": ['Chat spammed "{q}" after this', '"{q}" — chat after this {s} moment'],
     },
 }
+
+
+def streamer_quote(words: list, center: float, window: float = 5.0) -> str | None:
+    """Короткая фраза стримера из самого момента клипа (по субтитрам): 3–8 слов возле пика."""
+    near = [w for w in words if center - window <= w[0] <= center + window]
+    if len(near) < 3:
+        return None
+    # берём цельную фразу вокруг слова, ближайшего к пику: тянем влево/вправо, пока нет паузы > 0.7 с
+    best = min(range(len(near)), key=lambda i: abs(near[i][0] - center))
+    a = b = best
+    while a > 0 and near[a][0] - near[a - 1][1] < 0.7 and b - a < 7:
+        a -= 1
+    while b + 1 < len(near) and near[b + 1][0] - near[b][1] < 0.7 and b - a < 7:
+        b += 1
+    phrase = " ".join(w[2].strip() for w in near[a:b + 1]).strip(" ,.-")
+    if not (3 <= len(phrase.split()) <= 9) or len(phrase) > 48:
+        return None
+    return phrase
 
 
 def _nice_name(login: str) -> str:
@@ -130,34 +147,35 @@ def remember_caption(streamer: str, text: str) -> None:
         json.dump(data, f, ensure_ascii=False, indent=1)
 
 
-def template_caption(streamer: str, title: str, top_messages: list[str], lang: str) -> str:
+def template_caption(streamer: str, title: str, top_messages: list[str], lang: str,
+                     quote: str | None = None) -> str:
     import random
     lang = "ru" if lang == "ru" else "en"
     gta = "gta" in title.lower() or "гта" in title.lower() or "gta" in " ".join(top_messages).lower()
     g = (" в GTA 6" if lang == "ru" else " in GTA 6") if gta else ""
     s = _nice_name(streamer)
-    cat = _category(top_messages)
-    pool = list(TEMPLATES[lang][cat])
-    q = _quote(top_messages) if cat != "general" else None  # цитируем чат, только если это реакция
-    if q:
-        pool.append(random.choice(TEMPLATES[lang]["quote"]))
+    cat = _category(top_messages)  # чат подсказывает только тип момента
+    options = [t.format(s=s, g=g) for t in TEMPLATES[lang][cat]]
     used = set(recent_captions(streamer))
-    options = [t.format(s=s, g=g, q=q or "") for t in pool]
+    if quote:  # цитата самого стримера — самое живое, что можно поставить без Claude
+        q = f"{s}: «{quote}»" if lang == "ru" else f'{s}: "{quote}"'
+        if q not in used and random.random() < 0.7:
+            return q
     fresh = [o for o in options if o not in used] or options
     return random.choice(fresh)
 
 
 def make_caption(streamer: str, title: str, top_messages: list[str], transcript: str, lang: str,
-                 log=print) -> str:
+                 log=print, frames: list[str] | None = None, quote: str | None = None) -> str:
     key = _api_key()
     text = None
     if key:
         try:
-            text = _claude_caption(key, streamer, title, top_messages, transcript, lang)
+            text = _claude_caption(key, streamer, title, top_messages, transcript, lang, frames or [])
         except Exception as e:
             log(f"    подпись от Claude не получилась ({e}) — ставлю шаблонную")
     if not text:
-        text = template_caption(streamer, title, top_messages, lang)
+        text = template_caption(streamer, title, top_messages, lang, quote)
     try:
         remember_caption(streamer, text)
     except Exception:
@@ -166,18 +184,30 @@ def make_caption(streamer: str, title: str, top_messages: list[str], transcript:
 
 
 def _claude_caption(key: str, streamer: str, title: str, top_messages: list[str], transcript: str,
-                    lang: str) -> str:
+                    lang: str, frames: list[str] | None = None) -> str:
+    import base64
     import anthropic
 
     language = "Russian" if lang == "ru" else "English (American)"
-    user = (f"Language: {language}\n"
+    text = (f"Language: {language}\n"
             f"Streamer: {streamer}\n"
             f"Stream title: {title}\n"
-            f"Most repeated chat messages at this moment: {' | '.join(top_messages[:8]) or '(none)'}\n"
+            f"Kind of moment (hint from chat, do not mention chat): {_category(top_messages)}\n"
             f"What the streamer says in the clip (auto transcript, may be empty or rough):\n"
             f"{transcript[:1500] or '(no transcript)'}\n"
             f"Captions already used for this streamer — do not repeat them, vary the wording and angle:\n"
             + ("\n".join(f"- {c}" for c in recent_captions(streamer)[-15:]) or "(none yet)"))
+    content: list = []
+    for p in (frames or [])[:3]:  # кадры момента — Claude видит, что происходит на экране
+        try:
+            with open(p, "rb") as f:
+                content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
+                                                            "data": base64.standard_b64encode(f.read()).decode()}})
+        except OSError:
+            pass
+    if content:
+        text = "The images are frames from the moment, in order.\n" + text
+    content.append({"type": "text", "text": text})
     client = anthropic.Anthropic(api_key=key, max_retries=3)
     response = client.beta.messages.create(
         model="claude-opus-5-5",
@@ -186,12 +216,12 @@ def _claude_caption(key: str, streamer: str, title: str, top_messages: list[str]
         betas=["server-side-fallback-2026-07-01"],
         fallbacks="default",
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user}],
+        messages=[{"role": "user", "content": content}],
     )
     if response.stop_reason == "refusal":
         raise RuntimeError("модель отказалась")
-    text = next((b.text for b in response.content if b.type == "text"), "").strip()
-    text = text.strip('"«»“” \n').splitlines()[0] if text else ""
-    if not text:
+    out = next((b.text for b in response.content if b.type == "text"), "").strip()
+    out = out.strip('"«»“” \n').splitlines()[0] if out else ""
+    if not out:
         raise RuntimeError("пустой ответ")
-    return text[:90]
+    return out[:90]

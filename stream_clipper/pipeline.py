@@ -108,9 +108,20 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
         log("    субтитры выключены: не установлено распознавание речи (запусти install_subs.bat)")
     text = ""
     if cfg.caption:
-        from .caption import make_caption
+        from .caption import _api_key, make_caption, streamer_quote
+        center = float(cfg.clip_pre)  # пик момента — примерно через clip_pre секунд от начала клипа
+        quote = None
+        if transcript:
+            from . import subtitles
+            quote = streamer_quote(subtitles.LAST_WORDS, center)
+        frames = _moment_frames(segment, center, base) if _api_key() else []
         text = make_caption(meta.get("streamer", ""), meta.get("title", ""), meta.get("top_messages", []),
-                            transcript, meta.get("lang", "en"), log=log)
+                            transcript, meta.get("lang", "en"), log=log, frames=frames, quote=quote)
+        for p in frames:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
         log(f"    подпись: {text}")
         ass_files.append(render.write_caption_ass(base + ".caption.ass", text,
                                                   render.caption_y(layout, cfg.zoom, game_view=cfg.game_view)))
@@ -129,6 +140,30 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
         except OSError:
             pass
     return text
+
+
+def _moment_frames(segment: str, center: float, base: str) -> list[str]:
+    """3 кадра из момента (до, пик, после) — Claude по ним видит, что происходит на экране."""
+    import subprocess
+    out = []
+    flags = 0x08000000 if os.name == "nt" else 0
+    try:  # длина клипа — чтобы не просить кадры за его концом (короткие клипы)
+        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", segment],
+                           capture_output=True, text=True, creationflags=flags)
+        dur = float(r.stdout.strip())
+        if center > dur - 1:
+            center = dur * 0.6
+    except Exception:
+        dur = None
+    step = 3 if not dur or dur > 12 else max(0.5, dur / 5)
+    for i, t in enumerate((center - step, center, center + step)):
+        p = f"{base}.frame{i}.jpg"
+        r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{max(0.0, t):.2f}", "-i", segment,
+                            "-frames:v", "1", "-vf", "scale=768:-2", "-q:v", "4", p],
+                           capture_output=True, creationflags=flags)
+        if r.returncode == 0 and os.path.exists(p):
+            out.append(p)
+    return out
 
 
 def render_subs(segment: str, ass: str, cfg: Settings) -> str:

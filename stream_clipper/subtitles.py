@@ -3,6 +3,7 @@ from __future__ import annotations
 
 _model = None
 _model_name = None
+LAST_WORDS: list = []  # слова последнего клипа: (начало, конец, слово) — для цитаты стримера в надписи
 
 ASS_HEADER = """[Script Info]
 ScriptType: v4.00+
@@ -84,6 +85,8 @@ def make_ass(media: str, ass_path: str, model: str = "small", language: str | No
         segments, _ = m.transcribe(audio, language=language, word_timestamps=True, vad_filter=False)
         segments = list(segments)
     words = [w for s in segments for w in (s.words or []) if w.word.strip()]
+    global LAST_WORDS
+    LAST_WORDS = [(float(w.start), float(w.end), w.word) for w in words]
     if not words:
         return ""
     lines, cur = [], []

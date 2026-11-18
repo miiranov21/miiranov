@@ -26,9 +26,11 @@ STREAMERS_HEADER = """# Стримеры, за которыми следит п�
 """
 DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
             "top": "3", "length": "35", "quality": "1080", "autoupdate": True,
-            "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": "плавает по экрану", "wm_op": "средне", "game_view": "целиком"}
+            "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": "плавает по экрану", "wm_op": "средне", "game_view": "целиком", "yt_browser": "не брать"}
 WM_POS = {"плавает по экрану": "moving", "по центру": "center", "в углу": "corner"}
 GAME_VIEW = {"целиком": "full", "крупнее": "wide", "только центр": "center"}
+YT_BROWSERS = {"не брать": "", "Firefox": "firefox", "Chrome": "chrome", "Edge": "edge", "Opera": "opera",
+               "Brave": "brave", "Vivaldi": "vivaldi"}
 WM_OP = {"слабо": 0.25, "средне": 0.4, "сильно": 0.6}
 
 
@@ -93,7 +95,7 @@ class App:
         self.lines: queue.Queue = queue.Queue()
         self.cfg = _load_json(SETTINGS, DEFAULTS)
         root.title("Stream Clipper — нарезки для Shorts")
-        root.geometry("920x880")
+        root.geometry("920x910")
         root.minsize(700, 640)
         try:
             root.iconbitmap(os.path.join(PROG, "icon.ico"))
@@ -174,6 +176,16 @@ class App:
         self.key_status = ttk.Label(keyf, text="")
         self.key_status.pack(side="left")
         self._update_key_status()
+        # вход в YouTube из браузера — чтобы YouTube не считал программу ботом (часто бывает через VPN)
+        ytf = ttk.Frame(main)
+        ytf.pack(fill="x", pady=(0, 6))
+        ttk.Label(ytf, text="Вход в YouTube через браузер:").pack(side="left")
+        yb = self.cfg.get("yt_browser")
+        self.v["yt_browser"] = tk.StringVar(value=yb if yb in YT_BROWSERS else "не брать")
+        ttk.Combobox(ytf, textvariable=self.v["yt_browser"], values=list(YT_BROWSERS), width=12,
+                     state="readonly").pack(side="left", padx=6)
+        ttk.Label(ytf, text="нужно, если YouTube считает программу ботом (лучше Firefox, войди в нём в YouTube)",
+                  foreground="#666").pack(side="left")
 
         # водяной знак
         wm = ttk.LabelFrame(main, text=" Водяной знак — чтобы клипы не крали ", padding=6)
@@ -568,6 +580,9 @@ class App:
             f.append("--no-caption")
         if not c["audio"]:
             f.append("--no-audio")
+        browser = YT_BROWSERS.get(c.get("yt_browser"), "")
+        if browser:
+            f += ["--cookies-browser", browser]
         text, image = c.get("wm_text", "").strip(), c.get("wm_image", "")
         if c.get("wm_on") and (text or (image and os.path.exists(image))):
             if text:

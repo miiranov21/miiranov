@@ -121,7 +121,10 @@ class LiveSession:
         seen: set = set()
         while not self.stop_evt.is_set():
             try:
-                for item in ChatDownloader().get_chat(self.chat_url):
+                cookies = os.path.join(self.work, "cookies.txt")
+                downloader = (ChatDownloader(cookies=cookies) if twitch.export_cookies(cookies)
+                              else ChatDownloader())
+                for item in downloader.get_chat(self.chat_url):
                     if self.stop_evt.is_set():
                         return
                     ts = item.get("timestamp")

@@ -32,6 +32,18 @@ def set_cookies_browser(browser: str | None) -> None:
         _BASE["cookiesfrombrowser"] = (browser,)
 
 
+def export_cookies(path: str) -> bool:
+    """Сохраняет куки из выбранного браузера в файл (нужен загрузчику живого чата YouTube)."""
+    if "cookiesfrombrowser" not in _BASE:
+        return False
+    try:
+        with yt_dlp.YoutubeDL(dict(_BASE)) as ydl:
+            ydl.cookiejar.save(path, ignore_discard=True, ignore_expires=True)
+        return os.path.exists(path)
+    except Exception:
+        return False
+
+
 def is_youtube(url: str) -> bool:
     return "youtube.com" in url or "youtu.be" in url
 
@@ -57,13 +69,35 @@ def youtube_is_live(live_url: str) -> bool:
     try:
         info = get_info(live_url)
     except DownloadError as e:
-        if _is_offline_error(e) or "will begin" in str(e).lower() or "premieres" in str(e).lower():
+        kind, text = explain_youtube_error(e)
+        if kind == "offline":
             return False  # канал не в эфире
-        raise RuntimeError("нет связи с YouTube — проверь интернет и VPN")
+        raise RuntimeError(text)
     return info.get("live_status") == "is_live" or bool(info.get("is_live"))
 
 
 _OFFLINE_MARKERS = ("not currently live", "is offline", "does not exist", "not live", "no video formats")
+_YT_OFFLINE = ("will begin", "premieres", "this live event", "has not started", "is upcoming",
+               "does not have a live", "no live stream", "not currently live", "is offline")
+_NETWORK = ("ssl", "timed out", "timeout", "connection", "getaddrinfo", "proxy", "eof occurred",
+            "name resolution", "network is unreachable", "remote end closed")
+
+
+def explain_youtube_error(e: Exception) -> tuple[str, str]:
+    """Понятная причина ошибки YouTube: ('offline'|'bot'|'network'|'missing'|'other', текст)."""
+    msg = str(e).replace("ERROR: ", "")
+    low = msg.lower()
+    if any(m in low for m in _YT_OFFLINE):
+        return "offline", "не в эфире"
+    if "not a bot" in low or "sign in to confirm" in low or "confirm your age" in low or "cookies" in low:
+        return "bot", ("YouTube просит подтвердить, что ты не бот (так бывает через VPN). "
+                       "В окне программы выбери «Вход в YouTube через браузер» (лучше Firefox) "
+                       "и войди в YouTube в этом браузере")
+    if "does not exist" in low or "404" in low or "not found" in low or "unable to recognize tab" in low:
+        return "missing", "канал не найден — проверь ник (лучше вставь ссылку на канал из адресной строки)"
+    if any(m in low for m in _NETWORK):
+        return "network", "нет связи с YouTube — проверь интернет и VPN"
+    return "other", "YouTube ответил ошибкой: " + msg[:180]
 
 
 def _is_offline_error(e: Exception) -> bool:

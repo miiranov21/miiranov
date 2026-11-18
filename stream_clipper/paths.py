@@ -64,3 +64,26 @@ def priority_key(spec: str) -> str:
     if s.startswith("yt:"):
         s = s[3:]
     return s.lower()
+
+
+def recording_dir() -> str:
+    """Отметки «сейчас идёт запись эфира» — пока они есть, автообновление ждёт."""
+    d = os.path.join(default_work_dir(), "recording")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def recordings_active(max_age: float = 180) -> list[str]:
+    """Кого сейчас записываем (свежие отметки; старые — от упавшей программы — не считаем)."""
+    import time
+    d = recording_dir()
+    now = time.time()
+    names = []
+    for f in os.listdir(d):
+        p = os.path.join(d, f)
+        try:
+            if now - os.path.getmtime(p) < max_age:
+                names.append(os.path.splitext(f)[0])
+        except OSError:
+            pass
+    return names

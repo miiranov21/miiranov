@@ -729,15 +729,26 @@ class App:
             return
         self.pending_update = info
         if self.v["autoupdate"].get():
-            self.install_update()  # даже во время работы: она продолжится после перезапуска
+            self.install_update(auto=True)  # и во время работы: она продолжится после перезапуска
             return
         self.update_label.config(text=f"Доступна новая версия программы (от {info['date']})")
         self.update_bar.pack(side="top", fill="x", before=self.nb)
 
-    def install_update(self):
+    def install_update(self, auto: bool = False):
         info = self.pending_update
         if not info or self.updating:
             return
+        recs = paths.recordings_active() if self.proc else []
+        if auto and recs:
+            # идёт запись YouTube-эфира: перезапуск дал бы дыру в записи — ждём конца эфира
+            self.update_label.config(text=f"Новая версия ждёт конца записи эфира ({', '.join(recs)[:40]})")
+            self.update_bar.pack(side="top", fill="x", before=self.nb)
+            if not getattr(self, "_deferred_logged", False):
+                self._append("Есть обновление, но сейчас идёт запись эфира — поставлю его, когда эфир закончится.\n")
+                self._deferred_logged = True
+            self.root.after(3 * 60 * 1000, lambda: self.install_update(auto=True))
+            return
+        self._deferred_logged = False
         self.updating = True
         self._save_settings()
         self._append(f"\n=== Обновляю программу (версия от {info['date']}) ===\n")

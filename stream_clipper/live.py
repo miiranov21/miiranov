@@ -18,7 +18,7 @@ from datetime import datetime
 
 import numpy as np
 
-from . import daily, render, twitch
+from . import daily, paths, render, twitch
 from .audio import loudness_per_second
 from .chat import ChatMessage
 
@@ -101,12 +101,28 @@ class LiveSession:
         self.chunks_dir = os.path.join(self.work, "chunks")
         os.makedirs(self.chunks_dir, exist_ok=True)
         self.log(f"[{self.channel}] начинаю запись эфира «{self.title}»")
+        self._touch_marker()
         for target in (self._record_loop, self._chat_loop):
             th = threading.Thread(target=target, daemon=True)
             th.start()
             self.threads.append(th)
 
+    def _marker(self) -> str:
+        safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in self.channel) or "live"
+        return os.path.join(paths.recording_dir(), safe + ".rec")
+
+    def _touch_marker(self) -> None:
+        try:
+            with open(self._marker(), "w") as f:
+                f.write(self.title)
+        except OSError:
+            pass
+
     def stop(self) -> None:
+        try:
+            os.remove(self._marker())
+        except OSError:
+            pass
         self.stop_evt.set()
         if self.proc and self.proc.poll() is None:
             self.proc.terminate()
@@ -137,8 +153,12 @@ class LiveSession:
                     "-f", "segment", "-segment_time", str(self.segment_time), "-reset_timestamps", "1",
                     "-strftime", "1", os.path.join(self.chunks_dir, CHUNK_FMT)]
             self.proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL)
+            n = 0
             while self.proc.poll() is None and not self.stop_evt.is_set():
                 self.stop_evt.wait(2)
+                n += 1
+                if n % 15 == 0:  # раз в 30 секунд: «запись всё ещё идёт»
+                    self._touch_marker()
             if not self.stop_evt.is_set():
                 self.log(f"[{self.channel}] запись прервалась, переподключаюсь...")
                 self.stop_evt.wait(5)

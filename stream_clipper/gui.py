@@ -99,6 +99,7 @@ class App:
         except Exception:
             pass
         self._build()
+        self._install_shortcuts()
         root.protocol("WM_DELETE_WINDOW", self.on_close)
         root.after(150, self._drain)
 
@@ -233,12 +234,101 @@ class App:
         self.root.after(1500, self._resume_after_update)
         self.root.after(2500, self.check_updates)
 
+    # ---------- горячие клавиши и меню правой кнопки ----------
+    # Ctrl+C/V/X/A/Z работают и при русской раскладке (там вместо C приходит «С» и т.д.)
+    _CTRL_KEYS = {
+        "c": "copy", "cyrillic_es": "copy", "insert": "copy",
+        "v": "paste", "cyrillic_em": "paste",
+        "x": "cut", "cyrillic_che": "cut",
+        "a": "all", "cyrillic_ef": "all",
+        "z": "undo", "cyrillic_ya": "undo",
+        "y": "redo", "cyrillic_en": "redo",
+    }
+    _WIN_KEYCODES = {67: "copy", 86: "paste", 88: "cut", 65: "all", 90: "undo", 89: "redo"}  # клавиши C V X A Z Y
+
+    def _install_shortcuts(self):
+        self.root.bind_all("<Control-KeyPress>", self._on_ctrl_key, add="+")
+        for cls in ("TEntry", "Entry", "Text"):
+            self.root.bind_class(cls, "<Button-3>", self._edit_menu, add="+")
+
+    def _on_ctrl_key(self, e):
+        keysym = (e.keysym or "").lower()
+        action = self._CTRL_KEYS.get(keysym)
+        if action is None and os.name == "nt":
+            action = self._WIN_KEYCODES.get(e.keycode)
+        if not action:
+            return None
+        w = e.widget
+        if isinstance(w, ttk.Treeview):
+            if action == "copy":
+                self.copy_caption()
+            elif action == "all":
+                w.selection_set(w.get_children())
+            return "break"
+        if action == "all":
+            self._select_all(w)
+            return "break"
+        if keysym in ("c", "v", "x", "z", "y") and isinstance(w, (tk.Entry, ttk.Entry, tk.Text)):
+            return None  # с английской раскладкой Tk справится сам (иначе вставит дважды)
+        event = {"copy": "<<Copy>>", "paste": "<<Paste>>", "cut": "<<Cut>>",
+                 "undo": "<<Undo>>", "redo": "<<Redo>>"}[action]
+        try:
+            w.event_generate(event)
+        except tk.TclError:
+            pass
+        return "break"
+
+    def _select_all(self, w):
+        try:
+            if isinstance(w, tk.Text):
+                w.tag_add("sel", "1.0", "end-1c")
+                w.mark_set("insert", "end-1c")
+            else:
+                w.select_range(0, "end")
+                w.icursor("end")
+        except (tk.TclError, AttributeError):
+            pass
+
+    def _edit_menu(self, e):
+        w = e.widget
+        try:
+            w.focus_set()
+        except tk.TclError:
+            pass
+        try:
+            readonly = str(w.cget("state")) in ("disabled", "readonly")
+        except tk.TclError:
+            readonly = False
+        m = tk.Menu(self.root, tearoff=0)
+        if not readonly:
+            m.add_command(label="Вырезать        Ctrl+X", command=lambda: w.event_generate("<<Cut>>"))
+        m.add_command(label="Копировать     Ctrl+C", command=lambda: w.event_generate("<<Copy>>"))
+        if not readonly:
+            m.add_command(label="Вставить          Ctrl+V", command=lambda: w.event_generate("<<Paste>>"))
+        m.add_separator()
+        m.add_command(label="Выделить всё   Ctrl+A", command=lambda: self._select_all(w))
+        m.tk_popup(e.x_root, e.y_root)
+        return "break"
+
+    def _clips_menu(self, e):
+        iid = self.tree.identify_row(e.y)
+        if iid and iid not in self.tree.selection():
+            self.tree.selection_set(iid)
+        m = tk.Menu(self.root, tearoff=0)
+        m.add_command(label="▶  Смотреть", command=self.play_clip)
+        m.add_command(label="📋  Копировать надпись   Ctrl+C", command=self.copy_caption)
+        m.add_command(label="✔  Выложен / не выложен", command=self.toggle_posted)
+        m.add_command(label="📂  Показать в папке", command=self.reveal_clip)
+        m.add_separator()
+        m.add_command(label="🗑  Удалить   Delete", command=self.delete_clip)
+        m.tk_popup(e.x_root, e.y_root)
+
     # ---------- файлы ----------
     def _platform_tab(self, title: str, hint: str, names: list[str]) -> tk.Text:
         f = ttk.Frame(self.platforms, padding=4)
         self.platforms.add(f, text=title)
         ttk.Label(f, text=hint + "  (по одному в строке)", foreground="#666").pack(anchor="w")
-        t = tk.Text(f, height=6, width=28, font=("Segoe UI", 11))
+        t = tk.Text(f, height=6, width=28, font=("Segoe UI", 11), undo=True)
         t.pack(fill="both", expand=True)
         t.insert("1.0", "\n".join(names))
         t.bind("<KeyRelease>", lambda e: self._on_streamers_edit())
@@ -469,6 +559,8 @@ class App:
 
     # ---------- обновления ----------
     def check_updates(self, manual: bool = False):
+        if os.environ.get("STREAM_CLIPPER_NO_UPDATE"):  # для проверок разработчика
+            return
         def work():
             try:
                 info = updater.check()
@@ -609,6 +701,9 @@ class App:
         self.tree.pack(side="left", fill="both", expand=True)
         sb.pack(side="left", fill="y")
         self.tree.bind("<Double-1>", lambda e: self.play_clip())
+        self.tree.bind("<Return>", lambda e: self.play_clip())
+        self.tree.bind("<Delete>", lambda e: self.delete_clip())
+        self.tree.bind("<Button-3>", self._clips_menu)
         self.clip_by_iid: dict = {}
         self.root.after(1000, self._auto_refresh)
 

@@ -25,6 +25,36 @@ from .chat import ChatMessage
 CHUNK_FMT = "chunk_%Y%m%d-%H%M%S.ts"
 
 
+def parse_youtube_chat_line(line: bytes) -> list[tuple[str, int, str, str]]:
+    """Строка файла живого чата yt-dlp -> [(id, время в мкс, автор, текст)]."""
+    try:
+        obj = json.loads(line)
+    except Exception:
+        return []
+    out = []
+    for action in (obj.get("replayChatItemAction") or {}).get("actions", []):
+        item = (action.get("addChatItemAction") or {}).get("item") or {}
+        r = item.get("liveChatTextMessageRenderer") or item.get("liveChatPaidMessageRenderer")
+        if not r:
+            continue
+        parts = []
+        for run in (r.get("message") or {}).get("runs", []):
+            if "text" in run:
+                parts.append(run["text"])
+            elif "emoji" in run:
+                sc = run["emoji"].get("shortcuts") or []
+                parts.append(sc[0] if sc else "")
+        try:
+            ts = int(r.get("timestampUsec") or 0)
+        except ValueError:
+            continue
+        if not ts:
+            continue
+        out.append((r.get("id") or f"{ts}{parts}", ts, (r.get("authorName") or {}).get("simpleText", ""),
+                    "".join(parts)))
+    return out
+
+
 class LiveSession:
     def __init__(self, url: str, cfg, log=print, segment_time: int = 300, max_height: int = 720):
         self.url = url
@@ -117,6 +147,8 @@ class LiveSession:
 
     # ---------- чат ----------
     def _chat_loop(self) -> None:
+        if self.is_youtube:
+            return self._chat_loop_youtube()
         from chat_downloader import ChatDownloader
         seen: set = set()
         while not self.stop_evt.is_set():
@@ -142,6 +174,66 @@ class LiveSession:
                 if not self.stop_evt.is_set():
                     self.log(f"[{self.channel}] чат отвалился ({e}), переподключаюсь...")
             self.stop_evt.wait(10)
+
+    # ---------- живой чат YouTube через yt-dlp ----------
+    def _chat_loop_youtube(self) -> None:
+        """yt-dlp пишет живой чат построчно в файл — читаем новые строки по мере появления.
+        (chat-downloader с YouTube больше не работает: «Unable to parse initial video data».)"""
+        import glob
+        chat_dir = os.path.join(self.work, "chat")
+        os.makedirs(chat_dir, exist_ok=True)
+        seen: set = set()
+        offsets: dict = {}
+        dl = None
+        announced = False
+        while not self.stop_evt.is_set():
+            if dl is None or not dl.is_alive():
+                if dl is not None:
+                    self.log(f"[{self.channel}] чат прервался, переподключаюсь...")
+                    self.stop_evt.wait(10)
+                dl = threading.Thread(target=self._ytdlp_chat_download, args=(chat_dir,), daemon=True)
+                dl.start()
+            for path in glob.glob(os.path.join(chat_dir, "*.live_chat.json*")):
+                try:
+                    with open(path, "rb") as f:
+                        f.seek(offsets.get(path, 0))
+                        data = f.read()
+                except OSError:
+                    continue
+                cut = data.rfind(b"\n") + 1  # берём только целые строки
+                if cut <= 0:
+                    continue
+                offsets[path] = offsets.get(path, 0) + cut
+                new = []
+                for line in data[:cut].splitlines():
+                    for mid, ts, author, text in parse_youtube_chat_line(line):
+                        if mid in seen:
+                            continue
+                        seen.add(mid)
+                        new.append(ChatMessage(t=ts / 1e6 - self.rec_start, author=author, text=text))
+                if new:
+                    with self.lock:
+                        self.msgs.extend(new)
+                    if not announced:
+                        self.log(f"[{self.channel}] чат подключён, сообщения идут")
+                        announced = True
+            self.stop_evt.wait(2)
+
+    def _ytdlp_chat_download(self, chat_dir: str) -> None:
+        import yt_dlp
+
+        def hook(d):
+            if self.stop_evt.is_set():
+                raise yt_dlp.utils.DownloadCancelled()
+        opts = dict(twitch._BASE, skip_download=True, writesubtitles=True, subtitleslangs=["live_chat"],
+                    outtmpl=os.path.join(chat_dir, f"chat_{int(time.time())}.%(ext)s"),
+                    progress_hooks=[hook])
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                ydl.download([self.chat_url])
+        except Exception as e:
+            if not self.stop_evt.is_set():
+                self.log(f"[{self.channel}] чат: {twitch.explain_youtube_error(e)[1]}")
 
     def _save_chat(self) -> None:
         with self.lock:

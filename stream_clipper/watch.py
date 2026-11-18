@@ -15,6 +15,7 @@ class Source:
     kind: str      # "twitch" | "youtube"
     name: str      # для логов
     target: str    # twitch: логин; youtube: ссылка .../live
+    spec: str = "" # как записан в списке — по нему ищем место в очереди
 
 
 def parse_source(spec: str) -> Source:
@@ -26,9 +27,9 @@ def parse_source(spec: str) -> Source:
             name = "yt_" + name.split("v=")[1].split("&")[0]
         elif "youtube.com/" in name:
             name = name.split("youtube.com/")[1].split("/")[0]
-        return Source("youtube", name.lstrip("@") or "youtube", url)
+        return Source("youtube", name.lstrip("@") or "youtube", url, spec)
     login = s.lower().rstrip("/").split("/")[-1]
-    return Source("twitch", login, login)
+    return Source("twitch", login, login, login)
 
 
 def _load(path):
@@ -41,6 +42,22 @@ def _load(path):
 def _save(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def load_priority() -> list[str]:
+    try:
+        with open(paths.priority_path(), encoding="utf-8") as f:
+            return [paths.priority_key(x) for x in json.load(f)]
+    except Exception:
+        return []
+
+
+def order_by_priority(sources: list) -> list:
+    """Сортируем стримеров по очереди из окна программы (кого нет в очереди — в конец, как были)."""
+    prio = load_priority()
+    rank = {k: i for i, k in enumerate(prio)}
+    return sorted(sources, key=lambda s: (rank.get(paths.priority_key(s.spec or s.target), len(rank)),
+                                          sources.index(s)))
 
 
 def read_channels_file(path: str) -> list[str]:
@@ -183,6 +200,10 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
             reload_sources()
             from .pipeline import refresh_live
             refresh_live(cfg, log)
+            ordered = order_by_priority(sources)
+            if [x.name for x in ordered] != [x.name for x in sources]:
+                log("Порядок обработки: " + " → ".join(x.name for x in ordered))
+                sources[:] = ordered
             for src in list(sources):
                 if paths.stop_requested():
                     log("Останавливаюсь аккуратно: дорезаю начатое...")

@@ -185,7 +185,7 @@ class LiveSession:
         offset = max(0.0, start - need[0][1])
         render._run(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", lst,
                      "-ss", f"{offset:.2f}", "-t", f"{end - start:.2f}",
-                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k", out])
+                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "15", "-c:a", "aac", "-b:a", "192k", out])
         os.remove(lst)
         return out
 

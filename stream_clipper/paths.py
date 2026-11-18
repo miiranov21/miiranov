@@ -51,3 +51,16 @@ def stop_requested() -> bool:
 def live_settings_path() -> str:
     """Настройки, которые окно меняет на ходу (клипов в час, длина клипа) — работа подхватывает их сразу."""
     return os.path.join(default_work_dir(), "live_settings.json")
+
+
+def priority_path() -> str:
+    """Порядок стримеров (общий для Twitch и YouTube): кто выше — того обрабатываем первым."""
+    return os.path.join(default_work_dir(), "priority.json")
+
+
+def priority_key(spec: str) -> str:
+    """Ключ стримера для очереди: twitch-логин или @ник/ссылка YouTube (без учёта регистра)."""
+    s = spec.strip()
+    if s.startswith("yt:"):
+        s = s[3:]
+    return s.lower()

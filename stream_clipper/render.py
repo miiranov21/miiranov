@@ -16,7 +16,7 @@ def _run(cmd: list[str], cwd: str | None = None) -> None:
 def cut_segment(src: str, start: float, end: float, out: str) -> str:
     """Вырезает кусок из локального файла (с перекодированием — точный рез)."""
     _run(["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.2f}", "-i", src, "-t", f"{end - start:.2f}",
-          "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k", out])
+          "-c:v", "libx264", "-preset", "veryfast", "-crf", "15", "-c:a", "aac", "-b:a", "192k", out])
     return out
 
 
@@ -44,14 +44,16 @@ def build_filter(layout: str, facecam: tuple[float, float, float, float] | None 
         return (f"[0:v]split=3[a][b][c];"
                 f"[a]{bg}[bg];"
                 f"[b]crop=iw*{fw}:ih*{fh}:iw*{fx}:ih*{fy},"
-                f"scale={W}:{ch}:force_original_aspect_ratio=increase,crop={W}:{ch}[cam];"
-                f"[c]scale={gw}:-2,crop={W}:'min(ih,{H - ch})'[game];"
+                # вебка маленькая — растягиваем качественно (lanczos) и чуть добавляем резкости
+                f"scale={W}:{ch}:force_original_aspect_ratio=increase:flags=lanczos,crop={W}:{ch},"
+                f"hqdn3d=1.5:1.5:3:3,unsharp=5:5:0.9:5:5:0.0[cam];"
+                f"[c]scale={gw}:-2:flags=lanczos,crop={W}:'min(ih,{H - ch})'[game];"
                 f"[bg][cam]overlay=0:0[t];"
                 f"[t][game]overlay=0:{ch}[v]")
     # blur: игра по центру, сверху/снизу размытый фон
     return (f"[0:v]split=2[a][b];"
             f"[a]{bg}[bg];"
-            f"[b]scale={gw}:-2,crop={W}:'min(ih,{H})'[fg];"
+            f"[b]scale={gw}:-2:flags=lanczos,crop={W}:'min(ih,{H})'[fg];"
             f"[bg][fg]overlay=(W-w)/2:(H-h)/2[v]")
 
 
@@ -164,7 +166,7 @@ def render_vertical(src: str, out: str, layout: str = "blur", facecam=None, zoom
         chain = ",".join(f"ass={os.path.basename(p)}" for p in ass_paths)
         vf = vf[: -len("[v]")] + f"[v0];[v0]{chain}[v]"
     _run(["ffmpeg", "-y", "-v", "error", *inputs, "-filter_complex", vf,
-          "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", preset, "-crf", "20",
+          "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", preset, "-crf", "18",
           "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
           os.path.abspath(out)], cwd=cwd)
     return out

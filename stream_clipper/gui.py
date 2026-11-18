@@ -125,6 +125,7 @@ class App:
         tw_names, yt_names = split_platforms(self._read_streamers())
         self.tw_text = self._platform_tab("  Twitch  ", "Ник из ссылки: twitch.tv/kaicenat → kaicenat", tw_names)
         self.yt_text = self._platform_tab("  YouTube  ", "Ник канала: youtube.com/@MrBeast → MrBeast", yt_names)
+        self._build_queue_tab()
         self._update_platform_titles()
         ttk.Button(box, text="✔  Применить список (можно и во время слежки)",
                    command=self.apply_streamers).pack(fill="x", pady=(6, 0))
@@ -363,12 +364,80 @@ class App:
         yt = _unique([norm_youtube(n) for n in self._platform_names(self.yt_text)])
         self._write_streamers(tw, yt)
 
+    # ---------- очередь: кого обрабатывать первым (Twitch и YouTube вместе) ----------
+    def _build_queue_tab(self):
+        f = ttk.Frame(self.platforms, padding=4)
+        self.platforms.add(f, text="  Очередь  ")
+        ttk.Label(f, text="Кто выше — того программа обрабатывает первым", foreground="#666").pack(anchor="w")
+        row = ttk.Frame(f)
+        row.pack(fill="both", expand=True)
+        self.queue_list = tk.Listbox(row, height=6, font=("Segoe UI", 11), activestyle="none", exportselection=False)
+        self.queue_list.pack(side="left", fill="both", expand=True)
+        side = ttk.Frame(row)
+        side.pack(side="left", fill="y", padx=(6, 0))
+        ttk.Button(side, text="⏫ Первым", command=lambda: self._queue_move("top")).pack(fill="x")
+        ttk.Button(side, text="▲ Выше", command=lambda: self._queue_move(-1)).pack(fill="x", pady=4)
+        ttk.Button(side, text="▼ Ниже", command=lambda: self._queue_move(1)).pack(fill="x")
+        self.queue_keys: list[str] = []
+        self.platforms.bind("<<NotebookTabChanged>>", lambda e: self._refresh_queue(), add="+")
+        self._refresh_queue()
+
+    def _current_keys(self) -> list[str]:
+        tw = _unique([norm_twitch(n) for n in self._platform_names(self.tw_text)])
+        yt = _unique([norm_youtube(n) for n in self._platform_names(self.yt_text)])
+        return [paths.priority_key(x) for x in tw + yt]
+
+    def _refresh_queue(self):
+        current = self._current_keys()
+        try:
+            with open(paths.priority_path(), encoding="utf-8") as fh:
+                saved = [paths.priority_key(x) for x in json.load(fh)]
+        except Exception:
+            saved = []
+        self.queue_keys = [k for k in saved if k in current] + [k for k in current if k not in saved]
+        sel = self.queue_list.curselection()
+        self.queue_list.delete(0, "end")
+        tw = _unique([norm_twitch(n) for n in self._platform_names(self.tw_text)])
+        yt_ = _unique([norm_youtube(n) for n in self._platform_names(self.yt_text)])
+        shown = {paths.priority_key(x): x for x in tw + yt_}  # как записано (с большими буквами)
+        for i, k in enumerate(self.queue_keys, 1):
+            yt = k.startswith("@") or "youtube.com" in k or "youtu.be" in k
+            orig = shown.get(k, k)
+            name = orig.lstrip("@") if not orig.startswith("http") else orig.rstrip("/").split("/")[-1]
+            self.queue_list.insert("end", f"{i}. {'YouTube' if yt else 'Twitch'} — {name}")
+        if sel and sel[0] < len(self.queue_keys):
+            self.queue_list.selection_set(sel[0])
+
+    def _queue_move(self, delta):
+        sel = self.queue_list.curselection()
+        if not sel:
+            messagebox.showinfo("Очередь", "Выбери стримера в списке.")
+            return
+        i = sel[0]
+        keys = list(self.queue_keys)
+        j = 0 if delta == "top" else max(0, min(len(keys) - 1, i + delta))
+        keys.insert(j, keys.pop(i))
+        try:
+            os.makedirs(os.path.dirname(paths.priority_path()), exist_ok=True)
+            with open(paths.priority_path(), "w", encoding="utf-8") as fh:
+                json.dump(keys, fh, ensure_ascii=False)
+        except OSError:
+            return
+        self._refresh_queue()
+        self.queue_list.selection_clear(0, "end")
+        self.queue_list.selection_set(j)
+        if self.proc:
+            self._append("Очередь изменена — применится на следующем круге проверки: "
+                         + " → ".join(k.lstrip("@") for k in keys) + "\n")
+
     def _platform_names(self, t: tk.Text) -> list[str]:
         return [ln.strip() for ln in t.get("1.0", "end").splitlines() if ln.strip()]
 
     def _update_platform_titles(self):
         self.platforms.tab(0, text=f"  Twitch ({len(self._platform_names(self.tw_text))})  ")
         self.platforms.tab(1, text=f"  YouTube ({len(self._platform_names(self.yt_text))})  ")
+        if hasattr(self, "queue_list"):
+            self._refresh_queue()
 
     def _read_streamers(self) -> list[str]:
         for path in (STREAMERS, STREAMERS_BACKUP):

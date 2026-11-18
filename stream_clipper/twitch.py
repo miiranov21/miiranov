@@ -117,7 +117,8 @@ def download_section(url: str, start: float, end: float, out_base: str, max_heig
         "format": fmt,
         "merge_output_format": "mp4",
         "download_ranges": download_range_func(None, [(start, end)]),
-        "force_keyframes_at_cuts": True,
+        # без force_keyframes_at_cuts: кусок копируется как есть, без лишнего пережатия (качество выше);
+        # начало может сдвинуться на 1–2 секунды к ближайшему ключевому кадру — это не страшно
     })
 
 

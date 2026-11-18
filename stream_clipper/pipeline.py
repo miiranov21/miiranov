@@ -33,6 +33,10 @@ class Settings:
     keep_raw: bool = False
     preset: str = "medium"
     caption: bool = True      # плашка с подписью к моменту
+    watermark_text: str = ""  # водяной знак текстом, например "@мой_канал"
+    watermark_image: str = "" # водяной знак картинкой (PNG)
+    watermark_pos: str = "moving"   # corner | center | moving
+    watermark_opacity: float = 0.4
     hype_words: list = field(default_factory=lambda: list(detect.DEFAULT_HYPE))
 
 
@@ -101,7 +105,14 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
         log(f"    подпись: {text}")
         ass_files.append(render.write_caption_ass(base + ".caption.ass", text,
                                                   render.caption_y(layout, cfg.zoom)))
-    render.render_vertical(segment, out, layout, facecam, cfg.zoom, ass_files, cfg.preset)
+    if cfg.watermark_text.strip():
+        # знак ставим под надписью-плашкой, чтобы не закрывал её
+        ass_files.insert(len(ass_files) - (1 if text else 0),
+                         render.write_watermark_ass(base + ".wm.ass", cfg.watermark_text.strip(),
+                                                    cfg.watermark_pos, cfg.watermark_opacity))
+    render.render_vertical(segment, out, layout, facecam, cfg.zoom, ass_files, cfg.preset,
+                           logo=cfg.watermark_image or None, logo_pos=cfg.watermark_pos,
+                           logo_opacity=cfg.watermark_opacity, logo_with_text=bool(cfg.watermark_text.strip()))
     for p in ass_files:
         try:
             os.remove(p)

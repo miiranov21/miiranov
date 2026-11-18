@@ -23,6 +23,11 @@ def _common(p: argparse.ArgumentParser) -> None:
                    help="auto = сама ищет вебку стримера и ставит её сверху (иначе blur); blur = игра на размытом фоне; "
                         "crop = обрезка по центру; facecam = вебка сверху по координатам --facecam")
     g.add_argument("--no-caption", action="store_true", help="без плашки с подписью")
+    g.add_argument("--watermark-text", default="", help="водяной знак текстом, например @мой_канал")
+    g.add_argument("--watermark-image", default="", help="водяной знак картинкой (PNG с прозрачностью)")
+    g.add_argument("--watermark-pos", choices=["corner", "center", "moving"], default="moving",
+                   help="где знак: corner — в углу, center — по центру, moving — плавает по экрану")
+    g.add_argument("--watermark-opacity", type=float, default=0.4, help="непрозрачность знака 0.1–1 (по умолч. 0.4)")
     g.add_argument("--facecam", help="где вебка на исходнике, доли кадра: x,y,w,h (например 0.75,0.70,0.25,0.30)")
     g.add_argument("--zoom", type=float, default=1.0, help="увеличение игры в режиме blur (например 1.4)")
     g.add_argument("--subs", action="store_true", default=None,
@@ -44,7 +49,9 @@ def _settings(a) -> Settings:
                    min_score=a.min_score, audio=not a.no_audio, audio_weight=a.audio_weight,
                    layout=a.layout, zoom=a.zoom, subs=a.subs, whisper_model=a.whisper_model,
                    language=a.lang, max_height=a.max_height, dry_run=a.dry_run, keep_raw=a.keep_raw,
-                   preset=a.preset, caption=not a.no_caption)
+                   preset=a.preset, caption=not a.no_caption,
+                   watermark_text=a.watermark_text, watermark_image=a.watermark_image,
+                   watermark_pos=a.watermark_pos, watermark_opacity=a.watermark_opacity)
     if a.facecam:
         try:
             cfg.facecam = tuple(float(x) for x in a.facecam.split(","))

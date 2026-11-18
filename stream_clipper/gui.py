@@ -9,7 +9,7 @@ import subprocess
 import sys
 import threading
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
 from . import library, paths, updater
@@ -24,7 +24,10 @@ STREAMERS_HEADER = """# Стримеры, за которыми следит п�
 # YouTube — @ник канала (youtube.com/@MrBeast -> @MrBeast)
 """
 DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
-            "top": "3", "length": "35", "quality": "1080", "autoupdate": True}
+            "top": "3", "length": "35", "quality": "1080", "autoupdate": True,
+            "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": "плавает по экрану", "wm_op": "средне"}
+WM_POS = {"плавает по экрану": "moving", "по центру": "center", "в углу": "corner"}
+WM_OP = {"слабо": 0.25, "средне": 0.4, "сильно": 0.6}
 
 
 def norm_twitch(s: str) -> str:
@@ -88,7 +91,7 @@ class App:
         self.lines: queue.Queue = queue.Queue()
         self.cfg = _load_json(SETTINGS, DEFAULTS)
         root.title("Stream Clipper — нарезки для Shorts")
-        root.geometry("900x800")
+        root.geometry("920x880")
         root.minsize(700, 640)
         try:
             root.iconbitmap(os.path.join(PROG, "icon.ico"))
@@ -153,6 +156,38 @@ class App:
         self.key_status = ttk.Label(keyf, text="")
         self.key_status.pack(side="left")
         self._update_key_status()
+
+        # водяной знак
+        wm = ttk.LabelFrame(main, text=" Водяной знак — чтобы клипы не крали ", padding=6)
+        wm.pack(fill="x", pady=(0, 6))
+        r1 = ttk.Frame(wm)
+        r1.pack(fill="x")
+        self.v["wm_on"] = tk.BooleanVar(value=bool(self.cfg.get("wm_on")))
+        ttk.Checkbutton(r1, text="Ставить", variable=self.v["wm_on"]).pack(side="left")
+        ttk.Label(r1, text="  Текст:").pack(side="left")
+        self.v["wm_text"] = tk.StringVar(value=self.cfg.get("wm_text", ""))
+        ttk.Entry(r1, textvariable=self.v["wm_text"], width=20).pack(side="left", padx=4)
+        ttk.Label(r1, text="(например @твой_канал)", foreground="#666").pack(side="left")
+        self.v["wm_image"] = tk.StringVar(value=self.cfg.get("wm_image", ""))
+        ttk.Button(r1, text="✕", width=3, command=lambda: self.v["wm_image"].set("")).pack(side="right")
+        ttk.Button(r1, text="Логотип…", command=self.choose_logo).pack(side="right", padx=4)
+        self.logo_label = ttk.Label(r1, text="", foreground="#666")
+        self.logo_label.pack(side="right")
+        self.v["wm_image"].trace_add("write", lambda *a: self._update_logo_label())
+        self._update_logo_label()
+        r2 = ttk.Frame(wm)
+        r2.pack(fill="x", pady=(4, 0))
+        ttk.Label(r2, text="Где:").pack(side="left")
+        self.v["wm_pos"] = tk.StringVar(value=self.cfg.get("wm_pos") if self.cfg.get("wm_pos") in WM_POS
+                                        else "плавает по экрану")
+        ttk.Combobox(r2, textvariable=self.v["wm_pos"], values=list(WM_POS), width=18,
+                     state="readonly").pack(side="left", padx=4)
+        ttk.Label(r2, text="  Заметность:").pack(side="left")
+        self.v["wm_op"] = tk.StringVar(value=self.cfg.get("wm_op") if self.cfg.get("wm_op") in WM_OP else "средне")
+        ttk.Combobox(r2, textvariable=self.v["wm_op"], values=list(WM_OP), width=9,
+                     state="readonly").pack(side="left", padx=4)
+        ttk.Label(r2, text="  «плавает» — лучшая защита: знак нельзя обрезать или замазать",
+                  foreground="#666").pack(side="left")
 
         # кнопки
         btns = ttk.Frame(main)
@@ -273,6 +308,23 @@ class App:
             os.remove(KEYFILE)
         self._update_key_status()
 
+    def choose_logo(self):
+        path = filedialog.askopenfilename(title="Логотип для водяного знака",
+                                          filetypes=[("Картинки", "*.png *.jpg *.jpeg *.webp"), ("Все файлы", "*.*")])
+        if not path:
+            return
+        # копируем к себе, чтобы знак не пропал, если исходный файл переместят
+        import shutil
+        dest = os.path.join(paths.default_work_dir(), "watermark" + os.path.splitext(path)[1].lower())
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copyfile(path, dest)
+        self.v["wm_image"].set(dest)
+        self.v["wm_on"].set(True)
+
+    def _update_logo_label(self):
+        p = self.v["wm_image"].get()
+        self.logo_label.config(text="логотип выбран ✔" if p and os.path.exists(p) else "без логотипа")
+
     def _update_key_status(self):
         ok = bool(self.key.get().strip())
         self.key_status.config(text="✔ ключ есть" if ok else "нет ключа — надписи по шаблону")
@@ -303,6 +355,14 @@ class App:
             f.append("--no-caption")
         if not c["audio"]:
             f.append("--no-audio")
+        text, image = c.get("wm_text", "").strip(), c.get("wm_image", "")
+        if c.get("wm_on") and (text or (image and os.path.exists(image))):
+            if text:
+                f += ["--watermark-text", text]
+            if image and os.path.exists(image):
+                f += ["--watermark-image", image]
+            f += ["--watermark-pos", WM_POS.get(c.get("wm_pos"), "moving"),
+                  "--watermark-opacity", str(WM_OP.get(c.get("wm_op"), 0.4))]
         return f
 
     def _run(self, args: list[str], what: str):

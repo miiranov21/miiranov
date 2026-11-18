@@ -18,6 +18,7 @@ PROG = paths.program_dir()
 SETTINGS = os.path.join(PROG, "settings.json")
 STREAMERS = os.path.join(PROG, "streamers.txt")
 STREAMERS_BACKUP = os.path.join(paths.default_work_dir(), "streamers.txt")  # запасная копия
+RESUME = os.path.join(paths.default_work_dir(), "resume.json")  # что продолжить после обновления
 KEYFILE = os.path.join(PROG, "claude_key.txt")
 STREAMERS_HEADER = """# Стримеры, за которыми следит программа. По одному в строке.
 # Twitch — логин из ссылки (twitch.tv/evelone2004 -> evelone2004)
@@ -227,6 +228,9 @@ class App:
         self.update_label.pack(side="left", padx=10, pady=6)
         ttk.Button(self.update_bar, text="Обновить сейчас", command=self.install_update).pack(side="right", padx=8)
         self.pending_update = None
+        self.updating = False
+        self.job = None  # что сейчас делается: ("watch",) или ("vod", ссылка)
+        self.root.after(1500, self._resume_after_update)
         self.root.after(2500, self.check_updates)
 
     # ---------- файлы ----------
@@ -365,9 +369,10 @@ class App:
                   "--watermark-opacity", str(WM_OP.get(c.get("wm_op"), 0.4))]
         return f
 
-    def _run(self, args: list[str], what: str):
+    def _run(self, args: list[str], what: str, job=None):
         if self.proc:
             return
+        self.job = job
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
         flags = 0x08000000 if os.name == "nt" else 0  # CREATE_NO_WINDOW
         cmd = [_python_exe(), "-m", "stream_clipper", *args]
@@ -395,14 +400,14 @@ class App:
         if not names:
             messagebox.showwarning("Нет стримеров", "Впиши хотя бы одного стримера во вкладку Twitch или YouTube.")
             return
-        self._run(["watch", *self._flags()], "Слежу за: " + ", ".join(names))
+        self._run(["watch", *self._flags()], "Слежу за: " + ", ".join(names), job=["watch"])
 
     def start_vod(self):
         url = self.url.get().strip()
         if not url.startswith("http"):
             messagebox.showwarning("Нет ссылки", "Вставь ссылку на запись стрима (twitch.tv/videos/... или youtube.com/watch?v=...).")
             return
-        self._run(["vod", url, *self._flags()], "Нарезаю " + url)
+        self._run(["vod", url, *self._flags()], "Нарезаю " + url, job=["vod", url])
 
     def stop(self):
         p = self.proc
@@ -432,9 +437,13 @@ class App:
                 if item is None:
                     self._append("=== Остановлено ===\n")
                     self.proc = None
+                    self.job = None
                     self._set_running(False)
+                    if self.updating:  # остановились ради обновления — перезапускаемся и продолжим
+                        self._restart()
+                        return
                     if self.pending_update and self.v["autoupdate"].get():
-                        self.root.after(1000, self.install_update)  # обновление ждало конца работы
+                        self.root.after(1000, self.install_update)
                 else:
                     self._append(item)
                     if "готово ->" in item:
@@ -482,19 +491,17 @@ class App:
                 messagebox.showinfo("Обновление", "У тебя последняя версия.")
             return
         self.pending_update = info
-        if self.v["autoupdate"].get() and not self.proc:
-            self.install_update()
+        if self.v["autoupdate"].get():
+            self.install_update()  # даже во время работы: она продолжится после перезапуска
             return
         self.update_label.config(text=f"Доступна новая версия программы (от {info['date']})")
         self.update_bar.pack(side="top", fill="x", before=self.nb)
 
     def install_update(self):
         info = self.pending_update
-        if not info:
+        if not info or self.updating:
             return
-        if self.proc:
-            messagebox.showinfo("Обновление", "Сначала нажми «Стоп»: обновление ставится, когда программа не режет.")
-            return
+        self.updating = True
         self._save_settings()
         self._append(f"\n=== Обновляю программу (версия от {info['date']}) ===\n")
         self.update_bar.pack_forget()
@@ -502,10 +509,48 @@ class App:
         def work():
             try:
                 updater.apply(info["sha"], log=lambda m: self.lines.put(m + "\n"))
-                self.root.after(0, self._restart)
             except Exception as e:
                 self.lines.put(f"Обновление не удалось: {e}\n")
+                self.updating = False
+                return
+            self.root.after(0, self._after_files_updated)
         threading.Thread(target=work, daemon=True).start()
+
+    def _after_files_updated(self):
+        if not self.proc:
+            self._restart()
+            return
+        # идёт работа: запоминаем её, аккуратно останавливаем (начатое дорежется), потом перезапуск
+        try:
+            with open(RESUME, "w", encoding="utf-8") as f:
+                json.dump(self.job or ["watch"], f)
+        except OSError:
+            pass
+        self._append("Аккуратно останавливаю работу (дорезаю начатое) — после перезапуска она продолжится сама...\n")
+        try:
+            open(paths.stop_request_path(), "w").close()
+        except OSError:
+            pass
+        self.root.after(10 * 60 * 1000, self._force_stop_if_stuck)
+
+    def _force_stop_if_stuck(self):
+        if self.updating and self.proc:
+            self._append("Работа не остановилась за 10 минут — останавливаю принудительно.\n")
+            self.stop()
+
+    def _resume_after_update(self):
+        try:
+            with open(RESUME, encoding="utf-8") as f:
+                job = json.load(f)
+            os.remove(RESUME)
+        except Exception:
+            return
+        self._append("\n=== Программа обновлена — продолжаю работу с того же места ===\n")
+        if job and job[0] == "vod" and len(job) > 1:
+            self.url.set(job[1])
+            self.start_vod()
+        else:
+            self.start_watch()
 
     def _restart(self):
         self._append("Перезапускаю программу...\n")

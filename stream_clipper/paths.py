@@ -37,3 +37,12 @@ def default_work_dir() -> str:
 def program_dir() -> str:
     """Папка программы (где лежат START.bat и streamers.txt)."""
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def stop_request_path() -> str:
+    """Файл-сигнал «остановись аккуратно» (окно программы создаёт его перед обновлением)."""
+    return os.path.join(default_work_dir(), "stop.request")
+
+
+def stop_requested() -> bool:
+    return os.path.exists(stop_request_path())

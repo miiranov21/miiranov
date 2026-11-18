@@ -5,6 +5,8 @@ import json
 import os
 from dataclasses import dataclass, asdict
 
+from . import paths
+
 
 @dataclass
 class ChatMessage:
@@ -168,6 +170,9 @@ def download_chat_part(url: str, cache_path: str, stop_at: float | None = None,
             new += 1
             if stop_at is not None and m.t > stop_at:
                 finished = False  # дошли до нужного места — дальше докачаем в следующий раз
+                break
+            if new % 500 == 0 and paths.stop_requested():
+                finished = False  # просят остановиться — сохраняем, что скачали, и выходим
                 break
             if time.time() - last_log > 10:  # прогресс раз в 10 секунд
                 last_log = time.time()

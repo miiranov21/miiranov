@@ -6,7 +6,7 @@ import os
 import time
 from dataclasses import dataclass
 
-from . import daily, twitch
+from . import daily, paths, twitch
 from .pipeline import Settings, process_vod
 
 
@@ -182,6 +182,9 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
         while True:
             reload_sources()
             for src in list(sources):
+                if paths.stop_requested():
+                    log("Останавливаюсь аккуратно: дорезаю начатое...")
+                    raise KeyboardInterrupt
                 try:
                     live = twitch.youtube_is_live(src.target) if src.kind == "youtube" else twitch.is_live(src.target)
                 except Exception as e:
@@ -236,6 +239,9 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
             # ждём до следующей проверки, но список стримеров ловим сразу
             waited = 0
             while waited < poll:
+                if paths.stop_requested():
+                    log("Останавливаюсь аккуратно: дорезаю начатое...")
+                    raise KeyboardInterrupt
                 time.sleep(5)
                 waited += 5
                 if reload_file and os.path.exists(reload_file) and os.path.getmtime(reload_file) != file_mtime:

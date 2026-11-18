@@ -233,6 +233,8 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
         if allowed > 0:
             hl = _analyze(msgs, duration, audio["db"], cfg, skip, log, top=allowed)
             for i, h in enumerate(hl, 1):
+                if paths.stop_requested():
+                    break
                 d = dict(h.to_dict(), vod_url=url, vod_title=title, link=link(h.start))
                 if not cfg.dry_run:
                     name = f"{vid}_{_fmt(h.start)}"
@@ -257,6 +259,9 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                     on_clip(d)
         boundary = next_boundary
         if finished or cfg.dry_run:
+            break
+        if paths.stop_requested():
+            log("  останавливаюсь по просьбе — продолжу с этого места при следующем запуске")
             break
 
     _finish(cfg, new, work, done + new, title, link, log)

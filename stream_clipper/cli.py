@@ -66,6 +66,29 @@ def _settings(a) -> Settings:
     return cfg
 
 
+def _vod_with_memory(url: str, cfg) -> None:
+    """Нарезка по ссылке с памятью: после перезапуска уже готовые клипы не режутся заново."""
+    import json
+    import os
+    path = os.path.join(cfg.work_dir, "vod_state.json")
+    try:
+        state = json.load(open(path, encoding="utf-8"))
+    except Exception:
+        state = {}
+    done = state.get(url, [])
+    if done:
+        print(f"Продолжаю: по этой ссылке уже готово клипов: {len(done)}")
+
+    def on_clip(d):
+        state.setdefault(url, []).append(d)
+        os.makedirs(cfg.work_dir, exist_ok=True)
+        if not cfg.dry_run:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(state, f, ensure_ascii=False)
+    state.setdefault(url, list(done))
+    process_vod(url, cfg, done=done, on_clip=on_clip)
+
+
 def _channels_from_file() -> list[str]:
     """streamers.txt в папке программы: по одному стримеру в строке, # — комментарий."""
     import os
@@ -126,9 +149,16 @@ def main(argv=None) -> None:
         from . import twitch
         twitch.set_cookies_browser(a.cookies_browser)
     try:
+        import os
+        try:
+            os.remove(paths.stop_request_path())  # старый сигнал остановки не должен мешать
+        except OSError:
+            pass
         if a.cmd == "vod":
             for u in a.urls:
-                process_vod(u, cfg)
+                _vod_with_memory(u, cfg)
+                if paths.stop_requested():
+                    break
         elif a.cmd == "watch":
             from .watch import watch
             channels = a.channels or _channels_from_file()

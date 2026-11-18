@@ -521,9 +521,11 @@ class App:
         tg = ttk.LabelFrame(parent, text=" 📱 Клипы на телефон (Telegram) ", padding=6)
         tg.pack(fill="x", pady=(0, 6))
         ttk.Label(tg, justify="left", foreground="#666", text=(
-            "1) В Telegram найди @BotFather → /newbot → придумай имя → он пришлёт ключ (токен).\n"
-            "2) Вставь ключ сюда. 3) Открой своего нового бота и нажми «Старт». 4) Нажми «Подключить».\n"
-            "Каждый готовый клип будет приходить тебе в Telegram вместе с надписью — заливай прямо с телефона."
+            "1) В Telegram найди @BotFather → /newbot → придумай имя → он пришлёт ключ (токен). Вставь его сюда.\n"
+            "2) Папки по датам (лучше): создай группу → в её настройках включи «Темы» → добавь туда бота\n"
+            "    администратором с правом «Управление темами» → напиши в группе любое сообщение.\n"
+            "    Без группы: просто открой бота и нажми «Старт».   3) Нажми «Подключить».\n"
+            "Клипы приходят ФАЙЛАМИ (без потери качества); в группе бот сам заводит тему-папку на каждый день."
         )).pack(anchor="w")
         row = ttk.Frame(tg)
         row.pack(fill="x", pady=(6, 0))
@@ -554,10 +556,13 @@ class App:
 
         def work():
             try:
-                chat_id, name = telegram.find_chat(token)
-                telegram.save({"token": token, "chat_id": chat_id, "name": name, "on": True})
-                telegram.send_text("✅ Stream Clipper подключён! Сюда будут приходить готовые клипы.")
-                self.root.after(0, lambda: (self.tg_on.set(True), self.tg_status.config(text=f"✔ подключено: {name}")))
+                chat_id, name, forum = telegram.find_chat(token)
+                telegram.save({"token": token, "chat_id": chat_id, "name": name, "on": True, "forum": forum})
+                telegram.send_text("✅ Stream Clipper подключён! " + (
+                    "Клипы будут складываться в темы-папки по датам." if forum else
+                    "Сюда будут приходить готовые клипы файлами (для папок по датам подключи группу с темами)."))
+                label = f"✔ группа «{name}» (папки по датам)" if forum else f"✔ подключено: {name}"
+                self.root.after(0, lambda: (self.tg_on.set(True), self.tg_status.config(text=label)))
             except Exception as e:
                 err = str(e)
                 self.root.after(0, lambda: (self.tg_status.config(text="не подключено"),

@@ -68,18 +68,57 @@ def _call(token: str, method: str, timeout: float = 30, data: dict | None = None
     return res["result"]
 
 
-def find_chat(token: str) -> tuple[int, str] | None:
-    """Ищет чат с ботом: пользователь должен сначала написать боту /start. Возвращает (chat_id, имя)."""
+def find_chat(token: str) -> tuple[int, str, bool]:
+    """Ищет чат для клипов: группа с темами (лучше — темы работают как папки по датам) или личный чат с ботом.
+    Возвращает (chat_id, название, это_группа_с_темами)."""
     me = _call(token, "getMe")
     updates = _call(token, "getUpdates", timeout=30)
+    chats = []
     for u in reversed(updates):
-        msg = u.get("message") or u.get("edited_message") or {}
+        msg = u.get("message") or u.get("edited_message") or u.get("my_chat_member") or {}
         chat = msg.get("chat") or {}
-        if chat.get("id"):
-            name = chat.get("first_name") or chat.get("title") or chat.get("username") or "чат"
-            return chat["id"], name
-    raise RuntimeError(f"Бот @{me.get('username')} пока не получил сообщений. Открой его в Telegram, "
-                       f"нажми «Старт» (или напиши /start) и попробуй ещё раз")
+        if chat.get("id") and chat["id"] not in [c["id"] for c in chats]:
+            chats.append(chat)
+    if not chats:
+        raise RuntimeError(f"Бот @{me.get('username')} пока не получил сообщений. Открой его в Telegram, "
+                           f"нажми «Старт» (или напиши что-нибудь в группе с ботом) и попробуй ещё раз")
+    for chat in chats:  # группа с темами важнее личного чата
+        if chat.get("type") == "supergroup":
+            try:
+                info = _call(token, "getChat", data={"chat_id": chat["id"]})
+            except Exception:
+                info = chat
+            if info.get("is_forum"):
+                return chat["id"], chat.get("title") or "группа", True
+    chat = chats[0]
+    name = chat.get("first_name") or chat.get("title") or chat.get("username") or "чат"
+    return chat["id"], name, False
+
+
+def _date_label() -> str:
+    from datetime import datetime
+    return datetime.now().strftime("%d.%m.%Y")
+
+
+def _day_target(c: dict) -> dict:
+    """Куда класть клипы сегодняшнего дня: тема «📁 ДД.ММ.ГГГГ» в группе или заголовок дня в личном чате."""
+    date = _date_label()
+    if c.get("forum"):
+        topics = c.setdefault("topics", {})
+        if date not in topics:
+            try:
+                t = _call(c["token"], "createForumTopic", data={"chat_id": c["chat_id"], "name": f"📁 {date}"})
+                topics[date] = t["message_thread_id"]
+                save(c)
+            except Exception as e:
+                raise RuntimeError(f"не смог создать тему-папку «{date}» — дай боту в группе права администратора "
+                                   f"с пунктом «Управление темами» ({e})")
+        return {"message_thread_id": topics[date]}
+    if c.get("last_day") != date:  # личный чат: отделяем дни заголовком
+        _call(c["token"], "sendMessage", data={"chat_id": c["chat_id"], "text": f"📁 Клипы за {date}"})
+        c["last_day"] = date
+        save(c)
+    return {}
 
 
 def send_text(text: str) -> None:
@@ -88,7 +127,7 @@ def send_text(text: str) -> None:
 
 
 def send_clip(path: str, clip: dict, channel: str) -> str:
-    """Отправляет клип в Telegram. Возвращает короткий итог для журнала."""
+    """Отправляет клип ФАЙЛОМ (без пережатия Telegram — качество как на компьютере) в папку-тему дня."""
     c = load()
     if not (c.get("token") and c.get("chat_id")):
         return "Telegram не подключён"
@@ -99,18 +138,24 @@ def send_clip(path: str, clip: dict, channel: str) -> str:
     if clip.get("link"):
         lines.append(clip["link"])
     caption = "\n".join(lines)[:1000]
-    send_path, note = path, "отправлен в Telegram"
+    target = _day_target(c)
+    send_path, note = path, "отправлен в Telegram файлом"
     if os.path.getsize(path) > LIMIT:
-        send_path = _light_copy(path)  # облегчённая копия 720p — оригинал остаётся на компьютере
-        note = "отправлен в Telegram (облегчённая копия 720p — оригинал в папке на компьютере)"
+        send_path = _light_copy(path)  # боты не могут отправлять файлы больше 50 МБ
+        note = "в Telegram — облегчённая копия 720p (клип больше 50 МБ; оригинал в папке на компьютере)"
+        caption += "\n(облегчённая копия: оригинал больше 50 МБ и лежит в папке на компьютере)"
         if not send_path or os.path.getsize(send_path) > LIMIT:
-            send_text(caption + "\n\n(клип слишком большой для Telegram — он в папке на компьютере)")
+            _call(c["token"], "sendMessage",
+                  data={"chat_id": c["chat_id"], "text": caption + "\n\n(клип слишком большой для Telegram)", **target})
             return "клип больше 50 МБ — отправил только описание"
+    safe = "".join(ch if ch.isascii() and (ch.isalnum() or ch in "-_") else "_" for ch in channel) or "clip"
+    name = f"{safe}_{sec // 3600}h{sec % 3600 // 60:02d}m{sec % 60:02d}s.mp4"  # латиницей — везде читается
     try:
         with open(send_path, "rb") as f:
-            _call(c["token"], "sendVideo", timeout=600,
-                  data={"chat_id": c["chat_id"], "caption": caption, "supports_streaming": "true"},
-                  files={"video": (os.path.basename(path), f, "video/mp4")})
+            _call(c["token"], "sendDocument", timeout=600,
+                  data={"chat_id": c["chat_id"], "caption": caption, "disable_content_type_detection": "true",
+                        **target},
+                  files={"document": (name, f, "application/octet-stream")})
     finally:
         if send_path != path:
             try:

@@ -142,12 +142,12 @@ def download_chat(url: str, cache_path: str, refresh: bool = False, log=print) -
 
 
 def download_chat_part(url: str, cache_path: str, stop_at: float | None = None,
-                       log=print) -> tuple[list[ChatMessage], bool]:
-    """Докачивает чат с места, где остановились, до секунды stop_at стрима (None — до конца).
-    Возвращает (все сообщения, дошли ли до конца чата). Так клипы можно резать по ходу загрузки."""
+                       log=print, start_from: float = 0) -> tuple[list[ChatMessage], bool]:
+    """Докачивает чат с места, где остановились (но не раньше start_from), до секунды stop_at стрима
+    (None — до конца). Возвращает (все сообщения, дошли ли до конца чата)."""
     import time
     msgs: list[ChatMessage] = load_chat_file(cache_path) if os.path.exists(cache_path) else []
-    start = msgs[-1].t if msgs else 0
+    start = max(msgs[-1].t if msgs else 0, start_from or 0)
     if stop_at is not None and start >= stop_at:
         return msgs, False
     seen = {(m.t, m.author, m.text) for m in msgs if m.t >= start}

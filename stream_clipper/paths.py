@@ -87,3 +87,23 @@ def recordings_active(max_age: float = 180) -> list[str]:
         except OSError:
             pass
     return names
+
+
+def parse_start(text) -> float | str | None:
+    """«2:30» → 9000 сек, «2» → 7200, «сейчас»/«now» → "now", пусто/«0:00» → None (с начала)."""
+    if text is None:
+        return None
+    if isinstance(text, (int, float)):
+        return float(text) if text > 0 else None
+    t = str(text).strip().lower().split("(")[0].strip()
+    if not t or t in ("0", "0:00", "с начала", "начало"):
+        return None
+    if t in ("сейчас", "now", "с текущего момента"):
+        return "now"
+    parts = t.replace(".", ":").split(":")
+    try:
+        nums = [float(p) for p in parts]
+    except ValueError:
+        raise ValueError(f"не понял время «{text}»: пиши часы:минуты, например 1:30")
+    sec = nums[0] * 3600 + (nums[1] * 60 if len(nums) > 1 else 0) + (nums[2] if len(nums) > 2 else 0)
+    return sec if sec > 0 else None

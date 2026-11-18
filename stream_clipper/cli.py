@@ -39,6 +39,8 @@ def _common(p: argparse.ArgumentParser) -> None:
     g.add_argument("--lang", default=None, help="язык речи (ru, en...). По умолчанию — автоопределение")
     g.add_argument("--preset", default="medium", help="скорость кодирования x264: ultrafast..slow (быстрее = файл больше)")
     g.add_argument("--max-height", type=int, default=1080, help="макс. качество исходника (720/1080)")
+    p.add_argument("--from", dest="start_from", default=None,
+                   help="с какого места стрима начать анализ: 1:30 (часы:минуты) или сейчас; по умолчанию с начала")
     p.add_argument("-o", "--out", default=None,
                    help="куда складывать клипы (по умолчанию Рабочий стол\\YouTube): папки ДД.ММ.ГГГГ\\стример\\клипы")
     p.add_argument("--cookies-browser", help="брать куки из браузера (chrome/firefox/edge) — если YouTube просит войти")
@@ -51,7 +53,7 @@ def _settings(a) -> Settings:
                    min_score=a.min_score, audio=not a.no_audio, audio_weight=a.audio_weight,
                    layout=a.layout, zoom=a.zoom, subs=a.subs, whisper_model=a.whisper_model,
                    language=a.lang, max_height=a.max_height, dry_run=a.dry_run, keep_raw=a.keep_raw,
-                   preset=a.preset, caption=not a.no_caption, game_view=a.game_view,
+                   preset=a.preset, caption=not a.no_caption, game_view=a.game_view, start_from=a.start_from,
                    watermark_text=a.watermark_text, watermark_image=a.watermark_image,
                    watermark_pos=a.watermark_pos, watermark_opacity=a.watermark_opacity)
     if a.facecam:
@@ -88,7 +90,8 @@ def _vod_with_memory(url: str, cfg) -> None:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(state, f, ensure_ascii=False)
     state.setdefault(url, list(done))
-    process_vod(url, cfg, done=done, on_clip=on_clip)
+    from .pipeline import parse_start
+    process_vod(url, cfg, done=done, on_clip=on_clip, start_at=parse_start(cfg.start_from))
 
 
 def _channels_from_file() -> list[str]:

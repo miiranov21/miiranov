@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from . import daily, detect, paths, render
+from .paths import parse_start  # noqa: F401  (используется в cli/watch через pipeline)
 from .chat import ChatMessage, download_chat, load_chat_file
 
 
@@ -34,6 +35,7 @@ class Settings:
     preset: str = "medium"
     caption: bool = True      # плашка с подписью к моменту
     game_view: str = "full"   # игра в кадре: full — целиком, wide — крупнее, center — только центр
+    start_from: str | None = None  # с какого места стрима начать анализ: «1:30», «сейчас» или пусто — с начала
     watermark_text: str = ""  # водяной знак текстом, например "@мой_канал"
     watermark_image: str = "" # водяной знак картинкой (PNG)
     watermark_pos: str = "moving"   # corner | center | moving
@@ -187,7 +189,7 @@ def _finish(cfg: Settings, new: list[dict], work: str, all_clips: list[dict], ti
 
 
 def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: bool = False, log=print,
-                on_clip=None) -> list[dict]:
+                on_clip=None, start_at=None, progress: dict | None = None) -> list[dict]:
     """Обрабатывает запись стрима (Twitch/YouTube). Клипы режутся ПО ХОДУ загрузки чата:
     скачали очередные 30 минут стрима — сразу нарезали лучшие моменты оттуда.
     done — уже нарезанные клипы (чтобы не повторяться); live=True — запись ещё идёт (эфир);
@@ -235,16 +237,26 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
     step = 1800  # режем после каждых 30 минут стрима
     new: list[dict] = []
     lang = cfg.language
-    last = _last_t(cache) or 0
+    # с какого места стрима начинать анализ (выбирается в окне; «now» — с текущего момента)
+    if start_at == "now":
+        start_at = vod_duration or (_last_t(cache) or 0)
+        log(f"  начинаю с текущего момента стрима: {_fmt(start_at)} — всё, что было раньше, пропускаю")
+    start_at = float(start_at or 0)
+    if start_at and progress is not None:
+        progress["start_at"] = start_at
+    if start_at and start_at != (progress or {}).get("announced"):
+        log(f"  анализирую стрим с {_fmt(start_at)}")
+    last = max(_last_t(cache) or 0, start_at)
     if last > 60 or done:
         log(f"  продолжаю с того места, где остановились: чат уже скачан до {_fmt(last)}, "
             f"готово клипов — {len(done)}")
     # с какой секунды стрима ещё не искали моменты (при повторном проходе — после уже нарезанного)
     boundary = 0.0 if not live else max([d["end"] for d in done], default=0.0) - cfg.clip_post - cfg.clip_pre
-    boundary = max(0.0, boundary)
+    boundary = max(0.0, boundary, start_at)
     while True:
         refresh_live(cfg, log)
-        msgs, finished = download_chat_part(url, cache, None if cfg.dry_run else last + step, log)
+        msgs, finished = download_chat_part(url, cache, None if cfg.dry_run else last + step, log,
+                                            start_from=start_at)
         covered = last = msgs[-1].t if msgs else 0
         if finished and not live:
             covered = max(covered, vod_duration)
@@ -262,7 +274,8 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
             # хвост ещё не «отреагирован» чатом — возьмём на следующем шаге
             skip = skip + [{"start": max(0.0, duration - tail), "end": duration + 10 ** 6}]
         next_boundary = max(boundary, duration - tail)
-        allowed = clip_budget(cfg.top, duration) - len(done) - len(new)
+        counted = [d for d in done + new if d.get("start", 0) >= start_at - 1]
+        allowed = clip_budget(cfg.top, duration - start_at) - len(counted)
         if allowed > 0:
             hl = _analyze(msgs, duration, audio["db"], cfg, skip, log, top=allowed)
             for i, h in enumerate(hl, 1):

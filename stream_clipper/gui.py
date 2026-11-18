@@ -26,7 +26,8 @@ STREAMERS_HEADER = """# Стримеры, за которыми следит п�
 """
 DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
             "top": "3", "length": "35", "quality": "1080", "autoupdate": True,
-            "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": "плавает по экрану", "wm_op": "средне", "game_view": "целиком", "yt_browser": "не брать"}
+            "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": "плавает по экрану", "wm_op": "средне", "game_view": "целиком", "yt_browser": "не брать",
+            "start_from": "с начала"}
 WM_POS = {"плавает по экрану": "moving", "по центру": "center", "в углу": "corner"}
 GAME_VIEW = {"целиком": "full", "крупнее": "wide", "только центр": "center"}
 YT_BROWSERS = {"не брать": "", "Firefox": "firefox", "Chrome": "chrome", "Edge": "edge", "Opera": "opera",
@@ -242,6 +243,15 @@ class App:
         ttk.Entry(vod, textvariable=self.url).pack(side="left", fill="x", expand=True)
         self.b_vod = ttk.Button(vod, text="✂  Нарезать", command=self.start_vod)
         self.b_vod.pack(side="left", padx=6)
+        fromrow = ttk.Frame(main)
+        fromrow.pack(fill="x", pady=(0, 4))
+        ttk.Label(fromrow, text="Начать анализ стрима с:").pack(side="left")
+        self.v["start_from"] = tk.StringVar(value=self.cfg.get("start_from") or "с начала")
+        ttk.Combobox(fromrow, textvariable=self.v["start_from"], width=11,
+                     values=["с начала", "сейчас", "0:30", "1:00", "1:30", "2:00", "3:00", "4:00"]
+                     ).pack(side="left", padx=6)
+        ttk.Label(fromrow, foreground="#666",
+                  text="часы:минуты от начала стрима. Для ссылки и для уже идущих стримов Twitch").pack(side="left")
 
         # журнал
         logf = ttk.LabelFrame(main, text=" Что происходит ", padding=6)
@@ -647,6 +657,15 @@ class App:
             f.append("--no-caption")
         if not c["audio"]:
             f.append("--no-audio")
+        try:
+            start = paths.parse_start(c.get("start_from"))
+        except ValueError as e:
+            messagebox.showwarning("Время", str(e))
+            start = None
+        if start == "now":
+            f += ["--from", "сейчас"]
+        elif start:
+            f += ["--from", f"{int(start // 3600)}:{int(start % 3600 // 60):02d}"]
         browser = YT_BROWSERS.get(c.get("yt_browser"), "")
         if browser:
             f += ["--cookies-browser", browser]

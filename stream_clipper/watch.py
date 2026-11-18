@@ -156,8 +156,20 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
             state[vid] = saved
             if not cfg.dry_run:
                 _save(state_path, state)
+        # с какого места анализировать этот стрим: выбранное в окне запоминаем для всех следующих проходов
+        from .pipeline import parse_start
+        key = f"{vid}__from"
+        start_at = state.get(key)
+        if start_at is None and cfg.start_from and not done:
+            start_at = parse_start(cfg.start_from)
+        progress: dict = {}
         try:
-            new = process_vod(url, cfg, done=done, live=live, log=log, on_clip=on_clip)
+            new = process_vod(url, cfg, done=done, live=live, log=log, on_clip=on_clip,
+                              start_at=start_at, progress=progress)
+            if progress.get("start_at") and state.get(key) is None:
+                state[key] = progress["start_at"]
+                if not cfg.dry_run:
+                    _save(state_path, state)
         except Exception as e:
             log(f"[{src.name}] ошибка обработки: {e}")
             daily.log_event(cfg.out_dir, f"{src.name}: ошибка обработки — {e}")

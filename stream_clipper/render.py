@@ -20,8 +20,19 @@ def cut_segment(src: str, start: float, end: float, out: str) -> str:
     return out
 
 
+# сколько игры видно по ширине: целиком / крупнее (≈75%) / только центр (≈55%)
+GAME_ZOOM = {"full": 1.0, "wide": 1.333, "center": 1.85}
+# доля высоты под вебку: когда игра целиком (она невысокая), вебку делаем крупнее
+CAM_SHARE = {"full": 0.42, "wide": 0.35, "center": 0.35}
+
+
 def build_filter(layout: str, facecam: tuple[float, float, float, float] | None = None,
-                 zoom: float = 1.0, cam_share: float = 0.35) -> str:
+                 zoom: float = 1.0, cam_share: float | None = None, game_view: str | None = None) -> str:
+    z = GAME_ZOOM.get(game_view, zoom) if game_view else zoom
+    cam_share = cam_share or CAM_SHARE.get(game_view, 0.35)
+    gw = int(W * z) // 2 * 2
+    bg = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
+          f"boxblur=25:2,eq=brightness=-0.08")
     if layout == "crop":
         return f"[0:v]scale=-2:{H},crop={W}:{H}[v]"
     if layout == "facecam":
@@ -29,18 +40,18 @@ def build_filter(layout: str, facecam: tuple[float, float, float, float] | None 
             raise ValueError("для layout=facecam укажи --facecam x,y,w,h (доли кадра 0..1)")
         fx, fy, fw, fh = facecam
         ch = int(H * cam_share) // 2 * 2
-        gh = H - ch
-        return (f"[0:v]split=2[a][b];"
-                f"[a]crop=iw*{fw}:ih*{fh}:iw*{fx}:ih*{fy},"
+        # вебка сверху, под ней игра (нужной ширины), всё остальное — размытый фон
+        return (f"[0:v]split=3[a][b][c];"
+                f"[a]{bg}[bg];"
+                f"[b]crop=iw*{fw}:ih*{fh}:iw*{fx}:ih*{fy},"
                 f"scale={W}:{ch}:force_original_aspect_ratio=increase,crop={W}:{ch}[cam];"
-                f"[b]scale=-2:{gh},crop={W}:{gh}[game];"
-                f"[cam][game]vstack=inputs=2[v]")
-    # blur (по умолчанию): игра по центру, сверху/снизу размытый фон
-    fgw = int(W * zoom) // 2 * 2
+                f"[c]scale={gw}:-2,crop={W}:'min(ih,{H - ch})'[game];"
+                f"[bg][cam]overlay=0:0[t];"
+                f"[t][game]overlay=0:{ch}[v]")
+    # blur: игра по центру, сверху/снизу размытый фон
     return (f"[0:v]split=2[a][b];"
-            f"[a]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
-            f"boxblur=25:2,eq=brightness=-0.08[bg];"
-            f"[b]scale={fgw}:-2,crop={W}:ih[fg];"
+            f"[a]{bg}[bg];"
+            f"[b]scale={gw}:-2,crop={W}:'min(ih,{H})'[fg];"
             f"[bg][fg]overlay=(W-w)/2:(H-h)/2[v]")
 
 
@@ -61,12 +72,14 @@ def _wrap(text: str, width: int = 22) -> str:
     return "\\N".join(lines[:3])
 
 
-def caption_y(layout: str, zoom: float = 1.0, cam_share: float = 0.35) -> int:
+def caption_y(layout: str, zoom: float = 1.0, cam_share: float | None = None, game_view: str | None = None) -> int:
     """Где ставить плашку: на стыке вебки и игры, или в размытой полосе над игрой."""
+    cam_share = cam_share or CAM_SHARE.get(game_view, 0.35)
     if layout == "facecam":
         return int(H * cam_share) // 2 * 2
     if layout == "blur":
-        fg_h = W * zoom * 9 / 16
+        z = GAME_ZOOM.get(game_view, zoom) if game_view else zoom
+        fg_h = W * z * 9 / 16
         return int((H - fg_h) / 2 * 0.55)
     return 380
 
@@ -133,8 +146,8 @@ def _logo_xy(pos: str, with_text: bool = False) -> tuple[str, str]:
 def render_vertical(src: str, out: str, layout: str = "blur", facecam=None, zoom: float = 1.0,
                     ass_paths: list[str] | None = None, preset: str = "medium",
                     logo: str | None = None, logo_pos: str = "moving", logo_opacity: float = 0.4,
-                    logo_with_text: bool = False) -> str:
-    vf = build_filter(layout, facecam, zoom)
+                    logo_with_text: bool = False, game_view: str | None = None) -> str:
+    vf = build_filter(layout, facecam, zoom, game_view=game_view)
     cwd = None
     inputs = ["-i", os.path.abspath(src)]
     if logo and os.path.exists(logo):

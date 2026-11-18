@@ -33,6 +33,7 @@ class Settings:
     keep_raw: bool = False
     preset: str = "medium"
     caption: bool = True      # плашка с подписью к моменту
+    game_view: str = "full"   # игра в кадре: full — целиком, wide — крупнее, center — только центр
     watermark_text: str = ""  # водяной знак текстом, например "@мой_канал"
     watermark_image: str = "" # водяной знак картинкой (PNG)
     watermark_pos: str = "moving"   # corner | center | moving
@@ -110,7 +111,7 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
                             transcript, meta.get("lang", "en"), log=log)
         log(f"    подпись: {text}")
         ass_files.append(render.write_caption_ass(base + ".caption.ass", text,
-                                                  render.caption_y(layout, cfg.zoom)))
+                                                  render.caption_y(layout, cfg.zoom, game_view=cfg.game_view)))
     if cfg.watermark_text.strip():
         # знак ставим под надписью-плашкой, чтобы не закрывал её
         ass_files.insert(len(ass_files) - (1 if text else 0),
@@ -118,7 +119,8 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
                                                     cfg.watermark_pos, cfg.watermark_opacity))
     render.render_vertical(segment, out, layout, facecam, cfg.zoom, ass_files, cfg.preset,
                            logo=cfg.watermark_image or None, logo_pos=cfg.watermark_pos,
-                           logo_opacity=cfg.watermark_opacity, logo_with_text=bool(cfg.watermark_text.strip()))
+                           logo_opacity=cfg.watermark_opacity, logo_with_text=bool(cfg.watermark_text.strip()),
+                           game_view=cfg.game_view)
     for p in ass_files:
         try:
             os.remove(p)

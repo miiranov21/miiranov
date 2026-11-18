@@ -29,7 +29,9 @@ def _common(p: argparse.ArgumentParser) -> None:
                    help="где знак: corner — в углу, center — по центру, moving — плавает по экрану")
     g.add_argument("--watermark-opacity", type=float, default=0.4, help="непрозрачность знака 0.1–1 (по умолч. 0.4)")
     g.add_argument("--facecam", help="где вебка на исходнике, доли кадра: x,y,w,h (например 0.75,0.70,0.25,0.30)")
-    g.add_argument("--zoom", type=float, default=1.0, help="увеличение игры в режиме blur (например 1.4)")
+    g.add_argument("--zoom", type=float, default=1.0, help="(устарело, см. --game-view) увеличение игры")
+    g.add_argument("--game-view", choices=["full", "wide", "center"], default="full",
+                   help="сколько игры видно: full — целиком, wide — крупнее (≈75%% ширины), center — только центр")
     g.add_argument("--subs", action="store_true", default=None,
                    help="авто-субтитры (по умолчанию включаются сами, если установлен faster-whisper)")
     g.add_argument("--no-subs", dest="subs", action="store_false", help="без субтитров")
@@ -49,7 +51,7 @@ def _settings(a) -> Settings:
                    min_score=a.min_score, audio=not a.no_audio, audio_weight=a.audio_weight,
                    layout=a.layout, zoom=a.zoom, subs=a.subs, whisper_model=a.whisper_model,
                    language=a.lang, max_height=a.max_height, dry_run=a.dry_run, keep_raw=a.keep_raw,
-                   preset=a.preset, caption=not a.no_caption,
+                   preset=a.preset, caption=not a.no_caption, game_view=a.game_view,
                    watermark_text=a.watermark_text, watermark_image=a.watermark_image,
                    watermark_pos=a.watermark_pos, watermark_opacity=a.watermark_opacity)
     if a.facecam:

@@ -26,8 +26,9 @@ STREAMERS_HEADER = """# Стримеры, за которыми следит п�
 """
 DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
             "top": "3", "length": "35", "quality": "1080", "autoupdate": True,
-            "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": "плавает по экрану", "wm_op": "средне"}
+            "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": "плавает по экрану", "wm_op": "средне", "game_view": "целиком"}
 WM_POS = {"плавает по экрану": "moving", "по центру": "center", "в углу": "corner"}
+GAME_VIEW = {"целиком": "full", "крупнее": "wide", "только центр": "center"}
 WM_OP = {"слабо": 0.25, "средне": 0.4, "сильно": 0.6}
 
 
@@ -155,8 +156,13 @@ class App:
                 cb.configure(validate="key", validatecommand=digits)
                 self.v[key].trace_add("write", lambda *a: self._on_live_setting())
             cb.grid(row=r, column=1, sticky="w", padx=6)
-        ttk.Label(grid, text="можно вписать своё число;\nменяется и во время работы",
-                  foreground="#666").grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        ttk.Label(grid, text="Игра в кадре:").grid(row=3, column=0, sticky="w", pady=2)
+        gv = self.cfg.get("game_view")
+        self.v["game_view"] = tk.StringVar(value=gv if gv in GAME_VIEW else "целиком")
+        ttk.Combobox(grid, textvariable=self.v["game_view"], values=list(GAME_VIEW), width=12,
+                     state="readonly").grid(row=3, column=1, sticky="w", padx=6)
+        ttk.Label(grid, text="числа можно вписать свои;\nменяются и во время работы",
+                  foreground="#666").grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
         # ключ Claude
         keyf = ttk.LabelFrame(main, text=" Ключ Claude API для умных надписей (необязательно) ", padding=6)
@@ -479,7 +485,7 @@ class App:
         c = self.cfg
         top, pre, post = self._clip_numbers()
         f = ["-n", str(top), "--pre", str(pre), "--post", str(post),
-             "--max-height", c["quality"], "--zoom", "1.3",
+             "--max-height", c["quality"], "--game-view", GAME_VIEW.get(c.get("game_view"), "full"),
              "--layout", "auto" if c["facecam"] else "blur"]
         if c["subs"]:
             if importlib.util.find_spec("faster_whisper") is None:

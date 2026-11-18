@@ -12,7 +12,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
-from . import library, paths
+from . import library, paths, updater
 
 PROG = paths.program_dir()
 SETTINGS = os.path.join(PROG, "settings.json")
@@ -23,7 +23,7 @@ STREAMERS_HEADER = """# Стримеры, за которыми следит п�
 # YouTube — @ник канала (youtube.com/@MrBeast -> @MrBeast)
 """
 DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
-            "top": "8", "length": "35", "quality": "1080"}
+            "top": "8", "length": "35", "quality": "1080", "autoupdate": True}
 
 
 def norm_twitch(s: str) -> str:
@@ -174,10 +174,23 @@ class App:
         # журнал
         logf = ttk.LabelFrame(main, text=" Что происходит ", padding=6)
         logf.pack(fill="both", expand=True, pady=(6, 0))
-        self.log = ScrolledText(logf, height=14, font=("Consolas", 10), state="disabled", wrap="word")
+        self.log = ScrolledText(logf, height=8, font=("Consolas", 10), state="disabled", wrap="word")
         self.log.pack(fill="both", expand=True)
-        self.status = ttk.Label(main, text="Готово. Не забудь включить VPN.", anchor="w")
-        self.status.pack(fill="x", pady=(4, 0))
+        bottom = ttk.Frame(main)
+        bottom.pack(side="bottom", fill="x", pady=(4, 0), before=logf)
+        self.v["autoupdate"] = tk.BooleanVar(value=bool(self.cfg.get("autoupdate", True)))
+        ttk.Checkbutton(bottom, text="Обновляться автоматически", variable=self.v["autoupdate"]).pack(side="right")
+        ttk.Button(bottom, text="⟳ Проверить обновления",
+                   command=lambda: self.check_updates(manual=True)).pack(side="right", padx=6)
+        self.status = ttk.Label(bottom, text="Готово. Не забудь включить VPN.", anchor="w", width=10)
+        self.status.pack(side="left", fill="x", expand=True)
+        # плашка «есть новая версия» (показывается, когда нужно)
+        self.update_bar = tk.Frame(self.root, bg="#fff3c4")
+        self.update_label = tk.Label(self.update_bar, bg="#fff3c4", font=("Segoe UI", 10, "bold"))
+        self.update_label.pack(side="left", padx=10, pady=6)
+        ttk.Button(self.update_bar, text="Обновить сейчас", command=self.install_update).pack(side="right", padx=8)
+        self.pending_update = None
+        self.root.after(2500, self.check_updates)
 
     # ---------- файлы ----------
     def _platform_tab(self, title: str, hint: str, names: list[str]) -> tk.Text:
@@ -332,6 +345,8 @@ class App:
                     self._append("=== Остановлено ===\n")
                     self.proc = None
                     self._set_running(False)
+                    if self.pending_update and self.v["autoupdate"].get():
+                        self.root.after(1000, self.install_update)  # обновление ждало конца работы
                 else:
                     self._append(item)
                     if "готово ->" in item:
@@ -354,6 +369,64 @@ class App:
         self.b_stop.config(state="normal" if running else "disabled")
         if running:
             self.status.config(text=what)
+
+    # ---------- обновления ----------
+    def check_updates(self, manual: bool = False):
+        def work():
+            try:
+                info = updater.check()
+            except Exception as e:
+                info, err = None, e
+            else:
+                err = None
+            self.root.after(0, lambda: self._on_update_info(info, err, manual))
+        threading.Thread(target=work, daemon=True).start()
+        if not manual:
+            self.root.after(3 * 3600 * 1000, self.check_updates)  # и потом каждые 3 часа
+
+    def _on_update_info(self, info, err, manual):
+        if err:
+            if manual:
+                messagebox.showwarning("Обновление", f"Не удалось проверить обновления (интернет/VPN?):\n{err}")
+            return
+        if not info:
+            if manual:
+                messagebox.showinfo("Обновление", "У тебя последняя версия.")
+            return
+        self.pending_update = info
+        if self.v["autoupdate"].get() and not self.proc:
+            self.install_update()
+            return
+        self.update_label.config(text=f"Доступна новая версия программы (от {info['date']})")
+        self.update_bar.pack(side="top", fill="x", before=self.nb)
+
+    def install_update(self):
+        info = self.pending_update
+        if not info:
+            return
+        if self.proc:
+            messagebox.showinfo("Обновление", "Сначала нажми «Стоп»: обновление ставится, когда программа не режет.")
+            return
+        self._save_settings()
+        self._append(f"\n=== Обновляю программу (версия от {info['date']}) ===\n")
+        self.update_bar.pack_forget()
+
+        def work():
+            try:
+                updater.apply(info["sha"], log=lambda m: self.lines.put(m + "\n"))
+                self.root.after(0, self._restart)
+            except Exception as e:
+                self.lines.put(f"Обновление не удалось: {e}\n")
+        threading.Thread(target=work, daemon=True).start()
+
+    def _restart(self):
+        self._append("Перезапускаю программу...\n")
+        flags = 0x08000000 if os.name == "nt" else 0
+        try:
+            subprocess.Popen([sys.executable, "-m", "stream_clipper.gui"], cwd=PROG, creationflags=flags)
+        except Exception as e:
+            messagebox.showinfo("Обновление", f"Обновление установлено. Открой программу заново.\n({e})")
+        self.root.destroy()
 
     # ---------- вкладка «Клипы» ----------
     def _build_clips(self, parent):

@@ -5,3 +5,4 @@ __pycache__/
 bin/
 claude_key.txt
 settings.json
+version.txt

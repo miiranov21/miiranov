@@ -129,6 +129,14 @@ def main(argv=None) -> None:
             process_local(a.video, a.chat, cfg)
     except KeyboardInterrupt:
         print("\nОстановлено.")
+    except Exception as e:
+        msg = str(e).replace("ERROR: ", "")
+        hint = ""
+        low = msg.lower()
+        if any(w in low for w in ("ssl", "proxy", "connection", "timed out", "eof occurred", "getaddrinfo")):
+            hint = "\nПохоже, нет связи с сайтом: проверь интернет и VPN (сервер, на котором открывается Twitch)."
+        print(f"\nОШИБКА: {msg[:400]}{hint}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

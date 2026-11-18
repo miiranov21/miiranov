@@ -7,7 +7,22 @@ import os
 import yt_dlp
 from yt_dlp.utils import DownloadError, download_range_func
 
-_BASE = {"quiet": True, "no_warnings": True, "noprogress": True}
+class _QuietLogger:
+    """yt-dlp не печатает свои ошибки — программа сама пишет понятное сообщение."""
+    def debug(self, msg):
+        pass
+
+    def info(self, msg):
+        pass
+
+    def warning(self, msg):
+        pass
+
+    def error(self, msg):
+        pass
+
+
+_BASE = {"quiet": True, "no_warnings": True, "noprogress": True, "logger": _QuietLogger()}
 
 
 def set_cookies_browser(browser: str | None) -> None:
@@ -44,7 +59,7 @@ def youtube_is_live(live_url: str) -> bool:
     except DownloadError as e:
         if _is_offline_error(e) or "will begin" in str(e).lower() or "premieres" in str(e).lower():
             return False  # канал не в эфире
-        raise RuntimeError("нет связи с YouTube: " + str(e)[:200])
+        raise RuntimeError("нет связи с YouTube — проверь интернет и VPN")
     return info.get("live_status") == "is_live" or bool(info.get("is_live"))
 
 
@@ -63,7 +78,7 @@ def is_live(channel: str) -> bool:
     except DownloadError as e:
         if _is_offline_error(e):
             return False  # канал оффлайн
-        raise RuntimeError("нет связи с Twitch (провайдер блокирует? включи VPN): " + str(e)[:200])
+        raise RuntimeError("нет связи с Twitch — проверь интернет и VPN (сервер, на котором открывается Twitch)")
 
 
 def latest_vod_url(channel: str) -> str | None:

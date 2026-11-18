@@ -6,6 +6,9 @@ if errorlevel 1 goto piperr
 echo.
 echo === Checking ffmpeg (downloads it into the bin folder if missing) ===
 python -c "from stream_clipper.ffmpeg_setup import ensure_ffmpeg; ensure_ffmpeg()"
+echo.
+echo === Creating desktop icon ===
+python -m stream_clipper.shortcut
 goto done
 :piperr
 echo.

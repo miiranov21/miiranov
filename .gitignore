@@ -4,3 +4,4 @@ __pycache__/
 .venv/
 bin/
 claude_key.txt
+settings.json

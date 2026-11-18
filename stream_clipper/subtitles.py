@@ -25,6 +25,18 @@ def _ts(t: float) -> str:
     return f"{cs // 360000}:{cs // 6000 % 60:02d}:{cs // 100 % 60:02d}.{cs % 100:02d}"
 
 
+def _load_audio(media: str, sr: int = 16000):
+    """Звук клипа как массив чисел 16 кГц моно (такой ждёт распознавание речи)."""
+    import subprocess
+    import numpy as np
+    flags = 0x08000000 if __import__("os").name == "nt" else 0
+    r = subprocess.run(["ffmpeg", "-v", "error", "-i", media, "-vn", "-ac", "1", "-ar", str(sr),
+                        "-f", "s16le", "-"], capture_output=True, creationflags=flags)
+    if r.returncode != 0 or not r.stdout:
+        raise RuntimeError("не удалось достать звук из клипа: " + r.stderr.decode("utf-8", "replace")[-300:])
+    return np.frombuffer(r.stdout, dtype=np.int16).astype(np.float32) / 32768.0
+
+
 def _quiet_huggingface() -> None:
     """Прячем служебные предупреждения библиотеки скачивания моделей (про symlinks, токен и т.п.) —
     они безвредны, но пугают в журнале."""
@@ -61,14 +73,15 @@ def make_ass(media: str, ass_path: str, model: str = "small", language: str | No
              words_per_line: int = 3) -> str:
     """Распознаёт речь и пишет .ass файл. Возвращает распознанный текст ('' — речи нет)."""
     m = _get_model(model)
+    audio = _load_audio(media)  # звук вынимаем сами через ffmpeg — без капризной библиотеки av
     try:
-        segments, _ = m.transcribe(media, language=language, word_timestamps=True, vad_filter=True)
+        segments, _ = m.transcribe(audio, language=language, word_timestamps=True, vad_filter=True)
         segments = list(segments)
     except Exception as e:
         if "onnxruntime" not in str(e):
             raise
         # фильтр тишины требует onnxruntime (под новые Python его может не быть) — распознаём без него
-        segments, _ = m.transcribe(media, language=language, word_timestamps=True, vad_filter=False)
+        segments, _ = m.transcribe(audio, language=language, word_timestamps=True, vad_filter=False)
         segments = list(segments)
     words = [w for s in segments for w in (s.words or []) if w.word.strip()]
     if not words:

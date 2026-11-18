@@ -702,10 +702,29 @@ class App:
         self._run(["vod", url, *self._flags()], "Нарезаю " + url, job=["vod", url])
 
     def stop(self):
+        """Первое нажатие — аккуратно: программа дорежет начатое и сохранит прогресс.
+        Второе нажатие — остановить сразу."""
         p = self.proc
         if not p:
             return
-        self._append("\nОстанавливаю...\n")
+        if not getattr(self, "stopping", False):
+            self.stopping = True
+            try:
+                open(paths.stop_request_path(), "w").close()
+            except OSError:
+                pass
+            self._append("\nОстанавливаю аккуратно: дорежу начатое и сохраню прогресс, чтобы потом продолжить "
+                         "с этого места. Нажми «Стоп» ещё раз, чтобы остановить сразу.\n")
+            self.b_stop.config(text="■  Стоп сразу")
+            self._force_job = self.root.after(5 * 60 * 1000, self.force_stop)
+            return
+        self.force_stop()
+
+    def force_stop(self):
+        p = self.proc
+        if not p:
+            return
+        self._append("\nОстанавливаю сразу...\n")
         try:
             if os.name == "nt":  # вместе с дочерними ffmpeg
                 subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True,
@@ -730,6 +749,11 @@ class App:
                     self._append("=== Остановлено ===\n")
                     self.proc = None
                     self.job = None
+                    self.stopping = False
+                    if getattr(self, "_force_job", None):
+                        self.root.after_cancel(self._force_job)
+                        self._force_job = None
+                    self.b_stop.config(text="■  Стоп")
                     self._set_running(False)
                     if self.updating:  # остановились ради обновления — перезапускаемся и продолжим
                         self._restart()
@@ -869,7 +893,7 @@ class App:
     def _force_stop_if_stuck(self):
         if self.updating and self.proc:
             self._append("Работа не остановилась за 10 минут — останавливаю принудительно.\n")
-            self.stop()
+            self.force_stop()
 
     def _resume_after_update(self):
         try:
@@ -1154,9 +1178,10 @@ class App:
             subprocess.Popen(["xdg-open", d])
 
     def on_close(self):
-        if self.proc and not messagebox.askyesno("Выход", "Программа сейчас работает. Остановить и закрыть?"):
+        if self.proc and not messagebox.askyesno("Выход", "Программа сейчас работает. Остановить и закрыть?\n"
+                                                          "(Лучше сначала нажать «Стоп» — тогда прогресс сохранится.)"):
             return
-        self.stop()
+        self.force_stop()
         self._save_settings()
         self._autosave_streamers()
         self.root.destroy()

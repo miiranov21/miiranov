@@ -96,16 +96,60 @@ class LiveSession:
         self.is_youtube = "youtube" in (info.get("extractor") or "").lower()
         self.stream_start = info.get("release_timestamp") or info.get("timestamp")
         self.rec_start = time.time()
-        self.work = os.path.join(self.cfg.work_dir,
-                                 f"live_{self.vid}_{datetime.now().strftime('%Y%m%d-%H%M%S')}")
+        prev = self._previous_session()
+        if prev:
+            # тот же эфир уже записывали — продолжаем, а не начинаем заново
+            self.work, state = prev
+            self.rec_start = float(state.get("rec_start", self.rec_start))
+            self.done = list(state.get("done", []))
+            self.cutoff = float(state.get("cutoff", 0.0))
+            self._load_chat()
+            self.log(f"[{self.channel}] продолжаю запись эфира «{self.title}»: уже готово клипов — {len(self.done)}, "
+                     f"нарезанное раньше не повторится")
+        else:
+            self.work = os.path.join(self.cfg.work_dir,
+                                     f"live_{self.vid}_{datetime.now().strftime('%Y%m%d-%H%M%S')}")
+            self.log(f"[{self.channel}] начинаю запись эфира «{self.title}»")
         self.chunks_dir = os.path.join(self.work, "chunks")
         os.makedirs(self.chunks_dir, exist_ok=True)
-        self.log(f"[{self.channel}] начинаю запись эфира «{self.title}»")
+        self._save_state()
         self._touch_marker()
         for target in (self._record_loop, self._chat_loop):
             th = threading.Thread(target=target, daemon=True)
             th.start()
             self.threads.append(th)
+
+    # ---------- прогресс эфира (чтобы после «Стоп» продолжить, а не начинать заново) ----------
+    def _previous_session(self):
+        """Папка прошлой записи этого же эфира (за последние 12 часов) и её состояние."""
+        best = None
+        for d in glob.glob(os.path.join(self.cfg.work_dir, f"live_{self.vid}_*")):
+            st = os.path.join(d, "state.json")
+            try:
+                if time.time() - os.path.getmtime(st) > 12 * 3600:
+                    continue
+                with open(st, encoding="utf-8") as f:
+                    state = json.load(f)
+            except Exception:
+                continue
+            if best is None or os.path.getmtime(st) > best[2]:
+                best = (d, state, os.path.getmtime(st))
+        return (best[0], best[1]) if best else None
+
+    def _save_state(self) -> None:
+        try:
+            with open(os.path.join(self.work, "state.json"), "w", encoding="utf-8") as f:
+                json.dump({"rec_start": self.rec_start, "done": self.done, "cutoff": self.cutoff,
+                           "title": self.title, "vid": self.vid}, f, ensure_ascii=False)
+        except OSError:
+            pass
+
+    def _load_chat(self) -> None:
+        try:
+            with open(os.path.join(self.work, "chat.json"), encoding="utf-8") as f:
+                self.msgs = [ChatMessage(**m) for m in json.load(f)]
+        except Exception:
+            self.msgs = []
 
     def _marker(self) -> str:
         safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in self.channel) or "live"
@@ -124,6 +168,8 @@ class LiveSession:
         except OSError:
             pass
         self.stop_evt.set()
+        if hasattr(self, "work"):
+            self._save_state()
         if self.proc and self.proc.poll() is None:
             self.proc.terminate()
             try:
@@ -401,6 +447,7 @@ class LiveSession:
                         if os.path.exists(p):
                             os.remove(p)
         _finish(cfg, new, self.work, self.done, self.title, None, log)
+        self._save_state()
         return new
 
     def cleanup(self) -> None:

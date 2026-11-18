@@ -236,6 +236,9 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
     new: list[dict] = []
     lang = cfg.language
     last = _last_t(cache) or 0
+    if last > 60 or done:
+        log(f"  продолжаю с того места, где остановились: чат уже скачан до {_fmt(last)}, "
+            f"готово клипов — {len(done)}")
     # с какой секунды стрима ещё не искали моменты (при повторном проходе — после уже нарезанного)
     boundary = 0.0 if not live else max([d["end"] for d in done], default=0.0) - cfg.clip_post - cfg.clip_pre
     boundary = max(0.0, boundary)

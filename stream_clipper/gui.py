@@ -597,6 +597,7 @@ class App:
         if self.proc:
             return
         self.job = job
+        self._last_job = job
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
         flags = 0x08000000 if os.name == "nt" else 0  # CREATE_NO_WINDOW
         cmd = [_python_exe(), "-m", "stream_clipper", *args]
@@ -666,6 +667,16 @@ class App:
                     if self.updating:  # остановились ради обновления — перезапускаемся и продолжим
                         self._restart()
                         return
+                    if getattr(self, "restart_worker", False):  # обновилась только рабочая часть
+                        self.restart_worker = False
+                        job = self._last_job
+                        self._append("=== Продолжаю работу на новой версии ===\n")
+                        if job and job[0] == "vod" and len(job) > 1:
+                            self.url.set(job[1])
+                            self.root.after(500, self.start_vod)
+                        else:
+                            self.root.after(500, self.start_watch)
+                        continue
                     if self.pending_update and self.v["autoupdate"].get():
                         self.root.after(1000, self.install_update)
                 else:
@@ -734,15 +745,33 @@ class App:
 
         def work():
             try:
-                updater.apply(info["sha"], log=lambda m: self.lines.put(m + "\n"))
+                changed = updater.apply(info["sha"], log=lambda m: self.lines.put(m + "\n"))
             except Exception as e:
                 self.lines.put(f"Обновление не удалось: {e}\n")
                 self.updating = False
                 return
-            self.root.after(0, self._after_files_updated)
+            self.root.after(0, lambda: self._after_files_updated(changed))
         threading.Thread(target=work, daemon=True).start()
 
-    def _after_files_updated(self):
+    def _after_files_updated(self, changed=None):
+        changed = changed if changed is not None else ["stream_clipper/gui.py"]
+        self.pending_update = None
+        if not updater.needs_window_restart(changed):
+            # поменялась только «рабочая» часть — окно не трогаем
+            self.updating = False
+            if not changed:
+                self._append("Обновление установлено (менять ничего не пришлось).\n")
+            elif self.proc:
+                self.restart_worker = True
+                self._append("Обновление установлено. Перезапускаю только рабочую часть "
+                             "(окно не закрывается, работа продолжится сама)...\n")
+                try:
+                    open(paths.stop_request_path(), "w").close()
+                except OSError:
+                    pass
+            else:
+                self._append("Обновление установлено — окно перезапускать не нужно.\n")
+            return
         if not self.proc:
             self._restart()
             return

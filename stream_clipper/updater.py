@@ -69,8 +69,8 @@ def check(root: str | None = None) -> dict | None:
     return {"sha": sha, "date": when}
 
 
-def apply(sha: str, root: str | None = None, log=print) -> bool:
-    """Скачивает версию и раскладывает файлы поверх программы. True — если поменялись библиотеки."""
+def apply(sha: str, root: str | None = None, log=print) -> list[str]:
+    """Скачивает версию и раскладывает файлы поверх программы. Возвращает список изменившихся файлов."""
     root = root or paths.program_dir()
     url = f"https://codeload.github.com/{REPO}/zip/{sha}"
     log("Скачиваю обновление...")
@@ -78,6 +78,7 @@ def apply(sha: str, root: str | None = None, log=print) -> bool:
                                 timeout=120) as r:
         data = r.read()
     old_req = _read(os.path.join(root, "requirements.txt"))
+    changed: list[str] = []
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         names = z.namelist()
         top = names[0].split("/")[0] + "/"
@@ -88,21 +89,37 @@ def apply(sha: str, root: str | None = None, log=print) -> bool:
             dest = os.path.join(root, *rel.split("/"))
             if os.path.basename(rel) in KEEP and os.path.exists(dest):
                 continue
+            content = z.read(name)
+            try:
+                with open(dest, "rb") as f:
+                    if f.read() == content:
+                        continue  # файл не поменялся
+            except OSError:
+                pass
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             tmp = dest + ".new"
-            with z.open(name) as src, open(tmp, "wb") as out:
-                shutil.copyfileobj(src, out)
+            with open(tmp, "wb") as out:
+                out.write(content)
             os.replace(tmp, dest)
+            changed.append(rel)
     with open(_version_file(root), "w", encoding="utf-8") as f:
         f.write(sha)
-    changed = _read(os.path.join(root, "requirements.txt")) != old_req
-    if changed:
+    if _read(os.path.join(root, "requirements.txt")) != old_req:
         log("Ставлю новые библиотеки...")
         flags = 0x08000000 if os.name == "nt" else 0
         subprocess.run([python_exe(), "-m", "pip", "install", "-q", "-r", os.path.join(root, "requirements.txt")],
                        cwd=root, creationflags=flags)
     log("Обновление установлено.")
     return changed
+
+
+# файлы, которые использует само окно программы: если поменялись они — окно надо перезапустить
+WINDOW_FILES = {"stream_clipper/gui.py", "stream_clipper/updater.py", "stream_clipper/library.py",
+                "stream_clipper/paths.py", "stream_clipper/facecam.py", "stream_clipper/__init__.py"}
+
+
+def needs_window_restart(changed: list[str]) -> bool:
+    return any(c.replace("\\", "/") in WINDOW_FILES for c in changed)
 
 
 def _read(p: str) -> str:

@@ -44,14 +44,57 @@ def build_filter(layout: str, facecam: tuple[float, float, float, float] | None 
             f"[bg][fg]overlay=(W-w)/2:(H-h)/2[v]")
 
 
+CAPTION_STYLE = ("Style: Caption,Arial,68,&H00111111,&H00111111,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,"
+                 "100,100,0,0,3,16,0,5,40,40,0,1")
+
+
+def _wrap(text: str, width: int = 22) -> str:
+    words, lines, cur = text.split(), [], ""
+    for w in words:
+        if cur and len(cur) + 1 + len(w) > width:
+            lines.append(cur)
+            cur = w
+        else:
+            cur = f"{cur} {w}".strip()
+    if cur:
+        lines.append(cur)
+    return "\\N".join(lines[:3])
+
+
+def caption_y(layout: str, zoom: float = 1.0, cam_share: float = 0.35) -> int:
+    """Где ставить плашку: на стыке вебки и игры, или в размытой полосе над игрой."""
+    if layout == "facecam":
+        return int(H * cam_share) // 2 * 2
+    if layout == "blur":
+        fg_h = W * zoom * 9 / 16
+        return int((H - fg_h) / 2 * 0.55)
+    return 380
+
+
+def write_caption_ass(path: str, text: str, y: int, duration: float = 600) -> str:
+    from .subtitles import _ts
+    safe = text.replace("{", "(").replace("}", ")").replace("\n", " ")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 2\n\n"
+                "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
+                "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, "
+                "Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+                f"{CAPTION_STYLE}\n\n[Events]\n"
+                "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+                f"Dialogue: 1,{_ts(0)},{_ts(duration)},Caption,,0,0,0,,{{\\an5\\pos(540,{y})}}{_wrap(safe)}\n")
+    return path
+
+
 def render_vertical(src: str, out: str, layout: str = "blur", facecam=None, zoom: float = 1.0,
-                    ass_path: str | None = None, preset: str = "medium") -> str:
+                    ass_paths: list[str] | None = None, preset: str = "medium") -> str:
     vf = build_filter(layout, facecam, zoom)
     cwd = None
-    if ass_path:
+    ass_paths = [p for p in (ass_paths or []) if p]
+    if ass_paths:
         # ffmpeg плохо переваривает пути с ":" (Windows) в фильтре ass — запускаем из папки субтитров
-        cwd = os.path.dirname(os.path.abspath(ass_path))
-        vf = vf[: -len("[v]")] + f"[v0];[v0]ass={os.path.basename(ass_path)}[v]"
+        cwd = os.path.dirname(os.path.abspath(ass_paths[0]))
+        chain = ",".join(f"ass={os.path.basename(p)}" for p in ass_paths)
+        vf = vf[: -len("[v]")] + f"[v0];[v0]{chain}[v]"
     _run(["ffmpeg", "-y", "-v", "error", "-i", os.path.abspath(src), "-filter_complex", vf,
           "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", preset, "-crf", "20",
           "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",

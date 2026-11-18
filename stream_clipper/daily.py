@@ -111,14 +111,15 @@ def write_day_report(folder: str) -> str:
         titles = sorted({c.get("vod_title", "") for c in cs if c.get("vod_title")})
         for t in titles:
             L.append(f"Стрим: *{t}*")
-        L += ["", "| # | Создан | Момент на стриме | Длина | Оценка | Файл | Что писал чат |",
+        L += ["", "| # | Создан | Момент на стриме | Подпись | Оценка | Файл | Что писал чат |",
               "|---|---|---|---|---|---|---|"]
         for i, c in enumerate(sorted(cs, key=lambda c: (c.get("vod_url", ""), c["start"])), 1):
             moment = _fmt(c.get("moment", c["start"]))
             if c.get("link"):
                 moment = f"[{moment}]({c['link']})"
             chat = " · ".join(c.get("top_messages", [])[:4]).replace("|", "/")
-            L.append(f"| {i} | {c.get('created', '')} | {moment} | {int(c['end'] - c['start'])} с | "
+            cap = (c.get("caption") or "").replace("|", "/")
+            L.append(f"| {i} | {c.get('created', '')} | {moment} | {cap} | "
                      f"{c['score']} | {c['file'].replace(os.sep, '/')} | {chat} |")
         L.append("")
     if data["events"]:

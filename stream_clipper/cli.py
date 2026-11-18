@@ -19,8 +19,10 @@ def _common(p: argparse.ArgumentParser) -> None:
     g.add_argument("--audio-weight", type=float, default=0.6, help="вес громкости относительно чата")
     g.add_argument("--keywords", help="файл со своими словами-триггерами (по одному в строке), добавляются к стандартным")
     g = p.add_argument_group("видео")
-    g.add_argument("--layout", choices=["blur", "crop", "facecam"], default="blur",
-                   help="blur = игра по центру + размытый фон; crop = обрезка по центру; facecam = вебка сверху, игра снизу")
+    g.add_argument("--layout", choices=["auto", "blur", "crop", "facecam"], default="auto",
+                   help="auto = сама ищет вебку стримера и ставит её сверху (иначе blur); blur = игра на размытом фоне; "
+                        "crop = обрезка по центру; facecam = вебка сверху по координатам --facecam")
+    g.add_argument("--no-caption", action="store_true", help="без плашки с подписью")
     g.add_argument("--facecam", help="где вебка на исходнике, доли кадра: x,y,w,h (например 0.75,0.70,0.25,0.30)")
     g.add_argument("--zoom", type=float, default=1.0, help="увеличение игры в режиме blur (например 1.4)")
     g.add_argument("--subs", action="store_true", help="авто-субтитры (нужен faster-whisper)")
@@ -40,7 +42,7 @@ def _settings(a) -> Settings:
                    min_score=a.min_score, audio=not a.no_audio, audio_weight=a.audio_weight,
                    layout=a.layout, zoom=a.zoom, subs=a.subs, whisper_model=a.whisper_model,
                    language=a.lang, max_height=a.max_height, dry_run=a.dry_run, keep_raw=a.keep_raw,
-                   preset=a.preset)
+                   preset=a.preset, caption=not a.no_caption)
     if a.facecam:
         try:
             cfg.facecam = tuple(float(x) for x in a.facecam.split(","))

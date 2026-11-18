@@ -217,6 +217,8 @@ class LiveSession:
             skip.append({"start": max(0.0, now_t - tail), "end": now_t + tail})
         log(f"[{self.channel}] {'финальный' if final else 'промежуточный'} проход по записи эфира")
         hl = _analyze(msgs, duration, audio_db, cfg, skip, log)
+        from .caption import detect_language
+        lang = cfg.language or detect_language([m.text for m in msgs], self.title)
 
         new = []
         for i, h in enumerate(hl, 1):
@@ -233,7 +235,8 @@ class LiveSession:
             try:
                 seg = self._cut(chunks, h.start, h.end, os.path.join(self.work, name + "_raw.mp4"))
                 tmp = os.path.join(self.work, name + ".mp4")
-                _make_short(seg, tmp, cfg, log)
+                d["caption"] = _make_short(seg, tmp, cfg, log, {"streamer": self.channel, "title": self.title,
+                                                                "top_messages": h.top_messages, "lang": lang})
                 os.remove(seg)
                 d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, self.channel)
                 log(f"  [{i}/{len(hl)}] готово -> {d['file']}")

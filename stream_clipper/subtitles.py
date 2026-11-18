@@ -35,12 +35,12 @@ def _get_model(name: str):
 
 
 def make_ass(media: str, ass_path: str, model: str = "small", language: str | None = None,
-             words_per_line: int = 3) -> bool:
-    """Распознаёт речь и пишет .ass файл. Возвращает False, если речи нет."""
+             words_per_line: int = 3) -> str:
+    """Распознаёт речь и пишет .ass файл. Возвращает распознанный текст ('' — речи нет)."""
     segments, _ = _get_model(model).transcribe(media, language=language, word_timestamps=True, vad_filter=True)
     words = [w for s in segments for w in (s.words or []) if w.word.strip()]
     if not words:
-        return False
+        return ""
     lines, cur = [], []
     for w in words:
         if cur and (len(cur) >= words_per_line or w.start - cur[-1].end > 0.6):
@@ -59,4 +59,4 @@ def make_ass(media: str, ass_path: str, model: str = "small", language: str | No
             text = " ".join(w.word.strip() for w in ln).upper()
             text = text.replace("{", "(").replace("}", ")").replace("\n", " ")
             f.write(f"Dialogue: 0,{_ts(start)},{_ts(end)},Default,,0,0,0,,{text}\n")
-    return True
+    return " ".join(w.word.strip() for w in words)

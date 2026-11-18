@@ -22,7 +22,7 @@ class Settings:
     min_score: float = 3.0
     audio: bool = True
     audio_weight: float = 0.6
-    layout: str = "blur"
+    layout: str = "auto"      # auto = вебка сверху, если найдена, иначе blur
     facecam: tuple | None = None
     zoom: float = 1.0
     subs: bool = False
@@ -32,6 +32,7 @@ class Settings:
     dry_run: bool = False
     keep_raw: bool = False
     preset: str = "medium"
+    caption: bool = True      # плашка с подписью к моменту
     hype_words: list = field(default_factory=lambda: list(detect.DEFAULT_HYPE))
 
 
@@ -66,20 +67,46 @@ def write_report(folder: str, clips: list[dict], source: str, link_fn=None) -> N
         json.dump(clips, f, ensure_ascii=False, indent=2)
 
 
-def _make_short(segment: str, out: str, cfg: Settings, log) -> None:
-    ass = None
-    if cfg.subs:
-        ass = os.path.splitext(out)[0] + ".ass"
+def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = None) -> str:
+    """Собирает вертикальный клип. Возвращает подпись (или '')."""
+    meta = meta or {}
+    layout, facecam = cfg.layout, cfg.facecam
+    if layout == "auto":
+        from .facecam import detect_facecam
         try:
-            if not render_subs(segment, ass, cfg):
-                ass = None
+            facecam = cfg.facecam or detect_facecam(segment)
+        except Exception as e:
+            log(f"    поиск вебки не удался: {e}")
+            facecam = None
+        layout = "facecam" if facecam else "blur"
+        log(f"    вебка {'найдена — ставлю её сверху' if facecam else 'не найдена — игра на размытом фоне'}")
+    base = os.path.splitext(out)[0]
+    ass_files, transcript = [], ""
+    if cfg.subs:
+        try:
+            transcript = render_subs(segment, base + ".ass", cfg)
+            if transcript:
+                ass_files.append(base + ".ass")
         except Exception as e:  # субтитры — не критично
             log(f"    субтитры не получились: {e}")
-            ass = None
-    render.render_vertical(segment, out, cfg.layout, cfg.facecam, cfg.zoom, ass, cfg.preset)
+    text = ""
+    if cfg.caption:
+        from .caption import make_caption
+        text = make_caption(meta.get("streamer", ""), meta.get("title", ""), meta.get("top_messages", []),
+                            transcript, meta.get("lang", "en"), log=log)
+        log(f"    подпись: {text}")
+        ass_files.append(render.write_caption_ass(base + ".caption.ass", text,
+                                                  render.caption_y(layout, cfg.zoom)))
+    render.render_vertical(segment, out, layout, facecam, cfg.zoom, ass_files, cfg.preset)
+    for p in ass_files:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+    return text
 
 
-def render_subs(segment: str, ass: str, cfg: Settings) -> bool:
+def render_subs(segment: str, ass: str, cfg: Settings) -> str:
     from .subtitles import make_ass
     return make_ass(segment, ass, cfg.whisper_model, cfg.language)
 
@@ -148,6 +175,8 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
         tail = cfg.clip_post + cfg.chat_lag + 60
         skip.append({"start": max(0.0, duration - tail), "end": duration + tail})
     hl = _analyze(msgs, duration, audio_db, cfg, skip, log)
+    from .caption import detect_language
+    lang = cfg.language or detect_language([m.text for m in msgs], title)
     new = []
     if yt:
         link = lambda s: f"https://youtu.be/{vid}?t={int(s)}"
@@ -161,7 +190,8 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
             try:
                 seg = twitch.download_section(url, h.start, h.end, os.path.join(work, name + "_raw"), cfg.max_height)
                 tmp = os.path.join(work, name + ".mp4")
-                _make_short(seg, tmp, cfg, log)
+                d["caption"] = _make_short(seg, tmp, cfg, log, {"streamer": channel, "title": title,
+                                                                "top_messages": h.top_messages, "lang": lang})
                 if not cfg.keep_raw:
                     os.remove(seg)
                 d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, channel)
@@ -190,6 +220,8 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
         audio_db = loudness_per_second(video)
     duration = len(audio_db) if audio_db is not None else (msgs[-1].t if msgs else 0)
     hl = _analyze(msgs, duration, audio_db, cfg, [], log)
+    from .caption import detect_language
+    lang = cfg.language or detect_language([m.text for m in msgs], name)
     clips = []
     for i, h in enumerate(hl, 1):
         d = dict(h.to_dict(), vod_title=name)
@@ -197,7 +229,8 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
             base = f"{name}_{_fmt(h.start)}"
             seg = render.cut_segment(video, h.start, h.end, os.path.join(work, base + "_raw.mp4"))
             tmp = os.path.join(work, base + ".mp4")
-            _make_short(seg, tmp, cfg, log)
+            d["caption"] = _make_short(seg, tmp, cfg, log, {"streamer": name, "title": name,
+                                                            "top_messages": h.top_messages, "lang": lang})
             if not cfg.keep_raw:
                 os.remove(seg)
             d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, name)

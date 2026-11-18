@@ -95,7 +95,7 @@ class App:
         self.lines: queue.Queue = queue.Queue()
         self.cfg = _load_json(SETTINGS, DEFAULTS)
         root.title("Stream Clipper — нарезки для Shorts")
-        root.geometry("920x910")
+        root.geometry("920x820")
         root.minsize(700, 640)
         try:
             root.iconbitmap(os.path.join(PROG, "icon.ico"))
@@ -112,8 +112,11 @@ class App:
         self.nb.pack(fill="both", expand=True)
         main = ttk.Frame(self.nb, padding=8)
         clips = ttk.Frame(self.nb, padding=8)
+        sett = ttk.Frame(self.nb, padding=8)
         self.nb.add(main, text="  Управление  ")
         self.nb.add(clips, text="  Клипы  ")
+        self.nb.add(sett, text="  Настройки  ")
+        self.sett = sett
         self._build_clips(clips)
         self.nb.bind("<<NotebookTabChanged>>", lambda e: self.refresh_clips())
 
@@ -168,7 +171,7 @@ class App:
                   foreground="#666").grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
         # ключ Claude
-        keyf = ttk.LabelFrame(main, text=" Ключ Claude API для умных надписей (необязательно) ", padding=6)
+        keyf = ttk.LabelFrame(sett, text=" Ключ Claude API для умных надписей (необязательно) ", padding=6)
         keyf.pack(fill="x", pady=6)
         self.key = tk.StringVar(value=self._read_key())
         ttk.Entry(keyf, textvariable=self.key, show="•").pack(side="left", fill="x", expand=True)
@@ -177,7 +180,7 @@ class App:
         self.key_status.pack(side="left")
         self._update_key_status()
         # вход в YouTube из браузера — чтобы YouTube не считал программу ботом (часто бывает через VPN)
-        ytf = ttk.Frame(main)
+        ytf = ttk.Frame(sett)
         ytf.pack(fill="x", pady=(0, 6))
         ttk.Label(ytf, text="Вход в YouTube через браузер:").pack(side="left")
         yb = self.cfg.get("yt_browser")
@@ -188,7 +191,7 @@ class App:
                   foreground="#666").pack(side="left")
 
         # водяной знак
-        wm = ttk.LabelFrame(main, text=" Водяной знак — чтобы клипы не крали ", padding=6)
+        wm = ttk.LabelFrame(sett, text=" Водяной знак — чтобы клипы не крали ", padding=6)
         wm.pack(fill="x", pady=(0, 6))
         r1 = ttk.Frame(wm)
         r1.pack(fill="x")
@@ -218,6 +221,8 @@ class App:
                      state="readonly").pack(side="left", padx=4)
         ttk.Label(r2, text="  «плавает» — лучшая защита: знак нельзя обрезать или замазать",
                   foreground="#666").pack(side="left")
+
+        self._build_telegram(sett)
 
         # кнопки
         btns = ttk.Frame(main)
@@ -498,6 +503,68 @@ class App:
         elif os.path.exists(KEYFILE):
             os.remove(KEYFILE)
         self._update_key_status()
+
+    # ---------- телефон: Telegram ----------
+    def _build_telegram(self, parent):
+        from . import telegram
+        cfg = telegram.load()
+        tg = ttk.LabelFrame(parent, text=" 📱 Клипы на телефон (Telegram) ", padding=6)
+        tg.pack(fill="x", pady=(0, 6))
+        ttk.Label(tg, justify="left", foreground="#666", text=(
+            "1) В Telegram найди @BotFather → /newbot → придумай имя → он пришлёт ключ (токен).\n"
+            "2) Вставь ключ сюда. 3) Открой своего нового бота и нажми «Старт». 4) Нажми «Подключить».\n"
+            "Каждый готовый клип будет приходить тебе в Telegram вместе с надписью — заливай прямо с телефона."
+        )).pack(anchor="w")
+        row = ttk.Frame(tg)
+        row.pack(fill="x", pady=(6, 0))
+        self.tg_on = tk.BooleanVar(value=bool(cfg.get("on")))
+        ttk.Checkbutton(row, text="Отправлять клипы", variable=self.tg_on, command=self._tg_toggle).pack(side="left")
+        ttk.Label(row, text="  Ключ бота:").pack(side="left")
+        self.tg_token = tk.StringVar(value=cfg.get("token", ""))
+        ttk.Entry(row, textvariable=self.tg_token, show="•", width=24).pack(side="left", padx=4)
+        ttk.Button(row, text="Подключить", command=self._tg_connect).pack(side="left")
+        ttk.Button(row, text="Проверить", command=self._tg_test).pack(side="left", padx=4)
+        self.tg_status = ttk.Label(row, text=("✔ подключено: " + cfg.get("name", "")) if cfg.get("chat_id")
+                                   else "не подключено", foreground="#666")
+        self.tg_status.pack(side="left", padx=6)
+
+    def _tg_toggle(self):
+        from . import telegram
+        cfg = telegram.load()
+        cfg["on"] = bool(self.tg_on.get())
+        telegram.save(cfg)
+
+    def _tg_connect(self):
+        from . import telegram
+        token = self.tg_token.get().strip()
+        if not token:
+            messagebox.showinfo("Telegram", "Сначала вставь ключ бота от @BotFather.")
+            return
+        self.tg_status.config(text="подключаю...")
+
+        def work():
+            try:
+                chat_id, name = telegram.find_chat(token)
+                telegram.save({"token": token, "chat_id": chat_id, "name": name, "on": True})
+                telegram.send_text("✅ Stream Clipper подключён! Сюда будут приходить готовые клипы.")
+                self.root.after(0, lambda: (self.tg_on.set(True), self.tg_status.config(text=f"✔ подключено: {name}")))
+            except Exception as e:
+                err = str(e)
+                self.root.after(0, lambda: (self.tg_status.config(text="не подключено"),
+                                            messagebox.showwarning("Telegram", f"Не получилось подключить:\n{err}")))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _tg_test(self):
+        from . import telegram
+
+        def work():
+            try:
+                telegram.send_text("👋 Проверка связи от Stream Clipper")
+                self.root.after(0, lambda: self.tg_status.config(text="✔ сообщение отправлено — проверь Telegram"))
+            except Exception as e:
+                err = str(e)
+                self.root.after(0, lambda: messagebox.showwarning("Telegram", f"Не отправилось:\n{err}"))
+        threading.Thread(target=work, daemon=True).start()
 
     def choose_logo(self):
         path = filedialog.askopenfilename(title="Логотип для водяного знака",

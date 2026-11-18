@@ -10,7 +10,7 @@ from .pipeline import Settings, process_local, process_vod
 
 def _common(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("поиск моментов")
-    g.add_argument("-n", "--top", type=int, default=10, help="сколько шортсов максимум (по умолч. 10)")
+    g.add_argument("-n", "--top", type=int, default=3, help="сколько клипов на каждый час стрима (по умолч. 3)")
     g.add_argument("--pre", type=float, default=20, help="секунд ДО пика (по умолч. 20)")
     g.add_argument("--post", type=float, default=15, help="секунд ПОСЛЕ пика (по умолч. 15)")
     g.add_argument("--lag", type=int, default=5, help="задержка реакции чата, сек (по умолч. 5)")
@@ -62,11 +62,14 @@ def _settings(a) -> Settings:
 def _channels_from_file() -> list[str]:
     """streamers.txt в папке программы: по одному стримеру в строке, # — комментарий."""
     import os
-    path = os.path.join(paths.program_dir(), "streamers.txt")
-    if not os.path.exists(path):
-        return []
-    with open(path, encoding="utf-8-sig") as f:
-        return [ln.split("#")[0].strip() for ln in f if ln.split("#")[0].strip()]
+    for path in (os.path.join(paths.program_dir(), "streamers.txt"),
+                 os.path.join(paths.default_work_dir(), "streamers.txt")):  # запасная копия
+        if os.path.exists(path):
+            with open(path, encoding="utf-8-sig") as f:
+                names = [ln.split("#")[0].strip() for ln in f if ln.split("#")[0].strip()]
+            if names:
+                return names
+    return []
 
 
 def main(argv=None) -> None:

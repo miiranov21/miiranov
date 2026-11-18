@@ -131,27 +131,33 @@ def iter_twitch_vod_chat(video_id: str, start: float = 0, log=print, session=Non
 
 
 def download_chat(url: str, cache_path: str, refresh: bool = False, log=print) -> list[ChatMessage]:
-    """Скачивает реплей чата VOD (с кэшем). refresh=True докачивает новые сообщения
-    (нужно для VOD, который ещё идёт в прямом эфире)."""
-    msgs: list[ChatMessage] = []
-    if os.path.exists(cache_path):
+    """Скачивает реплей чата VOD целиком (с кэшем). refresh=True докачивает новые сообщения."""
+    if os.path.exists(cache_path) and not refresh:
         msgs = load_chat_file(cache_path)
-        if not refresh:
-            log(f"  чат из кэша: {len(msgs)} сообщений")
-            return msgs
+        log(f"  чат из кэша: {len(msgs)} сообщений")
+        return msgs
+    return download_chat_part(url, cache_path, None, log)[0]
 
-    start = msgs[-1].t if msgs else 0
-    seen = {(m.t, m.author, m.text) for m in msgs if m.t >= start}
-    log(f"  скачиваю чат с {int(start)} сек...")
-    vid = _twitch_video_id(url)
-    if vid:
-        source = iter_twitch_vod_chat(vid, start, log=log)
-    else:
-        source = _iter_chat_downloader(url, start)
-    new = 0
-    last_log = 0.0
+
+def download_chat_part(url: str, cache_path: str, stop_at: float | None = None,
+                       log=print) -> tuple[list[ChatMessage], bool]:
+    """Докачивает чат с места, где остановились, до секунды stop_at стрима (None — до конца).
+    Возвращает (все сообщения, дошли ли до конца чата). Так клипы можно резать по ходу загрузки."""
     import time
-    log("    (нажми Ctrl+C один раз, чтобы перестать качать чат и резать из уже скачанного)")
+    msgs: list[ChatMessage] = load_chat_file(cache_path) if os.path.exists(cache_path) else []
+    start = msgs[-1].t if msgs else 0
+    if stop_at is not None and start >= stop_at:
+        return msgs, False
+    seen = {(m.t, m.author, m.text) for m in msgs if m.t >= start}
+    log(f"  скачиваю чат с {int(start // 3600)}ч{int(start % 3600 // 60):02d}м"
+        + (f" до {int(stop_at // 3600)}ч{int(stop_at % 3600 // 60):02d}м..." if stop_at else "..."))
+    vid = _twitch_video_id(url)
+    source = iter_twitch_vod_chat(vid, start, log=log) if vid else _iter_chat_downloader(url, start)
+    new = 0
+    last_log = time.time()
+    finished = True
+    if stop_at is None:
+        log("    (нажми Ctrl+C один раз, чтобы перестать качать чат и резать из уже скачанного)")
     try:
         for m in source:
             key = (m.t, m.author, m.text)
@@ -160,6 +166,9 @@ def download_chat(url: str, cache_path: str, refresh: bool = False, log=print) -
             seen.add(key)
             msgs.append(m)
             new += 1
+            if stop_at is not None and m.t > stop_at:
+                finished = False  # дошли до нужного места — дальше докачаем в следующий раз
+                break
             if time.time() - last_log > 10:  # прогресс раз в 10 секунд
                 last_log = time.time()
                 log(f"    ...{new} сообщений, позиция {int(m.t // 3600)}ч{int(m.t % 3600 // 60):02d}м")
@@ -170,10 +179,15 @@ def download_chat(url: str, cache_path: str, refresh: bool = False, log=print) -
         t = msgs[-1].t
         log(f"  Ctrl+C: останавливаю загрузку чата на {int(t // 3600)}ч{int(t % 3600 // 60):02d}м, "
             f"режу из того, что есть (ещё раз Ctrl+C — полный выход)")
+        finished = True
+    finally:
+        close = getattr(source, "close", None)
+        if close:
+            close()
     msgs.sort(key=lambda m: m.t)
     _save(msgs, cache_path)
     log(f"  чат: {len(msgs)} сообщений (+{new} новых)")
-    return msgs
+    return msgs, finished
 
 
 def _iter_chat_downloader(url: str, start: float):

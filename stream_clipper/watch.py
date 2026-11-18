@@ -132,8 +132,15 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
             return
         vid = twitch.vod_id(url)
         done = state.get(vid, [])
+        saved = list(done)
+
+        def on_clip(d):  # сохраняем сразу, чтобы после сбоя не резать то же самое ещё раз
+            saved.append(d)
+            state[vid] = saved
+            if not cfg.dry_run:
+                _save(state_path, state)
         try:
-            new = process_vod(url, cfg, done=done, live=live, log=log)
+            new = process_vod(url, cfg, done=done, live=live, log=log, on_clip=on_clip)
         except Exception as e:
             log(f"[{src.name}] ошибка обработки: {e}")
             daily.log_event(cfg.out_dir, f"{src.name}: ошибка обработки — {e}")

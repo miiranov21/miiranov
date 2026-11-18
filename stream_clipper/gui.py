@@ -17,13 +17,14 @@ from . import library, paths, updater
 PROG = paths.program_dir()
 SETTINGS = os.path.join(PROG, "settings.json")
 STREAMERS = os.path.join(PROG, "streamers.txt")
+STREAMERS_BACKUP = os.path.join(paths.default_work_dir(), "streamers.txt")  # запасная копия
 KEYFILE = os.path.join(PROG, "claude_key.txt")
 STREAMERS_HEADER = """# Стримеры, за которыми следит программа. По одному в строке.
 # Twitch — логин из ссылки (twitch.tv/evelone2004 -> evelone2004)
 # YouTube — @ник канала (youtube.com/@MrBeast -> @MrBeast)
 """
 DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
-            "top": "8", "length": "35", "quality": "1080", "autoupdate": True}
+            "top": "3", "length": "35", "quality": "1080", "autoupdate": True}
 
 
 def norm_twitch(s: str) -> str:
@@ -134,11 +135,12 @@ class App:
             ttk.Checkbutton(opt, text=text, variable=self.v[key]).pack(anchor="w", pady=2)
         grid = ttk.Frame(opt)
         grid.pack(anchor="w", pady=(6, 0))
-        for r, (key, text, values) in enumerate((("top", "Клипов за стрим:", ["3", "5", "8", "10", "15"]),
+        for r, (key, text, values) in enumerate((("top", "Клипов за час стрима:", ["1", "2", "3", "4", "5", "6"]),
                                                  ("length", "Длина клипа, сек:", ["25", "35", "45", "60"]),
                                                  ("quality", "Качество:", ["720", "1080"]))):
             ttk.Label(grid, text=text).grid(row=r, column=0, sticky="w", pady=2)
-            self.v[key] = tk.StringVar(value=str(self.cfg.get(key)))
+            val = str(self.cfg.get(key))
+            self.v[key] = tk.StringVar(value=val if val in values else DEFAULTS[key])
             ttk.Combobox(grid, textvariable=self.v[key], values=values, width=6,
                          state="readonly").grid(row=r, column=1, sticky="w", padx=6)
 
@@ -200,8 +202,21 @@ class App:
         t = tk.Text(f, height=6, width=28, font=("Segoe UI", 11))
         t.pack(fill="both", expand=True)
         t.insert("1.0", "\n".join(names))
-        t.bind("<KeyRelease>", lambda e: self._update_platform_titles())
+        t.bind("<KeyRelease>", lambda e: self._on_streamers_edit())
         return t
+
+    def _on_streamers_edit(self):
+        self._update_platform_titles()
+        if getattr(self, "_autosave_job", None):
+            self.root.after_cancel(self._autosave_job)
+        self._autosave_job = self.root.after(1500, self._autosave_streamers)
+
+    def _autosave_streamers(self):
+        """Сохраняем список сразу при вводе, не трогая поле (чтобы не мешать печатать)."""
+        self._autosave_job = None
+        tw = _unique([norm_twitch(n) for n in self._platform_names(self.tw_text)])
+        yt = _unique([norm_youtube(n) for n in self._platform_names(self.yt_text)])
+        self._write_streamers(tw, yt)
 
     def _platform_names(self, t: tk.Text) -> list[str]:
         return [ln.strip() for ln in t.get("1.0", "end").splitlines() if ln.strip()]
@@ -211,11 +226,26 @@ class App:
         self.platforms.tab(1, text=f"  YouTube ({len(self._platform_names(self.yt_text))})  ")
 
     def _read_streamers(self) -> list[str]:
-        try:
-            with open(STREAMERS, encoding="utf-8-sig") as f:
-                return [ln.split("#")[0].strip() for ln in f if ln.split("#")[0].strip()]
-        except OSError:
-            return []
+        for path in (STREAMERS, STREAMERS_BACKUP):
+            try:
+                with open(path, encoding="utf-8-sig") as f:
+                    names = [ln.split("#")[0].strip() for ln in f if ln.split("#")[0].strip()]
+            except OSError:
+                continue
+            if names or path == STREAMERS_BACKUP:
+                return names
+        return []
+
+    def _write_streamers(self, tw: list[str], yt: list[str]):
+        text = (STREAMERS_HEADER + "\n# Twitch\n" + "".join(n + "\n" for n in tw)
+                + "\n# YouTube\n" + "".join(n + "\n" for n in yt))
+        for path in (STREAMERS, STREAMERS_BACKUP):
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            except OSError:
+                pass
 
     def _save_streamers(self) -> list[str]:
         tw = _unique([norm_twitch(n) for n in self._platform_names(self.tw_text)])
@@ -225,9 +255,7 @@ class App:
             t.delete("1.0", "end")
             t.insert("1.0", "\n".join(show(n) for n in names))
         self._update_platform_titles()
-        with open(STREAMERS, "w", encoding="utf-8") as f:
-            f.write(STREAMERS_HEADER + "\n# Twitch\n" + "".join(n + "\n" for n in tw)
-                    + "\n# YouTube\n" + "".join(n + "\n" for n in yt))
+        self._write_streamers(tw, yt)
         return tw + yt
 
     def _read_key(self) -> str:
@@ -609,6 +637,7 @@ class App:
             return
         self.stop()
         self._save_settings()
+        self._autosave_streamers()
         self.root.destroy()
 
 

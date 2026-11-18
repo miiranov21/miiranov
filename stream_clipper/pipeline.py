@@ -15,7 +15,7 @@ from .chat import ChatMessage, download_chat, load_chat_file
 class Settings:
     out_dir: str = field(default_factory=lambda: paths.default_out_dir())
     work_dir: str = field(default_factory=lambda: paths.default_work_dir())
-    top: int = 10
+    top: int = 3              # клипов на каждый час стрима
     clip_pre: float = 20
     clip_post: float = 15
     chat_lag: int = 5
@@ -115,10 +115,17 @@ def render_subs(segment: str, ass: str, cfg: Settings) -> str:
     return make_ass(segment, ass, cfg.whisper_model, cfg.language)
 
 
-def _analyze(msgs: list[ChatMessage], duration: float, audio_db, cfg: Settings, done: list[dict], log):
+def clip_budget(per_hour: int, seconds: float) -> int:
+    """Сколько клипов положено на столько-то секунд стрима («клипов за час стрима»)."""
+    import math
+    return max(1, math.ceil(per_hour * max(seconds, 0) / 3600))
+
+
+def _analyze(msgs: list[ChatMessage], duration: float, audio_db, cfg: Settings, done: list[dict], log,
+             top: int | None = None):
     log(f"Ищу моменты (длительность {_fmt(duration)}, сообщений {len(msgs)})...")
     hl = detect.find_highlights(
-        msgs, int(duration), audio_db=audio_db, top=cfg.top, clip_pre=cfg.clip_pre, clip_post=cfg.clip_post,
+        msgs, int(duration), audio_db=audio_db, top=cfg.top if top is None else top, clip_pre=cfg.clip_pre, clip_post=cfg.clip_post,
         chat_lag=cfg.chat_lag, audio_weight=cfg.audio_weight, min_score=cfg.min_score,
         hype_words=cfg.hype_words, exclude=[(d["start"], d["end"]) for d in done], log=log)
     hl = [h for h in hl if not _overlaps(h, done)]
@@ -139,75 +146,118 @@ def _finish(cfg: Settings, new: list[dict], work: str, all_clips: list[dict], ti
     log(f"Отчёт за день: {daily.write_day_report(folder)}")
 
 
-def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: bool = False, log=print) -> list[dict]:
-    """Обрабатывает Twitch VOD. done — уже нарезанные клипы (чтобы не повторяться).
-    live=True — запись ещё идёт (стрим в эфире): докачиваем чат и не трогаем последние минуты."""
+def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: bool = False, log=print,
+                on_clip=None) -> list[dict]:
+    """Обрабатывает запись стрима (Twitch/YouTube). Клипы режутся ПО ХОДУ загрузки чата:
+    скачали очередные 30 минут стрима — сразу нарезали лучшие моменты оттуда.
+    done — уже нарезанные клипы (чтобы не повторяться); live=True — запись ещё идёт (эфир);
+    on_clip(d) — вызывается сразу после каждого готового клипа."""
+    import threading
     from . import twitch
     from .audio import loudness_per_second
+    from .caption import detect_language
+    from .chat import download_chat_part
 
     done = list(done or [])
     log(f"VOD {url}{'  (идёт эфир)' if live else ''}")
     info = twitch.get_info(url)
     yt = twitch.is_youtube(url)
-    vid = str(info.get("id") or "") if yt else twitch.vod_id(url)
-    vid = vid or twitch.vod_id(url)
+    vid = (str(info.get("id") or "") if yt else twitch.vod_id(url)) or twitch.vod_id(url)
     work = os.path.join(cfg.work_dir, vid)
     os.makedirs(work, exist_ok=True)
     title = info.get("title") or vid
     channel = (info.get("uploader_id") or info.get("channel") or info.get("uploader") or "stream").lstrip("@")
-    msgs = download_chat(url, os.path.join(work, "chat.json"), refresh=live, log=log)
-    duration = float(info.get("duration") or 0) or (msgs[-1].t if msgs else 0)
-    if live and msgs:
-        duration = max(duration, msgs[-1].t)
+    vod_duration = float(info.get("duration") or 0)
+    link = (lambda s: f"https://youtu.be/{vid}?t={int(s)}") if yt else (lambda s: twitch.timestamp_link(url, s))
 
-    audio_db = None
+    # звук качаем параллельно с чатом — анализ не ждёт его
+    audio = {"db": None}
+    audio_thread = None
     if cfg.audio and not live:
         npy = os.path.join(work, "loudness.npy")
         if os.path.exists(npy):
-            audio_db = np.load(npy)
+            audio["db"] = np.load(npy)
         else:
-            log("  качаю звук для анализа громкости (можно отключить --no-audio)...")
-            a = twitch.download_audio(url, os.path.join(work, "audio"))
-            audio_db = loudness_per_second(a)
-            np.save(npy, audio_db)
-            os.remove(a)
+            def load_audio():
+                try:
+                    a = twitch.download_audio(url, os.path.join(work, "audio"))
+                    audio["db"] = loudness_per_second(a)
+                    np.save(npy, audio["db"])
+                    os.remove(a)
+                    log("  громкость проанализирована — дальше учитываю и её")
+                except Exception as e:
+                    log(f"  громкость не получилась ({e}) — режу только по чату")
+            log("  качаю звук для анализа громкости в фоне (можно отключить --no-audio)...")
+            audio_thread = threading.Thread(target=load_audio, daemon=True)
+            audio_thread.start()
 
-    skip = list(done)
-    if live:
-        # Последние минуты эфира ещё не «отреагированы» чатом и могут отсутствовать в записи —
-        # их возьмём на следующем проходе.
+    cache = os.path.join(work, "chat.json")
+    step = 1800  # режем после каждых 30 минут стрима
+    new: list[dict] = []
+    lang = cfg.language
+    last = _last_t(cache) or 0
+    # с какой секунды стрима ещё не искали моменты (при повторном проходе — после уже нарезанного)
+    boundary = 0.0 if not live else max([d["end"] for d in done], default=0.0) - cfg.clip_post - cfg.clip_pre
+    boundary = max(0.0, boundary)
+    while True:
+        msgs, finished = download_chat_part(url, cache, None if cfg.dry_run else last + step, log)
+        covered = last = msgs[-1].t if msgs else 0
+        if finished and not live:
+            covered = max(covered, vod_duration)
+            if audio_thread:
+                audio_thread.join()  # последний проход — уже со звуком
+        duration = max(covered, 1)
+        if not lang and len(msgs) > 200 or (finished and not lang):
+            lang = detect_language([m.text for m in msgs], title)
+        skip = done + new
+        if boundary > 0:
+            # уже разобранную часть стрима не трогаем — смотрим только новый кусок
+            skip = skip + [{"start": 0.0, "end": boundary}]
         tail = cfg.clip_post + cfg.chat_lag + 60
-        skip.append({"start": max(0.0, duration - tail), "end": duration + tail})
-    hl = _analyze(msgs, duration, audio_db, cfg, skip, log)
-    from .caption import detect_language
-    lang = cfg.language or detect_language([m.text for m in msgs], title)
-    new = []
-    if yt:
-        link = lambda s: f"https://youtu.be/{vid}?t={int(s)}"
-    else:
-        link = lambda s: twitch.timestamp_link(url, s)
-    for i, h in enumerate(hl, 1):
-        d = dict(h.to_dict(), vod_url=url, vod_title=title, link=link(h.start))
-        if not cfg.dry_run:
-            name = f"{vid}_{_fmt(h.start)}"
-            log(f"  [{i}/{len(hl)}] качаю кусок {_fmt(h.start)}...")
-            try:
-                seg = twitch.download_section(url, h.start, h.end, os.path.join(work, name + "_raw"), cfg.max_height)
-                tmp = os.path.join(work, name + ".mp4")
-                d["caption"] = _make_short(seg, tmp, cfg, log, {"streamer": channel, "title": title,
-                                                                "top_messages": h.top_messages, "lang": lang})
-                if not cfg.keep_raw:
-                    os.remove(seg)
-                d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, channel)
-                log(f"    готово -> {d['file']}")
-            except Exception as e:
-                log(f"    ошибка: {e}")
-                daily.log_event(cfg.out_dir, f"{channel}: не удалось сделать клип {_fmt(h.start)} — {e}")
-                continue
-        new.append(d)
+        if not (finished and not live):
+            # хвост ещё не «отреагирован» чатом — возьмём на следующем шаге
+            skip = skip + [{"start": max(0.0, duration - tail), "end": duration + 10 ** 6}]
+        next_boundary = max(boundary, duration - tail)
+        allowed = clip_budget(cfg.top, duration) - len(done) - len(new)
+        if allowed > 0:
+            hl = _analyze(msgs, duration, audio["db"], cfg, skip, log, top=allowed)
+            for i, h in enumerate(hl, 1):
+                d = dict(h.to_dict(), vod_url=url, vod_title=title, link=link(h.start))
+                if not cfg.dry_run:
+                    name = f"{vid}_{_fmt(h.start)}"
+                    log(f"  [{i}/{len(hl)}] качаю кусок {_fmt(h.start)}...")
+                    try:
+                        seg = twitch.download_section(url, h.start, h.end, os.path.join(work, name + "_raw"),
+                                                      cfg.max_height)
+                        tmp = os.path.join(work, name + ".mp4")
+                        d["caption"] = _make_short(seg, tmp, cfg, log, {"streamer": channel, "title": title,
+                                                                        "top_messages": h.top_messages,
+                                                                        "lang": lang or "en"})
+                        if not cfg.keep_raw:
+                            os.remove(seg)
+                        d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, channel)
+                        log(f"    готово -> {d['file']}")
+                    except Exception as e:
+                        log(f"    ошибка: {e}")
+                        daily.log_event(cfg.out_dir, f"{channel}: не удалось сделать клип {_fmt(h.start)} — {e}")
+                        continue
+                new.append(d)
+                if on_clip:
+                    on_clip(d)
+        boundary = next_boundary
+        if finished or cfg.dry_run:
+            break
 
     _finish(cfg, new, work, done + new, title, link, log)
     return new
+
+
+def _last_t(cache: str) -> float | None:
+    try:
+        m = load_chat_file(cache)
+        return m[-1].t if m else None
+    except Exception:
+        return None
 
 
 def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[dict]:
@@ -223,7 +273,7 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
         log("Анализирую громкость...")
         audio_db = loudness_per_second(video)
     duration = len(audio_db) if audio_db is not None else (msgs[-1].t if msgs else 0)
-    hl = _analyze(msgs, duration, audio_db, cfg, [], log)
+    hl = _analyze(msgs, duration, audio_db, cfg, [], log, top=clip_budget(cfg.top, duration))
     from .caption import detect_language
     lang = cfg.language or detect_language([m.text for m in msgs], name)
     clips = []

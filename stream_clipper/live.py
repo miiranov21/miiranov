@@ -216,7 +216,13 @@ class LiveSession:
         if tail:
             skip.append({"start": max(0.0, now_t - tail), "end": now_t + tail})
         log(f"[{self.channel}] {'финальный' if final else 'промежуточный'} проход по записи эфира")
-        hl = _analyze(msgs, duration, audio_db, cfg, skip, log)
+        from .pipeline import clip_budget
+        allowed = clip_budget(cfg.top, duration) - len(self.done)
+        if allowed <= 0:
+            log(f"[{self.channel}] лимит клипов на это время эфира набран — жду дальше")
+            self._save_chat()
+            return []
+        hl = _analyze(msgs, duration, audio_db, cfg, skip, log, top=allowed)
         from .caption import detect_language
         lang = cfg.language or detect_language([m.text for m in msgs], self.title)
 

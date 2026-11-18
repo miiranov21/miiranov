@@ -10,9 +10,10 @@ STREAM CLIPPER — как установить (для второго челов
    Проверка: Win+R → cmd → python --version (должна показаться версия).
 
 2. ПРОГРАММА
-   Скачай архив: https://github.com/miiranov21/miiranov/archive/refs/heads/claude/tender-cerf-agbshu.zip
-   Распакуй куда удобно (например, Рабочий стол\Shorts).
-   Зайди в распакованную папку, где лежит install.bat.
+   Возьми присланный архив StreamClipper.zip (или скачай его здесь:
+   https://github.com/miiranov21/miiranov/archive/refs/heads/claude/tender-cerf-agbshu.zip).
+   Нажми на архив правой кнопкой → «Извлечь всё…» → выбери, куда (например, Рабочий стол).
+   Зайди в папку StreamClipper, где лежит install.bat.
 
 3. УСТАНОВКА
    Дважды кликни install.bat — он поставит всё нужное, скачает ffmpeg

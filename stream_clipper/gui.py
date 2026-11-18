@@ -26,6 +26,43 @@ DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
             "top": "8", "length": "35", "quality": "1080"}
 
 
+def norm_twitch(s: str) -> str:
+    """kaicenat / Kai Cenat / https://www.twitch.tv/kaicenat -> kaicenat"""
+    s = s.strip()
+    if "twitch.tv/" in s:
+        s = s.split("twitch.tv/", 1)[1].split("/")[0].split("?")[0]
+    return s.replace(" ", "").lstrip("@").lower()
+
+
+def norm_youtube(s: str) -> str:
+    """MrBeast / @MrBeast / Mr Beast -> @MrBeast; ссылки на канал оставляем как есть."""
+    s = s.strip()
+    if "youtube.com/" in s or "youtu.be/" in s:
+        if "/@" in s:
+            return "@" + s.split("/@", 1)[1].split("/")[0].split("?")[0]
+        return s
+    return "@" + s.replace(" ", "").lstrip("@")
+
+
+def split_platforms(names: list[str]) -> tuple[list[str], list[str]]:
+    tw, yt = [], []
+    for n in names:
+        if n.startswith(("@", "yt:")) or "youtube.com/" in n or "youtu.be/" in n:
+            yt.append(n[3:] if n.startswith("yt:") else n)
+        else:
+            tw.append(n)
+    return tw, [n.lstrip("@") if not n.startswith("http") else n for n in yt]
+
+
+def _unique(items: list[str]) -> list[str]:
+    seen, out = set(), []
+    for x in items:
+        if x and x.lower() not in seen:
+            seen.add(x.lower())
+            out.append(x)
+    return out
+
+
 def _python_exe() -> str:
     """python.exe рядом с pythonw.exe (окно запускается через pythonw, без чёрной консоли)."""
     exe = sys.executable
@@ -74,18 +111,21 @@ class App:
         top = ttk.Frame(main)
         top.pack(fill="x")
         # стримеры
-        box = ttk.LabelFrame(top, text=" Стримеры (по одному в строке; YouTube — через @) ", padding=6)
+        box = ttk.LabelFrame(top, text=" За кем следим (Twitch и YouTube — одновременно) ", padding=6)
         box.pack(side="left", fill="both", expand=True, padx=(0, 6))
-        self.streamers = tk.Text(box, height=7, width=28, font=("Segoe UI", 11))
-        self.streamers.pack(fill="both", expand=True)
-        self.streamers.insert("1.0", "\n".join(self._read_streamers()))
+        self.platforms = ttk.Notebook(box)
+        self.platforms.pack(fill="both", expand=True)
+        tw_names, yt_names = split_platforms(self._read_streamers())
+        self.tw_text = self._platform_tab("  Twitch  ", "Ник из ссылки: twitch.tv/kaicenat → kaicenat", tw_names)
+        self.yt_text = self._platform_tab("  YouTube  ", "Ник канала: youtube.com/@MrBeast → MrBeast", yt_names)
+        self._update_platform_titles()
 
         # настройки
         opt = ttk.LabelFrame(top, text=" Что делать с клипом ", padding=6)
         opt.pack(side="left", fill="both", expand=True)
         self.v = {}
         for key, text in (("subs", "Субтитры (речь стримера)"),
-                          ("caption", "Надпись-плашка («Спид первый попробовал GTA 6»)"),
+                          ("caption", "Надпись-плашка с подписью к моменту"),
                           ("facecam", "Вебка стримера сверху"),
                           ("audio", "Учитывать громкость (крики, взрывы)")):
             self.v[key] = tk.BooleanVar(value=bool(self.cfg.get(key)))
@@ -138,6 +178,23 @@ class App:
         self.status.pack(fill="x", pady=(4, 0))
 
     # ---------- файлы ----------
+    def _platform_tab(self, title: str, hint: str, names: list[str]) -> tk.Text:
+        f = ttk.Frame(self.platforms, padding=4)
+        self.platforms.add(f, text=title)
+        ttk.Label(f, text=hint + "  (по одному в строке)", foreground="#666").pack(anchor="w")
+        t = tk.Text(f, height=6, width=28, font=("Segoe UI", 11))
+        t.pack(fill="both", expand=True)
+        t.insert("1.0", "\n".join(names))
+        t.bind("<KeyRelease>", lambda e: self._update_platform_titles())
+        return t
+
+    def _platform_names(self, t: tk.Text) -> list[str]:
+        return [ln.strip() for ln in t.get("1.0", "end").splitlines() if ln.strip()]
+
+    def _update_platform_titles(self):
+        self.platforms.tab(0, text=f"  Twitch ({len(self._platform_names(self.tw_text))})  ")
+        self.platforms.tab(1, text=f"  YouTube ({len(self._platform_names(self.yt_text))})  ")
+
     def _read_streamers(self) -> list[str]:
         try:
             with open(STREAMERS, encoding="utf-8-sig") as f:
@@ -146,10 +203,17 @@ class App:
             return []
 
     def _save_streamers(self) -> list[str]:
-        names = [ln.strip() for ln in self.streamers.get("1.0", "end").splitlines() if ln.strip()]
+        tw = _unique([norm_twitch(n) for n in self._platform_names(self.tw_text)])
+        yt = _unique([norm_youtube(n) for n in self._platform_names(self.yt_text)])
+        # показываем, как программа поняла ники
+        for t, names, show in ((self.tw_text, tw, lambda n: n), (self.yt_text, yt, lambda n: n.lstrip("@"))):
+            t.delete("1.0", "end")
+            t.insert("1.0", "\n".join(show(n) for n in names))
+        self._update_platform_titles()
         with open(STREAMERS, "w", encoding="utf-8") as f:
-            f.write(STREAMERS_HEADER + "\n".join(names) + "\n")
-        return names
+            f.write(STREAMERS_HEADER + "\n# Twitch\n" + "".join(n + "\n" for n in tw)
+                    + "\n# YouTube\n" + "".join(n + "\n" for n in yt))
+        return tw + yt
 
     def _read_key(self) -> str:
         try:
@@ -218,7 +282,7 @@ class App:
     def start_watch(self):
         names = self._save_streamers()
         if not names:
-            messagebox.showwarning("Нет стримеров", "Впиши хотя бы одного стримера слева.")
+            messagebox.showwarning("Нет стримеров", "Впиши хотя бы одного стримера во вкладку Twitch или YouTube.")
             return
         self._run(["watch", *self._flags()], "Слежу за: " + ", ".join(names))
 

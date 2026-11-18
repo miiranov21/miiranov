@@ -12,7 +12,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
-from . import paths
+from . import library, paths
 
 PROG = paths.program_dir()
 SETTINGS = os.path.join(PROG, "settings.json")
@@ -50,7 +50,7 @@ class App:
         self.lines: queue.Queue = queue.Queue()
         self.cfg = _load_json(SETTINGS, DEFAULTS)
         root.title("Stream Clipper — нарезки для Shorts")
-        root.geometry("820x780")
+        root.geometry("900x800")
         root.minsize(700, 640)
         try:
             root.iconbitmap(os.path.join(PROG, "icon.ico"))
@@ -62,9 +62,14 @@ class App:
 
     # ---------- интерфейс ----------
     def _build(self):
-        pad = {"padx": 10, "pady": 4}
-        main = ttk.Frame(self.root, padding=8)
-        main.pack(fill="both", expand=True)
+        self.nb = ttk.Notebook(self.root)
+        self.nb.pack(fill="both", expand=True)
+        main = ttk.Frame(self.nb, padding=8)
+        clips = ttk.Frame(self.nb, padding=8)
+        self.nb.add(main, text="  Управление  ")
+        self.nb.add(clips, text="  Клипы  ")
+        self._build_clips(clips)
+        self.nb.bind("<<NotebookTabChanged>>", lambda e: self.refresh_clips())
 
         top = ttk.Frame(main)
         top.pack(fill="x")
@@ -255,6 +260,8 @@ class App:
                     self._set_running(False)
                 else:
                     self._append(item)
+                    if "готово ->" in item:
+                        self.root.after(500, self.refresh_clips)
         except queue.Empty:
             pass
         self.root.after(150, self._drain)
@@ -273,6 +280,174 @@ class App:
         self.b_stop.config(state="normal" if running else "disabled")
         if running:
             self.status.config(text=what)
+
+    # ---------- вкладка «Клипы» ----------
+    def _build_clips(self, parent):
+        self.images: dict = {}
+        bar = ttk.Frame(parent)
+        bar.pack(fill="x")
+        ttk.Label(bar, text="Дата:").pack(side="left")
+        self.date_var = tk.StringVar()
+        self.date_box = ttk.Combobox(bar, textvariable=self.date_var, width=12, state="readonly")
+        self.date_box.pack(side="left", padx=(4, 12))
+        self.date_box.bind("<<ComboboxSelected>>", lambda e: self.refresh_clips())
+        ttk.Label(bar, text="Стример:").pack(side="left")
+        self.streamer_var = tk.StringVar(value="Все")
+        self.streamer_box = ttk.Combobox(bar, textvariable=self.streamer_var, width=16, state="readonly")
+        self.streamer_box.pack(side="left", padx=(4, 12))
+        self.streamer_box.bind("<<ComboboxSelected>>", lambda e: self.refresh_clips())
+        self.hide_posted = tk.BooleanVar(value=False)
+        ttk.Checkbutton(bar, text="Скрыть выложенные", variable=self.hide_posted,
+                        command=self.refresh_clips).pack(side="left")
+        ttk.Button(bar, text="⟳ Обновить", command=self.refresh_clips).pack(side="right")
+
+        style = ttk.Style()
+        style.configure("Clips.Treeview", rowheight=136, font=("Segoe UI", 10))
+        style.configure("Clips.Treeview.Heading", font=("Segoe UI", 10, "bold"))
+        # кнопки и подпись закрепляем внизу, список занимает остальное место
+        self.clips_info = ttk.Label(parent, text="", anchor="w")
+        self.clips_info.pack(side="bottom", fill="x", pady=(6, 0))
+        btns = ttk.Frame(parent)
+        btns.pack(side="bottom", fill="x")
+        for text, cmd in (("▶  Смотреть", self.play_clip), ("📋  Копировать надпись", self.copy_caption),
+                          ("✔  Выложен / не выложен", self.toggle_posted), ("📂  Показать в папке", self.reveal_clip),
+                          ("🗑  Удалить", self.delete_clip)):
+            ttk.Button(btns, text=text, command=cmd).pack(side="left", padx=(0, 6))
+        frame = ttk.Frame(parent)
+        frame.pack(fill="both", expand=True, pady=6)
+        cols = ("streamer", "moment", "caption", "created", "status")
+        self.tree = ttk.Treeview(frame, columns=cols, show="tree headings", style="Clips.Treeview",
+                                 selectmode="extended", height=3)
+        self.tree.heading("#0", text="Превью")
+        self.tree.column("#0", width=96, stretch=False)
+        for c, title, w in (("streamer", "Стример", 120), ("moment", "Момент", 80), ("caption", "Надпись", 300),
+                            ("created", "Создан", 70), ("status", "Статус", 100)):
+            self.tree.heading(c, text=title)
+            self.tree.column(c, width=w, stretch=(c == "caption"))
+        sb = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=sb.set)
+        self.tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="left", fill="y")
+        self.tree.bind("<Double-1>", lambda e: self.play_clip())
+        self.clip_by_iid: dict = {}
+        self.root.after(1000, self._auto_refresh)
+
+    def _auto_refresh(self):
+        if self.nb.index(self.nb.select()) == 1:
+            self.refresh_clips()
+        self.root.after(20000, self._auto_refresh)
+
+    def refresh_clips(self):
+        dates = library.list_dates()
+        self.date_box.config(values=dates)
+        if dates and self.date_var.get() not in dates:
+            self.date_var.set(dates[0])
+        date = self.date_var.get()
+        clips = library.list_clips(date) if date else []
+        names = sorted({c.get("channel", "") for c in clips})
+        self.streamer_box.config(values=["Все", *names])
+        if self.streamer_var.get() not in ["Все", *names]:
+            self.streamer_var.set("Все")
+        sel_paths = {self.clip_by_iid[i]["path"] for i in self.tree.selection() if i in self.clip_by_iid}
+        self.tree.delete(*self.tree.get_children())
+        self.clip_by_iid = {}
+        missing = []
+        shown = 0
+        for c in clips:
+            if self.streamer_var.get() != "Все" and c.get("channel") != self.streamer_var.get():
+                continue
+            if self.hide_posted.get() and c["posted"]:
+                continue
+            img = self._thumb(c["path"])
+            if img is None:
+                missing.append(c["path"])
+            sec = int(c.get("moment", c.get("start", 0)))
+            values = (c.get("channel", ""), f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}",
+                      c.get("caption", "") or "—", c.get("created", ""), "✔ выложен" if c["posted"] else "новый")
+            iid = self.tree.insert("", "end", text="", image=img or "", values=values)
+            self.clip_by_iid[iid] = c
+            if c["path"] in sel_paths:
+                self.tree.selection_add(iid)
+            shown += 1
+        posted = sum(1 for c in clips if c["posted"])
+        self.clips_info.config(text=f"Клипов за {date or '—'}: {len(clips)}, выложено: {posted}. "
+                                    f"Двойной клик — посмотреть клип.")
+        self.nb.tab(1, text=f"  Клипы ({len(clips) - posted} новых)  " if clips else "  Клипы  ")
+        if missing:
+            threading.Thread(target=self._make_thumbs, args=(missing,), daemon=True).start()
+
+    def _thumb(self, path: str):
+        if path in self.images:
+            return self.images[path]
+        tp = library.thumb_path(path)
+        if not os.path.exists(tp):
+            return None
+        try:
+            img = tk.PhotoImage(file=tp)
+        except Exception:
+            return None
+        self.images[path] = img
+        return img
+
+    def _make_thumbs(self, paths_: list[str]):
+        made = False
+        for p in paths_:
+            if library.make_thumb(p):
+                made = True
+        if made:
+            self.root.after(0, self.refresh_clips)
+
+    def _selected(self) -> list[dict]:
+        sel = [self.clip_by_iid[i] for i in self.tree.selection() if i in self.clip_by_iid]
+        if not sel:
+            messagebox.showinfo("Клипы", "Сначала выбери клип в списке.")
+        return sel
+
+    def play_clip(self):
+        for c in self._selected()[:1]:
+            self._open(c["path"])
+
+    def copy_caption(self):
+        sel = self._selected()
+        if sel:
+            text = "\n".join(c.get("caption", "") for c in sel if c.get("caption"))
+            self.root.clipboard_clear()
+            self.root.clipboard_append(text)
+            self.clips_info.config(text="Надпись скопирована — вставь её в название ролика (Ctrl+V).")
+
+    def toggle_posted(self):
+        sel = self._selected()
+        if sel:
+            value = not all(c["posted"] for c in sel)
+            for c in sel:
+                library.set_posted(c["path"], value)
+            self.refresh_clips()
+
+    def reveal_clip(self):
+        for c in self._selected()[:1]:
+            if os.name == "nt":
+                subprocess.Popen(["explorer", "/select,", c["path"]])
+            else:
+                self._open(os.path.dirname(c["path"]))
+
+    def delete_clip(self):
+        sel = self._selected()
+        if sel and messagebox.askyesno("Удалить", f"Удалить клипов: {len(sel)}? Файлы удалятся с диска."):
+            for c in sel:
+                for p in (c["path"], library.thumb_path(c["path"])):
+                    try:
+                        os.remove(p)
+                    except OSError:
+                        pass
+                library.set_posted(c["path"], False)
+                self.images.pop(c["path"], None)
+            self.refresh_clips()
+
+    def _open(self, path: str):
+        if os.name == "nt":
+            os.startfile(path)  # type: ignore[attr-defined]
+        else:
+            subprocess.Popen(["xdg-open", path])
 
     def open_folder(self):
         d = paths.default_out_dir()

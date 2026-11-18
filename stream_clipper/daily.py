@@ -69,6 +69,11 @@ def deliver_clip(root: str, tmp_file: str, clip: dict, channel: str) -> str:
     tmp_dest = dest + ".part"
     shutil.move(tmp_file, tmp_dest)
     os.replace(tmp_dest, dest)
+    try:
+        from .library import make_thumb
+        make_thumb(dest)
+    except Exception:
+        pass
     data = _load(folder)
     clip = dict(clip, file=os.path.relpath(dest, folder), channel=channel,
                 created=datetime.now().strftime("%H:%M"))

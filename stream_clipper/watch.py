@@ -55,17 +55,39 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
     first_check = {s.name: True for s in sources}
     last_run = {s.name: 0.0 for s in sources}
     sessions: dict = {}  # name -> LiveSession (запись эфира)
+    rec_mode: dict = {}  # Twitch-стримеры без записей VOD — пишем их эфир сами
+    vod_checked: dict = {}  # проверили ли, что у текущего эфира есть запись
     log("Слежу за: " + ", ".join(f"{s.name} ({s.kind})" for s in sources) + ". Ctrl+C — выход.")
 
     def uses_recorder(src: Source) -> bool:
-        return src.kind == "youtube" or record_twitch
+        return src.kind == "youtube" or record_twitch or rec_mode.get(src.name, False)
+
+    def current_vod(src: Source, live: bool) -> str | None:
+        """Запись ИМЕННО этого эфира (а не старая, если стример отключил сохранение)."""
+        try:
+            url = twitch.latest_vod_url(src.target)
+        except Exception:
+            url = None
+        if url and live:
+            started = (twitch.LAST_LIVE_INFO.get(src.target) or {}).get("timestamp")
+            try:
+                created = twitch.get_info(url).get("timestamp")
+            except Exception:
+                created = None
+            if started and created and abs(created - started) > 1800:
+                return None  # последняя запись — от старого стрима
+        return url
 
     def run_vod(src: Source, live: bool):
-        url = twitch.latest_vod_url(src.target)
+        url = current_vod(src, live)
         if not url:
-            log(f"[{src.name}] VOD не найден — стример не сохраняет записи. Запусти с --record, "
-                f"тогда программа будет записывать эфир сама")
-            daily.log_event(cfg.out_dir, f"{src.name}: нет VOD (нужен --record)")
+            if live:
+                log(f"[{src.name}] стример не сохраняет записи — записываю эфир сам (с этого момента)")
+                daily.log_event(cfg.out_dir, f"{src.name}: нет записи стрима, пишу эфир сам")
+                rec_mode[src.name] = True
+                start_recorder(src)
+            else:
+                log(f"[{src.name}] запись стрима не найдена")
             return
         vid = twitch.vod_id(url)
         done = state.get(vid, [])
@@ -131,10 +153,16 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                                     f"{live_interval // 60} мин")
                         elif first_check[src.name]:
                             log(f"[{src.name}] стрим уже идёт — режу то, что было до этого момента")
+                            vod_checked[src.name] = True
                             run_vod(src, live=True)
                             last_run[src.name] = time.time()
                     elif rec and src.name not in sessions:
                         start_recorder(src)  # повторная попытка, если запись не стартовала
+                    elif not rec and not vod_checked.get(src.name):
+                        # через пару минут после начала эфира проверяем, пишет ли Twitch запись
+                        vod_checked[src.name] = True
+                        if not current_vod(src, True):
+                            run_vod(src, live=True)  # переключится на запись эфира
                     elif live_interval and now - last_run[src.name] >= live_interval:
                         log(f"[{src.name}] промежуточная нарезка во время эфира")
                         run_rec(src, final=False) if rec else run_vod(src, live=True)
@@ -149,9 +177,11 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                             run_rec(src, final=True)
                             sess.cleanup()
                             sessions.pop(src.name, None)
+                        rec_mode.pop(src.name, None)  # следующий стрим снова пробуем через VOD
                     else:
                         time.sleep(60)  # даём Twitch дописать VOD
                         run_vod(src, live=False)
+                    vod_checked.pop(src.name, None)
                 was_live[src.name] = live
                 first_check[src.name] = False
             time.sleep(poll)

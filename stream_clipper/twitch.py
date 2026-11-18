@@ -71,9 +71,13 @@ def _is_offline_error(e: Exception) -> bool:
     return any(m in msg for m in _OFFLINE_MARKERS)
 
 
+LAST_LIVE_INFO: dict = {}  # логин -> инфо о текущем эфире (время начала и т.п.)
+
+
 def is_live(channel: str) -> bool:
     try:
         info = get_info(f"https://www.twitch.tv/{channel}")
+        LAST_LIVE_INFO[channel] = info
         return bool(info.get("is_live"))
     except DownloadError as e:
         if _is_offline_error(e):

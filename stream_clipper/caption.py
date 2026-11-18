@@ -44,14 +44,15 @@ _SHOCK = ("wtf", "omg", "pog", "???", "жесть", "что", "чего", "what"
 
 
 def template_caption(streamer: str, title: str, top_messages: list[str], lang: str) -> str:
-    joined = " ".join(top_messages).lower()
-    gta = "gta" in title.lower() or "гта" in title.lower() or "gta" in joined
+    gta = "gta" in title.lower() or "гта" in title.lower() or "gta" in " ".join(top_messages).lower()
     game_ru = " в GTA 6" if gta else ""
     game_en = " in GTA 6" if gta else ""
-    if any(w in joined for w in _LAUGH):
-        return f"{streamer} рассмешил весь чат{game_ru}" if lang == "ru" else f"{streamer} had chat crying{game_en}"
-    if any(w in joined for w in _SHOCK):
-        return f"{streamer} в шоке{game_ru}" if lang == "ru" else f"{streamer} can't believe this{game_en}"
+    for msg in top_messages[:2]:  # главная реакция чата: самое частое сообщение решает
+        m = msg.lower()
+        if any(w in m for w in _SHOCK):
+            return f"{streamer} в шоке{game_ru}" if lang == "ru" else f"{streamer} can't believe this{game_en}"
+        if any(w in m for w in _LAUGH):
+            return f"{streamer} рассмешил весь чат{game_ru}" if lang == "ru" else f"{streamer} had chat crying{game_en}"
     return f"{streamer}: момент, который надо видеть" if lang == "ru" else f"{streamer}'s craziest moment{game_en}"
 
 

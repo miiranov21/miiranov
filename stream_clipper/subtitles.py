@@ -25,9 +25,31 @@ def _ts(t: float) -> str:
     return f"{cs // 360000}:{cs // 6000 % 60:02d}:{cs // 100 % 60:02d}.{cs % 100:02d}"
 
 
+def _quiet_huggingface() -> None:
+    """Прячем служебные предупреждения библиотеки скачивания моделей (про symlinks, токен и т.п.) —
+    они безвредны, но пугают в журнале."""
+    import logging
+    import os
+    import warnings
+    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+    os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+    warnings.filterwarnings("ignore", module="huggingface_hub")
+    warnings.filterwarnings("ignore", message=".*symlink.*")
+    warnings.filterwarnings("ignore", message=".*Developer Mode.*")
+    for name in ("huggingface_hub", "faster_whisper"):
+        logging.getLogger(name).setLevel(logging.ERROR)
+    try:
+        from huggingface_hub.utils import logging as hf_logging
+        hf_logging.set_verbosity_error()
+    except Exception:
+        pass
+
+
 def _get_model(name: str):
     global _model, _model_name
     if _model is None or _model_name != name:
+        _quiet_huggingface()
         from faster_whisper import WhisperModel
         print(f"    загружаю модель распознавания речи «{name}» (в первый раз скачается ~0.5 ГБ)...")
         _model = WhisperModel(name, device="auto", compute_type="auto")

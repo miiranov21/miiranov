@@ -191,9 +191,12 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
         try:
             sess.start()
             sessions[src.name] = sess
+            return True
         except Exception as e:
-            log(f"[{src.name}] не смог начать запись: {e}")
-            daily.log_event(cfg.out_dir, f"{src.name}: не смог начать запись — {e}")
+            reason = twitch.explain_youtube_error(e)[1] if src.kind == "youtube" else str(e)[:200]
+            log(f"[{src.name}] не смог начать запись: {reason}. Попробую снова через пару минут")
+            daily.log_event(cfg.out_dir, f"{src.name}: не смог начать запись — {reason}")
+            return False
 
     try:
         while True:
@@ -222,8 +225,7 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                                         + (" (запущено посреди эфира)" if first_check[src.name] else ""))
                         last_run[src.name] = now
                         if rec:
-                            start_recorder(src)
-                            if first_check[src.name]:
+                            if start_recorder(src):
                                 log(f"[{src.name}] запись идёт с этого момента; первые шортсы — через "
                                     f"{live_interval // 60} мин")
                         elif first_check[src.name]:
@@ -232,7 +234,8 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                             run_vod(src, live=True)
                             last_run[src.name] = time.time()
                     elif rec and src.name not in sessions:
-                        start_recorder(src)  # повторная попытка, если запись не стартовала
+                        if start_recorder(src):  # повторная попытка, если запись не стартовала
+                            log(f"[{src.name}] запись началась; первые шортсы — через {live_interval // 60} мин")
                     elif not rec and not vod_checked.get(src.name):
                         # через пару минут после начала эфира проверяем, пишет ли Twitch запись
                         vod_checked[src.name] = True

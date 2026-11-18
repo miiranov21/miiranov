@@ -119,6 +119,8 @@ class App:
         self.tw_text = self._platform_tab("  Twitch  ", "Ник из ссылки: twitch.tv/kaicenat → kaicenat", tw_names)
         self.yt_text = self._platform_tab("  YouTube  ", "Ник канала: youtube.com/@MrBeast → MrBeast", yt_names)
         self._update_platform_titles()
+        ttk.Button(box, text="✔  Применить список (можно и во время слежки)",
+                   command=self.apply_streamers).pack(fill="x", pady=(6, 0))
 
         # настройки
         opt = ttk.LabelFrame(top, text=" Что делать с клипом ", padding=6)
@@ -278,6 +280,14 @@ class App:
             return
         self._set_running(True, what)
         threading.Thread(target=self._reader, args=(self.proc,), daemon=True).start()
+
+    def apply_streamers(self):
+        names = self._save_streamers()
+        if self.proc:
+            self._append("Список стримеров обновлён: " + (", ".join(names) or "пусто")
+                         + ". Программа подхватит его через несколько секунд.\n")
+        else:
+            self.status.config(text="Список сохранён: " + (", ".join(names) or "пусто"))
 
     def start_watch(self):
         names = self._save_streamers()

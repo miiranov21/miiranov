@@ -124,7 +124,10 @@ def main(argv=None) -> None:
             channels = a.channels or _channels_from_file()
             if not channels:
                 sys.exit("Не указаны стримеры. Впиши их в streamers.txt (по одному в строке)")
-            watch(channels, cfg, poll=a.poll, live_interval=a.live_every * 60, record_twitch=a.record)
+            import os
+            reload_file = None if a.channels else os.path.join(paths.program_dir(), "streamers.txt")
+            watch(channels, cfg, poll=a.poll, live_interval=a.live_every * 60, record_twitch=a.record,
+                  reload_file=reload_file)
         else:
             process_local(a.video, a.chat, cfg)
     except KeyboardInterrupt:

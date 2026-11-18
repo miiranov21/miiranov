@@ -43,8 +43,17 @@ def _save(path, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def read_channels_file(path: str) -> list[str]:
+    """streamers.txt: по одному стримеру в строке, # — комментарий."""
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            return [ln.split("#")[0].strip() for ln in f if ln.split("#")[0].strip()]
+    except OSError:
+        return []
+
+
 def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: int = 900,
-          record_twitch: bool = False, log=print) -> None:
+          record_twitch: bool = False, log=print, reload_file: str | None = None) -> None:
     """poll — как часто проверять эфир (сек); live_interval — как часто резать во время эфира
     (0 = только после окончания). record_twitch — писать Twitch-эфир самим (если стример не сохраняет VOD)."""
     sources = [parse_source(c) for c in channels]
@@ -58,6 +67,38 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
     rec_mode: dict = {}  # Twitch-стримеры без записей VOD — пишем их эфир сами
     vod_checked: dict = {}  # проверили ли, что у текущего эфира есть запись
     log("Слежу за: " + ", ".join(f"{s.name} ({s.kind})" for s in sources) + ". Ctrl+C — выход.")
+    file_mtime = os.path.getmtime(reload_file) if reload_file and os.path.exists(reload_file) else None
+
+    def reload_sources():
+        """Список стримеров поменяли на ходу — добавляем новых, убираем удалённых."""
+        nonlocal file_mtime
+        if not reload_file or not os.path.exists(reload_file):
+            return
+        mtime = os.path.getmtime(reload_file)
+        if mtime == file_mtime:
+            return
+        file_mtime = mtime
+        wanted = [parse_source(c) for c in read_channels_file(reload_file)]
+        have = {s.name for s in sources}
+        for src in wanted:
+            if src.name not in have:
+                sources.append(src)
+                was_live[src.name], first_check[src.name], last_run[src.name] = False, True, 0.0
+                log(f"+ добавлен стример: {src.name} ({src.kind})")
+        keep = {s.name for s in wanted}
+        for src in [s for s in sources if s.name not in keep]:
+            sources.remove(src)
+            log(f"- убран стример: {src.name}")
+            sess = sessions.pop(src.name, None)
+            if sess:  # шла запись эфира — дорезаем записанное
+                sess.stop()
+                try:
+                    sess.process(final=True)
+                except Exception as e:
+                    log(f"[{src.name}] ошибка: {e}")
+                sess.cleanup()
+            for d in (was_live, first_check, last_run, rec_mode, vod_checked):
+                d.pop(src.name, None)
 
     def uses_recorder(src: Source) -> bool:
         return src.kind == "youtube" or record_twitch or rec_mode.get(src.name, False)
@@ -132,7 +173,8 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
 
     try:
         while True:
-            for src in sources:
+            reload_sources()
+            for src in list(sources):
                 try:
                     live = twitch.youtube_is_live(src.target) if src.kind == "youtube" else twitch.is_live(src.target)
                 except Exception as e:
@@ -184,7 +226,13 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                     vod_checked.pop(src.name, None)
                 was_live[src.name] = live
                 first_check[src.name] = False
-            time.sleep(poll)
+            # ждём до следующей проверки, но список стримеров ловим сразу
+            waited = 0
+            while waited < poll:
+                time.sleep(5)
+                waited += 5
+                if reload_file and os.path.exists(reload_file) and os.path.getmtime(reload_file) != file_mtime:
+                    break
     finally:
         # Ctrl+C посреди эфира: дорезаем то, что записали
         for name, sess in list(sessions.items()):

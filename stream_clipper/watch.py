@@ -158,16 +158,20 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                 _save(state_path, state)
         # с какого места анализировать этот стрим: выбранное в окне запоминаем для всех следующих проходов
         from .pipeline import parse_start
-        key = f"{vid}__from"
+        key, text_key = f"{vid}__from", f"{vid}__from_text"
         start_at = state.get(key)
-        if start_at is None and cfg.start_from and not done:
+        jump = False
+        if cfg.start_from and cfg.start_from != state.get(text_key):
+            # в окне выбрали новое «начать с» — прыгаем туда, даже если по стриму уже были клипы
             start_at = parse_start(cfg.start_from)
+            jump = True
         progress: dict = {}
         try:
             new = process_vod(url, cfg, done=done, live=live, log=log, on_clip=on_clip,
-                              start_at=start_at, progress=progress)
-            if progress.get("start_at") and state.get(key) is None:
-                state[key] = progress["start_at"]
+                              start_at=start_at, progress=progress, jump=jump)
+            if jump or (progress.get("start_at") and state.get(key) is None):
+                state[key] = progress.get("start_at") or start_at
+                state[text_key] = cfg.start_from
                 if not cfg.dry_run:
                     _save(state_path, state)
         except Exception as e:
@@ -198,6 +202,9 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
 
     def start_recorder(src: Source):
         from .live import LiveSession
+        if cfg.start_from:
+            log(f"[{src.name}] «Начать с {cfg.start_from}» для этого эфира не сработает: его программа записывает "
+                f"сама — с текущего момента, прошлое эфира ей недоступно")
         url = src.target if src.kind == "youtube" else f"https://www.twitch.tv/{src.target}"
         sess = LiveSession(url, cfg, log=log, max_height=min(cfg.max_height, 1080))
         try:

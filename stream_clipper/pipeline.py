@@ -189,7 +189,7 @@ def _finish(cfg: Settings, new: list[dict], work: str, all_clips: list[dict], ti
 
 
 def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: bool = False, log=print,
-                on_clip=None, start_at=None, progress: dict | None = None) -> list[dict]:
+                on_clip=None, start_at=None, progress: dict | None = None, jump: bool = False) -> list[dict]:
     """Обрабатывает запись стрима (Twitch/YouTube). Клипы режутся ПО ХОДУ загрузки чата:
     скачали очередные 30 минут стрима — сразу нарезали лучшие моменты оттуда.
     done — уже нарезанные клипы (чтобы не повторяться); live=True — запись ещё идёт (эфир);
@@ -253,6 +253,11 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
     # с какой секунды стрима ещё не искали моменты (при повторном проходе — после уже нарезанного)
     boundary = 0.0 if not live else max([d["end"] for d in done], default=0.0) - cfg.clip_post - cfg.clip_pre
     boundary = max(0.0, boundary, start_at)
+    if jump and start_at:
+        # пользователь сам выбрал «начать с» — начинаем именно оттуда (готовые клипы всё равно не повторятся)
+        boundary = start_at
+        if done:
+            log(f"  начинаю с {_fmt(start_at)}, как выбрано; уже готовые клипы ({len(done)}) не повторятся")
     while True:
         refresh_live(cfg, log)
         msgs, finished = download_chat_part(url, cache, None if cfg.dry_run else last + step, log,

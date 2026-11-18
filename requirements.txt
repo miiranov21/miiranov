@@ -1,4 +1,7 @@
 yt-dlp>=2025.1.1
+# YouTube: движок JavaScript и решатель его проверок (без них «No video formats found»)
+yt-dlp-ejs
+deno
 chat-downloader>=0.2.8
 numpy>=1.24
 requests>=2.28

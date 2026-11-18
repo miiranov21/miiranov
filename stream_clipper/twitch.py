@@ -25,6 +25,21 @@ class _QuietLogger:
 _BASE = {"quiet": True, "no_warnings": True, "noprogress": True, "logger": _QuietLogger()}
 
 
+def _setup_js_runtime() -> None:
+    """С конца 2025 года YouTube защищает видео проверкой на JavaScript — yt-dlp проходит её
+    через движок Deno (ставится через pip как пакет «deno») и пакет yt-dlp-ejs."""
+    try:
+        import deno
+        path = deno.find_deno_bin()
+        if path and os.path.exists(path):
+            _BASE["js_runtimes"] = {"deno": {"path": path}}
+    except Exception:
+        pass
+
+
+_setup_js_runtime()
+
+
 def set_cookies_browser(browser: str | None) -> None:
     """Брать куки из браузера (chrome/firefox/edge...) — помогает, если YouTube просит
     «подтвердить, что вы не бот»."""
@@ -95,6 +110,10 @@ def explain_youtube_error(e: Exception) -> tuple[str, str]:
                        "и войди в YouTube в этом браузере")
     if "does not exist" in low or "404" in low or "not found" in low or "unable to recognize tab" in low:
         return "missing", "канал не найден — проверь ник (лучше вставь ссылку на канал из адресной строки)"
+    if "no video formats" in low or "javascript" in low or "js runtime" in low or "challenge" in low:
+        return "jsruntime", ("YouTube не отдаёт видео: не хватает компонента для проверки YouTube (Deno). "
+                             "Нажми «Проверить обновления» — программа поставит его сама "
+                             "(или выполни: python -m pip install deno yt-dlp-ejs)")
     if any(m in low for m in _NETWORK):
         return "network", "нет связи с YouTube — проверь интернет и VPN"
     return "other", "YouTube ответил ошибкой: " + msg[:180]

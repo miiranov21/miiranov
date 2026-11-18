@@ -328,6 +328,7 @@ class App:
         m.add_command(label="📋  Копировать надпись   Ctrl+C", command=self.copy_caption)
         m.add_command(label="✔  Выложен / не выложен", command=self.toggle_posted)
         m.add_command(label="📂  Показать в папке", command=self.reveal_clip)
+        m.add_command(label="🎥  Указать вебку этого стримера", command=self.pick_facecam)
         m.add_separator()
         m.add_command(label="🗑  Удалить   Delete", command=self.delete_clip)
         m.tk_popup(e.x_root, e.y_root)
@@ -726,7 +727,7 @@ class App:
         btns.pack(side="bottom", fill="x")
         for text, cmd in (("▶  Смотреть", self.play_clip), ("📋  Копировать надпись", self.copy_caption),
                           ("✔  Выложен / не выложен", self.toggle_posted), ("📂  Показать в папке", self.reveal_clip),
-                          ("🗑  Удалить", self.delete_clip)):
+                          ("🎥  Указать вебку", self.pick_facecam), ("🗑  Удалить", self.delete_clip)):
             ttk.Button(btns, text=text, command=cmd).pack(side="left", padx=(0, 6))
         frame = ttk.Frame(parent)
         frame.pack(fill="both", expand=True, pady=6)
@@ -860,6 +861,86 @@ class App:
                 library.set_posted(c["path"], False)
                 self.images.pop(c["path"], None)
             self.refresh_clips()
+
+    def pick_facecam(self):
+        """Окно, где мышкой обводят вебку стримера — дальше она всегда будет браться отсюда."""
+        from . import facecam
+        sel = self._selected()
+        if not sel:
+            return
+        channel = sel[0].get("channel", "")
+        frame = facecam.frame_path(channel)
+        if not os.path.exists(frame):
+            messagebox.showinfo("Вебка", f"Пока нет кадра со стрима {channel}. Он появится, когда программа "
+                                         f"нарежет следующий клип этого стримера.")
+            return
+        win = tk.Toplevel(self.root)
+        win.title(f"Вебка стримера {channel}")
+        win.transient(self.root)
+        img = tk.PhotoImage(file=frame)
+        W, H = img.width(), img.height()
+        ttk.Label(win, text="Обведи мышкой вебку стримера (зажми левую кнопку и тяни). "
+                            "Рамка будет использоваться для всех следующих клипов.",
+                  padding=6).pack(anchor="w")
+        cv = tk.Canvas(win, width=W, height=H, cursor="crosshair", highlightthickness=0)
+        cv.pack(padx=6)
+        cv.create_image(0, 0, image=img, anchor="nw")
+        cv.image = img
+        entry = facecam.get_entry(channel)
+        if entry.get("region"):
+            x, y, w, h = entry["region"]
+            cv.create_rectangle(x * W, y * H, (x + w) * W, (y + h) * H, outline="#3ddc84", width=3, dash=(6, 4))
+        state = {"start": None, "rect": None, "box": None}
+
+        def press(e):
+            state["start"] = (e.x, e.y)
+            if state["rect"]:
+                cv.delete(state["rect"])
+            state["rect"] = cv.create_rectangle(e.x, e.y, e.x, e.y, outline="#ff3b30", width=3)
+
+        def drag(e):
+            if state["start"]:
+                x0, y0 = state["start"]
+                cv.coords(state["rect"], x0, y0, max(0, min(W, e.x)), max(0, min(H, e.y)))
+
+        def release(e):
+            if not state["start"]:
+                return
+            x0, y0 = state["start"]
+            x1, y1 = max(0, min(W, e.x)), max(0, min(H, e.y))
+            x0, x1 = sorted((x0, x1))
+            y0, y1 = sorted((y0, y1))
+            if x1 - x0 > 15 and y1 - y0 > 15:
+                state["box"] = (x0 / W, y0 / H, (x1 - x0) / W, (y1 - y0) / H)
+        cv.bind("<ButtonPress-1>", press)
+        cv.bind("<B1-Motion>", drag)
+        cv.bind("<ButtonRelease-1>", release)
+
+        def save():
+            if not state["box"]:
+                messagebox.showinfo("Вебка", "Сначала обведи вебку мышкой.", parent=win)
+                return
+            facecam.set_manual(channel, tuple(round(v, 4) for v in state["box"]))
+            self._append(f"Вебка стримера {channel} задана вручную — применится к следующим клипам.\n")
+            win.destroy()
+
+        def no_cam():
+            facecam.set_manual(channel, None, no_cam=True)
+            self._append(f"Для {channel}: вебки нет — игра будет на размытом фоне.\n")
+            win.destroy()
+
+        def auto():
+            facecam.set_manual(channel, None)
+            self._append(f"Для {channel}: вебка снова ищется автоматически.\n")
+            win.destroy()
+        bar = ttk.Frame(win, padding=6)
+        bar.pack(fill="x")
+        ttk.Button(bar, text="✔  Сохранить рамку", command=save).pack(side="left")
+        ttk.Button(bar, text="У этого стримера нет вебки", command=no_cam).pack(side="left", padx=6)
+        ttk.Button(bar, text="Искать автоматически", command=auto).pack(side="left")
+        ttk.Button(bar, text="Отмена", command=win.destroy).pack(side="right")
+        win.grab_set()
+        self.facecam_window = win  # для проверок
 
     def _open(self, path: str):
         if os.name == "nt":

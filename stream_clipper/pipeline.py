@@ -76,9 +76,9 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
     meta = meta or {}
     layout, facecam = cfg.layout, cfg.facecam
     if layout == "auto":
-        from .facecam import detect_facecam
+        from .facecam import resolve
         try:
-            facecam = cfg.facecam or detect_facecam(segment)
+            facecam = cfg.facecam or resolve(meta.get("streamer", ""), segment, log=log)
         except Exception as e:
             log(f"    поиск вебки не удался: {e}")
             facecam = None
@@ -91,12 +91,18 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
         from .subtitles import available
         use_subs = available()
     if use_subs:
+        log("    распознаю речь для субтитров...")
         try:
             transcript = render_subs(segment, base + ".ass", cfg)
             if transcript:
                 ass_files.append(base + ".ass")
+                log(f"    субтитры готовы ({len(transcript.split())} слов)")
+            else:
+                log("    субтитры: в клипе не нашлось речи (стример молчит или музыка заглушает)")
         except Exception as e:  # субтитры — не критично
-            log(f"    субтитры не получились: {e}")
+            log(f"    субтитры не получились: {type(e).__name__}: {e}")
+    elif cfg.subs is None:
+        log("    субтитры выключены: не установлено распознавание речи (запусти install_subs.bat)")
     text = ""
     if cfg.caption:
         from .caption import make_caption

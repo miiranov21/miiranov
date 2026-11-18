@@ -1,10 +1,155 @@
-"""Автопоиск вебки стримера на кадре (OpenCV, необязательно)."""
+"""Поиск вебки стримера на кадре + память по стримерам + ручная рамка из окна программы."""
 from __future__ import annotations
 
+import json
+import os
+import urllib.request
 
-def detect_facecam(video: str, samples: int = 14, cam_aspect: float = 1080 / 672):
-    """Возвращает (x, y, w, h) области вебки в долях кадра или None.
-    Ищем лицо, которое стоит на одном месте в большинстве кадров (оверлей вебки),
+from . import paths
+
+YUNET_URLS = [
+    "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/"
+    "face_detection_yunet_2023mar.onnx",
+    "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
+]
+_detector = None
+
+
+# ---------- память по стримерам ----------
+def _store_path() -> str:
+    return os.path.join(paths.default_work_dir(), "facecams.json")
+
+
+def load_store() -> dict:
+    try:
+        with open(_store_path(), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_store(data: dict) -> None:
+    os.makedirs(os.path.dirname(_store_path()), exist_ok=True)
+    with open(_store_path(), "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1)
+
+
+def set_manual(channel: str, region: tuple | None, no_cam: bool = False) -> None:
+    """Рамку вебки указали вручную (или «у стримера нет вебки»). region=None и no_cam=False — снова автоматически."""
+    data = load_store()
+    key = channel.lower()
+    if region is None and not no_cam:
+        data.pop(key, None)
+    else:
+        data[key] = {"manual": True, "none": no_cam, "region": list(region) if region else None}
+    _save_store(data)
+
+
+def get_entry(channel: str) -> dict:
+    return load_store().get(channel.lower(), {})
+
+
+def frame_path(channel: str) -> str:
+    """Кадр из стрима (горизонтальный) — по нему в окне рисуют рамку вебки."""
+    d = os.path.join(paths.default_work_dir(), "frames")
+    os.makedirs(d, exist_ok=True)
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in channel.lower()) or "stream"
+    return os.path.join(d, safe + ".png")
+
+
+def resolve(channel: str, segment: str, log=print):
+    """Где вебка в этом клипе: ручная рамка > найденная сейчас > запомненная раньше. None — вебки нет."""
+    entry = get_entry(channel) if channel else {}
+    _save_frame(segment, channel)
+    if entry.get("manual"):
+        return None if entry.get("none") else tuple(entry["region"])
+    found = detect_facecam(segment, log=log)
+    if found and channel:
+        data = load_store()
+        old = data.get(channel.lower(), {}).get("region")
+        # сглаживаем: вебка у стримера обычно на одном месте
+        region = [round((a + b) / 2, 4) for a, b in zip(old, found)] if old and _close(old, found) else list(found)
+        data[channel.lower()] = {"manual": False, "none": False, "region": region}
+        _save_store(data)
+        return tuple(region)
+    if not found and entry.get("region"):
+        log("    вебка в этом клипе не видна — беру запомненное место")
+        return tuple(entry["region"])
+    return found
+
+
+def _close(a, b, tol: float = 0.08) -> bool:
+    return abs(a[0] - b[0]) < tol and abs(a[1] - b[1]) < tol
+
+
+def _save_frame(segment: str, channel: str) -> None:
+    if not channel:
+        return
+    try:
+        import cv2
+        cap = cv2.VideoCapture(segment)
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, int(total * 0.4)))
+        ok, frame = cap.read()
+        cap.release()
+        if ok:
+            h, w = frame.shape[:2]
+            frame = cv2.resize(frame, (960, int(960 * h / w)))
+            cv2.imwrite(frame_path(channel), frame)
+    except Exception:
+        pass
+
+
+# ---------- поиск лица ----------
+def _yunet():
+    """Точный детектор лиц YuNet (модель 230 КБ скачивается один раз). None — не получилось."""
+    global _detector
+    if _detector is not None:
+        return _detector or None
+    try:
+        import cv2
+        model = os.path.join(paths.default_work_dir(), "yunet.onnx")
+        if not os.path.exists(model) or os.path.getsize(model) < 100_000:
+            os.makedirs(os.path.dirname(model), exist_ok=True)
+            for url in YUNET_URLS:
+                try:
+                    req = urllib.request.Request(url, headers={"User-Agent": "stream-clipper"})
+                    with urllib.request.urlopen(req, timeout=30) as r:
+                        data = r.read()
+                    if len(data) > 100_000:
+                        with open(model, "wb") as f:
+                            f.write(data)
+                        break
+                except Exception:
+                    continue
+        _detector = cv2.FaceDetectorYN.create(model, "", (320, 320), 0.6, 0.3, 5000)
+    except Exception:
+        _detector = False
+    return _detector or None
+
+
+def _faces(frame, W, H):
+    """Лица на кадре: [(x, y, w, h)] в долях кадра."""
+    import cv2
+    det = _yunet()
+    if det is not None:
+        scale = 1280 / W if W > 1280 else 1.0  # уменьшаем для скорости
+        img = cv2.resize(frame, (int(W * scale), int(H * scale))) if scale != 1.0 else frame
+        det.setInputSize((img.shape[1], img.shape[0]))
+        _, res = det.detect(img)
+        if res is None:
+            return []
+        w_, h_ = img.shape[1], img.shape[0]
+        return [(float(f[0]) / w_, float(f[1]) / h_, float(f[2]) / w_, float(f[3]) / h_) for f in res]
+    cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    faces = cascade.detectMultiScale(gray, scaleFactor=1.08, minNeighbors=5, minSize=(int(H * 0.035),) * 2)
+    return [(x / W, y / H, w / W, h / H) for (x, y, w, h) in faces]
+
+
+def detect_facecam(video: str, samples: int = 20, cam_aspect: float = 1080 / 672, log=print):
+    """(x, y, w, h) области вебки в долях кадра или None.
+    Ищем лицо, которое в большинстве кадров стоит на одном месте (оверлей вебки),
     а не лица персонажей игры, которые двигаются."""
     try:
         import cv2
@@ -19,42 +164,34 @@ def detect_facecam(video: str, samples: int = 14, cam_aspect: float = 1080 / 672
     if total <= 0 or W <= 0 or H <= 0:
         cap.release()
         return None
-    cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
     frames_faces = []
     for i in range(samples):
         cap.set(cv2.CAP_PROP_POS_FRAMES, int(total * (i + 0.5) / samples))
         ok, frame = cap.read()
-        if not ok:
-            continue
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=6,
-                                         minSize=(int(H * 0.05), int(H * 0.05)))
-        frames_faces.append([(x / W, y / H, w / W, h / H) for (x, y, w, h) in faces])
+        if ok:
+            frames_faces.append(_faces(frame, W, H))
     cap.release()
     n = len(frames_faces)
     if n == 0:
         return None
-    # самое «устойчивое» лицо: встречается примерно в одном месте в большинстве кадров
     best, best_count = None, 0
     for faces in frames_faces:
         for f in faces:
             cx, cy = f[0] + f[2] / 2, f[1] + f[3] / 2
-            count = 0
-            for other in frames_faces:
-                if any(abs(cx - (o[0] + o[2] / 2)) < 0.04 and abs(cy - (o[1] + o[3] / 2)) < 0.04 for o in other):
-                    count += 1
+            count = sum(1 for other in frames_faces
+                        if any(abs(cx - (o[0] + o[2] / 2)) < 0.05 and abs(cy - (o[1] + o[3] / 2)) < 0.05
+                               for o in other))
             if count > best_count:
                 best, best_count = f, count
-    if not best or best_count < max(3, n * 0.5):
+    if not best or best_count < max(3, n * 0.35):
         return None
     fx, fy, fw, fh = best
     if fh > 0.45:
         return None  # камера на весь экран — отдельная вебка не нужна
-    # область вебки: лицо + плечи, в пропорции верхней части шортса
-    reg_w_px = min(fw * W * 2.6, W * 0.6)
+    reg_w_px = min(fw * W * 2.8, W * 0.6)
     reg_h_px = reg_w_px / cam_aspect
     cx_px = (fx + fw / 2) * W
     cy_px = (fy + fh / 2) * H + reg_h_px * 0.08
     x0 = min(max(0.0, cx_px - reg_w_px / 2), W - reg_w_px)
     y0 = min(max(0.0, cy_px - reg_h_px / 2), H - reg_h_px)
-    return (round(x0 / W, 4), round(y0 / H, 4), round(reg_w_px / W, 4), round(reg_h_px / H, 4))
+    return tuple(round(float(v), 4) for v in (x0 / W, y0 / H, reg_w_px / W, reg_h_px / H))

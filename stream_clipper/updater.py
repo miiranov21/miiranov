@@ -31,19 +31,41 @@ def local_version(root: str | None = None) -> str:
         return ""
 
 
-def check(root: str | None = None) -> dict | None:
-    """Есть ли новая версия. Возвращает {'sha', 'date'} или None (уже последняя)."""
+def _sha_via_git() -> str:
+    """Номер последней версии так же, как спрашивает обычный git — без лимита API GitHub
+    (у API всего 60 запросов в час на адрес, а через общий VPN он быстро кончается)."""
+    url = f"https://github.com/{REPO}.git/info/refs?service=git-upload-pack"
+    req = urllib.request.Request(url, headers={"User-Agent": "git/2.45.0"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        data = r.read().decode("utf-8", errors="replace")
+    ref = "refs/heads/" + BRANCH
+    for line in data.split("\n"):
+        parts = line.split(" ")
+        if len(parts) >= 2 and parts[1].split("\x00")[0] == ref:
+            return parts[0][-40:]
+    raise RuntimeError("ветка с обновлениями не найдена")
+
+
+def _sha_via_api() -> tuple[str, str]:
     url = f"https://api.github.com/repos/{REPO}/commits/{BRANCH.replace('/', '%2F')}"
     with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=20) as r:
         data = json.load(r)
-    sha = data["sha"]
-    if sha == local_version(root):
-        return None
     when = data.get("commit", {}).get("committer", {}).get("date", "")
     try:
         when = datetime.fromisoformat(when.replace("Z", "+00:00")).astimezone().strftime("%d.%m %H:%M")
     except ValueError:
         pass
+    return data["sha"], when
+
+
+def check(root: str | None = None) -> dict | None:
+    """Есть ли новая версия. Возвращает {'sha', 'date'} или None (уже последняя)."""
+    try:
+        sha, when = _sha_via_git(), datetime.now().strftime("%d.%m %H:%M")
+    except Exception:
+        sha, when = _sha_via_api()  # запасной путь
+    if sha == local_version(root):
+        return None
     return {"sha": sha, "date": when}
 
 

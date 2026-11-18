@@ -46,3 +46,8 @@ def stop_request_path() -> str:
 
 def stop_requested() -> bool:
     return os.path.exists(stop_request_path())
+
+
+def live_settings_path() -> str:
+    """Настройки, которые окно меняет на ходу (клипов в час, длина клипа) — работа подхватывает их сразу."""
+    return os.path.join(default_work_dir(), "live_settings.json")

@@ -150,10 +150,11 @@ def main(argv=None) -> None:
         twitch.set_cookies_browser(a.cookies_browser)
     try:
         import os
-        try:
-            os.remove(paths.stop_request_path())  # старый сигнал остановки не должен мешать
-        except OSError:
-            pass
+        for p in (paths.stop_request_path(), paths.live_settings_path()):
+            try:
+                os.remove(p)  # старые сигналы/настройки от прошлого запуска не должны мешать
+            except OSError:
+                pass
         if a.cmd == "vod":
             for u in a.urls:
                 _vod_with_memory(u, cfg)

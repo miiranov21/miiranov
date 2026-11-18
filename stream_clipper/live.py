@@ -196,7 +196,8 @@ class LiveSession:
         return None
 
     def process(self, final: bool = False) -> list[dict]:
-        from .pipeline import _analyze, _fmt, _make_short, _finish
+        from .pipeline import _analyze, _fmt, _make_short, _finish, refresh_live
+        refresh_live(self.cfg, self.log)
 
         cfg, log = self.cfg, self.log
         self._save_chat()

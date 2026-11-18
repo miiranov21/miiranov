@@ -181,6 +181,8 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
     try:
         while True:
             reload_sources()
+            from .pipeline import refresh_live
+            refresh_live(cfg, log)
             for src in list(sources):
                 if paths.stop_requested():
                     log("Останавливаюсь аккуратно: дорезаю начатое...")

@@ -126,6 +126,27 @@ def render_subs(segment: str, ass: str, cfg: Settings) -> str:
     return make_ass(segment, ass, cfg.whisper_model, cfg.language)
 
 
+def refresh_live(cfg: Settings, log=print) -> None:
+    """Подхватываем настройки, изменённые в окне во время работы (клипов в час, длина клипа)."""
+    try:
+        with open(paths.live_settings_path(), encoding="utf-8") as f:
+            live = json.load(f)
+    except Exception:
+        return
+    changed = []
+    top = live.get("top")
+    if isinstance(top, int) and top > 0 and top != cfg.top:
+        cfg.top = top
+        changed.append(f"клипов за час: {top}")
+    pre, post = live.get("pre"), live.get("post")
+    if isinstance(pre, (int, float)) and isinstance(post, (int, float)) and pre > 0 and post > 0 \
+            and (pre, post) != (cfg.clip_pre, cfg.clip_post):
+        cfg.clip_pre, cfg.clip_post = float(pre), float(post)
+        changed.append(f"длина клипа: {int(pre + post)} с")
+    if changed:
+        log("Новые настройки подхвачены: " + ", ".join(changed))
+
+
 def clip_budget(per_hour: int, seconds: float) -> int:
     """Сколько клипов положено на столько-то секунд стрима («клипов за час стрима»)."""
     import math
@@ -211,6 +232,7 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
     boundary = 0.0 if not live else max([d["end"] for d in done], default=0.0) - cfg.clip_post - cfg.clip_pre
     boundary = max(0.0, boundary)
     while True:
+        refresh_live(cfg, log)
         msgs, finished = download_chat_part(url, cache, None if cfg.dry_run else last + step, log)
         covered = last = msgs[-1].t if msgs else 0
         if finished and not live:
@@ -235,6 +257,7 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
             for i, h in enumerate(hl, 1):
                 if paths.stop_requested():
                     break
+                refresh_live(cfg, log)
                 d = dict(h.to_dict(), vod_url=url, vod_title=title, link=link(h.start))
                 if not cfg.dry_run:
                     name = f"{vid}_{_fmt(h.start)}"

@@ -140,14 +140,23 @@ class App:
             ttk.Checkbutton(opt, text=text, variable=self.v[key]).pack(anchor="w", pady=2)
         grid = ttk.Frame(opt)
         grid.pack(anchor="w", pady=(6, 0))
-        for r, (key, text, values) in enumerate((("top", "Клипов за час стрима:", ["1", "2", "3", "4", "5", "6"]),
-                                                 ("length", "Длина клипа, сек:", ["25", "35", "45", "60"]),
-                                                 ("quality", "Качество:", ["720", "1080"]))):
+        digits = (self.root.register(lambda p: p == "" or (p.isdigit() and len(p) <= 3)), "%P")
+        for r, (key, text, values, editable) in enumerate((
+                ("top", "Клипов за час стрима:", ["1", "2", "3", "5", "10", "20", "50"], True),
+                ("length", "Длина клипа, сек:", ["10", "15", "25", "35", "45", "60"], True),
+                ("quality", "Качество:", ["720", "1080"], False))):
             ttk.Label(grid, text=text).grid(row=r, column=0, sticky="w", pady=2)
             val = str(self.cfg.get(key))
-            self.v[key] = tk.StringVar(value=val if val in values else DEFAULTS[key])
-            ttk.Combobox(grid, textvariable=self.v[key], values=values, width=6,
-                         state="readonly").grid(row=r, column=1, sticky="w", padx=6)
+            ok = val.isdigit() if editable else val in values
+            self.v[key] = tk.StringVar(value=val if ok else DEFAULTS[key])
+            cb = ttk.Combobox(grid, textvariable=self.v[key], values=values, width=6,
+                              state="normal" if editable else "readonly")
+            if editable:
+                cb.configure(validate="key", validatecommand=digits)
+                self.v[key].trace_add("write", lambda *a: self._on_live_setting())
+            cb.grid(row=r, column=1, sticky="w", padx=6)
+        ttk.Label(grid, text="можно вписать своё число;\nменяется и во время работы",
+                  foreground="#666").grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
         # ключ Claude
         keyf = ttk.LabelFrame(main, text=" Ключ Claude API для умных надписей (необязательно) ", padding=6)
@@ -429,12 +438,46 @@ class App:
             json.dump(self.cfg, f, ensure_ascii=False, indent=1)
 
     # ---------- запуск ----------
+    def _num(self, key: str, lo: int, hi: int) -> int:
+        """Число из поля с границами; пустое/неверное — значение по умолчанию."""
+        try:
+            n = int(self.v[key].get())
+        except ValueError:
+            n = int(DEFAULTS[key])
+        return max(lo, min(hi, n))
+
+    def _clip_numbers(self) -> tuple[int, int, int]:
+        top = self._num("top", 1, 500)
+        length = self._num("length", 5, 180)
+        pre = max(2, round(length * 0.57))
+        return top, pre, max(2, length - pre)
+
+    def _on_live_setting(self):
+        """Поменяли «клипов в час» или длину во время работы — передаём сразу (с задержкой на ввод)."""
+        if getattr(self, "_live_job", None):
+            self.root.after_cancel(self._live_job)
+        self._live_job = self.root.after(1200, self._push_live_settings)
+
+    def _push_live_settings(self):
+        self._live_job = None
+        if not self.v["top"].get() or not self.v["length"].get():
+            return  # ещё печатает
+        top, pre, post = self._clip_numbers()
+        self._save_settings()
+        if not self.proc:
+            return
+        try:
+            with open(paths.live_settings_path(), "w", encoding="utf-8") as f:
+                json.dump({"top": top, "pre": pre, "post": post}, f)
+        except OSError:
+            return
+        self._append(f"Настройки изменены: {top} клипов за час, по {pre + post} с — применятся к следующим клипам.\n")
+
     def _flags(self) -> list[str]:
         self._save_settings()
         c = self.cfg
-        length = int(c["length"])
-        pre = round(length * 0.57)
-        f = ["-n", c["top"], "--pre", str(pre), "--post", str(length - pre),
+        top, pre, post = self._clip_numbers()
+        f = ["-n", str(top), "--pre", str(pre), "--post", str(post),
              "--max-height", c["quality"], "--zoom", "1.3",
              "--layout", "auto" if c["facecam"] else "blur"]
         if c["subs"]:

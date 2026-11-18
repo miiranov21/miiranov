@@ -31,27 +31,41 @@ def parse_youtube_chat_line(line: bytes) -> list[tuple[str, int, str, str]]:
         obj = json.loads(line)
     except Exception:
         return []
+    if not isinstance(obj, dict):
+        return []  # не сообщение (обрывок строки, служебная запись)
+    replay = obj.get("replayChatItemAction")
+    actions = replay.get("actions") if isinstance(replay, dict) else None
     out = []
-    for action in (obj.get("replayChatItemAction") or {}).get("actions", []):
-        item = (action.get("addChatItemAction") or {}).get("item") or {}
+    for action in actions if isinstance(actions, list) else []:
+        if not isinstance(action, dict):
+            continue
+        add = action.get("addChatItemAction")
+        item = add.get("item") if isinstance(add, dict) else None
+        if not isinstance(item, dict):
+            continue
         r = item.get("liveChatTextMessageRenderer") or item.get("liveChatPaidMessageRenderer")
-        if not r:
+        if not isinstance(r, dict):
             continue
         parts = []
-        for run in (r.get("message") or {}).get("runs", []):
-            if "text" in run:
+        msg = r.get("message")
+        runs = msg.get("runs") if isinstance(msg, dict) else None
+        for run in runs if isinstance(runs, list) else []:
+            if not isinstance(run, dict):
+                continue
+            if isinstance(run.get("text"), str):
                 parts.append(run["text"])
-            elif "emoji" in run:
+            elif isinstance(run.get("emoji"), dict):
                 sc = run["emoji"].get("shortcuts") or []
-                parts.append(sc[0] if sc else "")
+                parts.append(sc[0] if sc and isinstance(sc[0], str) else "")
         try:
             ts = int(r.get("timestampUsec") or 0)
         except ValueError:
             continue
         if not ts:
             continue
-        out.append((r.get("id") or f"{ts}{parts}", ts, (r.get("authorName") or {}).get("simpleText", ""),
-                    "".join(parts)))
+        an = r.get("authorName")
+        author = an.get("simpleText", "") if isinstance(an, dict) else ""
+        out.append((str(r.get("id") or f"{ts}{parts}"), ts, str(author), "".join(parts)))
     return out
 
 
@@ -148,7 +162,13 @@ class LiveSession:
     # ---------- чат ----------
     def _chat_loop(self) -> None:
         if self.is_youtube:
-            return self._chat_loop_youtube()
+            while not self.stop_evt.is_set():
+                try:
+                    return self._chat_loop_youtube()
+                except Exception as e:  # чат не должен умирать насовсем
+                    self.log(f"[{self.channel}] сбой чтения чата ({e}), продолжаю...")
+                    self.stop_evt.wait(3)
+            return
         from chat_downloader import ChatDownloader
         seen: set = set()
         while not self.stop_evt.is_set():
@@ -206,7 +226,11 @@ class LiveSession:
                 offsets[path] = offsets.get(path, 0) + cut
                 new = []
                 for line in data[:cut].splitlines():
-                    for mid, ts, author, text in parse_youtube_chat_line(line):
+                    try:
+                        parsed = parse_youtube_chat_line(line)
+                    except Exception:
+                        continue
+                    for mid, ts, author, text in parsed:
                         if mid in seen:
                             continue
                         seen.add(mid)

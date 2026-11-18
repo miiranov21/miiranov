@@ -25,7 +25,9 @@ def _common(p: argparse.ArgumentParser) -> None:
     g.add_argument("--no-caption", action="store_true", help="без плашки с подписью")
     g.add_argument("--facecam", help="где вебка на исходнике, доли кадра: x,y,w,h (например 0.75,0.70,0.25,0.30)")
     g.add_argument("--zoom", type=float, default=1.0, help="увеличение игры в режиме blur (например 1.4)")
-    g.add_argument("--subs", action="store_true", help="авто-субтитры (нужен faster-whisper)")
+    g.add_argument("--subs", action="store_true", default=None,
+                   help="авто-субтитры (по умолчанию включаются сами, если установлен faster-whisper)")
+    g.add_argument("--no-subs", dest="subs", action="store_false", help="без субтитров")
     g.add_argument("--whisper-model", default="small", help="tiny/base/small/medium/large-v3")
     g.add_argument("--lang", default=None, help="язык речи (ru, en...). По умолчанию — автоопределение")
     g.add_argument("--preset", default="medium", help="скорость кодирования x264: ultrafast..slow (быстрее = файл больше)")

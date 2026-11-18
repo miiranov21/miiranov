@@ -25,7 +25,7 @@ class Settings:
     layout: str = "auto"      # auto = вебка сверху, если найдена, иначе blur
     facecam: tuple | None = None
     zoom: float = 1.0
-    subs: bool = False
+    subs: bool | None = None  # None = включать сами, если установлен faster-whisper
     whisper_model: str = "small"
     language: str | None = None
     max_height: int = 1080
@@ -82,7 +82,11 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
         log(f"    вебка {'найдена — ставлю её сверху' if facecam else 'не найдена — игра на размытом фоне'}")
     base = os.path.splitext(out)[0]
     ass_files, transcript = [], ""
-    if cfg.subs:
+    use_subs = cfg.subs
+    if use_subs is None:
+        from .subtitles import available
+        use_subs = available()
+    if use_subs:
         try:
             transcript = render_subs(segment, base + ".ass", cfg)
             if transcript:

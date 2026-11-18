@@ -29,6 +29,7 @@ def _get_model(name: str):
     global _model, _model_name
     if _model is None or _model_name != name:
         from faster_whisper import WhisperModel
+        print(f"    загружаю модель распознавания речи «{name}» (в первый раз скачается ~0.5 ГБ)...")
         _model = WhisperModel(name, device="auto", compute_type="auto")
         _model_name = name
     return _model
@@ -37,7 +38,16 @@ def _get_model(name: str):
 def make_ass(media: str, ass_path: str, model: str = "small", language: str | None = None,
              words_per_line: int = 3) -> str:
     """Распознаёт речь и пишет .ass файл. Возвращает распознанный текст ('' — речи нет)."""
-    segments, _ = _get_model(model).transcribe(media, language=language, word_timestamps=True, vad_filter=True)
+    m = _get_model(model)
+    try:
+        segments, _ = m.transcribe(media, language=language, word_timestamps=True, vad_filter=True)
+        segments = list(segments)
+    except Exception as e:
+        if "onnxruntime" not in str(e):
+            raise
+        # фильтр тишины требует onnxruntime (под новые Python его может не быть) — распознаём без него
+        segments, _ = m.transcribe(media, language=language, word_timestamps=True, vad_filter=False)
+        segments = list(segments)
     words = [w for s in segments for w in (s.words or []) if w.word.strip()]
     if not words:
         return ""
@@ -60,3 +70,11 @@ def make_ass(media: str, ass_path: str, model: str = "small", language: str | No
             text = text.replace("{", "(").replace("}", ")").replace("\n", " ")
             f.write(f"Dialogue: 0,{_ts(start)},{_ts(end)},Default,,0,0,0,,{text}\n")
     return " ".join(w.word.strip() for w in words)
+
+
+def available() -> bool:
+    try:
+        import faster_whisper  # noqa: F401
+        return True
+    except Exception:
+        return False

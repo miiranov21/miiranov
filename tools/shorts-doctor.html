@@ -1,0 +1,673 @@
+<title>Доктор шортсов</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one narrow working column, tab bar on top; diagnosis = form on the left, funnel + verdict on the right (stacks on phone) */
+:root {
+  --bg: #f3f4f8;
+  --surface: #ffffff;
+  --ink: #161a2e;
+  --muted: #5d6380;
+  --line: #dde0ea;
+  --accent: #3445d6;
+  --accent-soft: #e6e9fb;
+  --good: #1f8a5b; --good-soft: #e1f3ea;
+  --warn: #b36b00; --warn-soft: #fbf0dc;
+  --bad: #c8323c;  --bad-soft: #fbe3e5;
+  --f-display: "Unbounded", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Golos Text", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11131d; --surface: #1a1d2b; --ink: #e9ebf5; --muted: #9aa0bd; --line: #2c3045;
+  --accent: #8f9bff; --accent-soft: #252a4a;
+  --good: #4cc98f; --good-soft: #17322a; --warn: #f0b350; --warn-soft: #362a14; --bad: #ff7a83; --bad-soft: #3a1c22;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11131d; --surface: #1a1d2b; --ink: #e9ebf5; --muted: #9aa0bd; --line: #2c3045;
+  --accent: #8f9bff; --accent-soft: #252a4a;
+  --good: #4cc98f; --good-soft: #17322a; --warn: #f0b350; --warn-soft: #362a14; --bad: #ff7a83; --bad-soft: #3a1c22;
+  color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 24px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: clamp(22px, 4vw, 30px); font-weight: 700; }
+h2 { font-size: 18px; font-weight: 700; }
+h3 { font-size: 14px; font-weight: 500; }
+p { margin: 0; }
+.lede { color: var(--muted); max-width: 64ch; margin-top: 6px; }
+header { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
+
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+.tab { font: 500 14px var(--f-body); color: var(--muted); background: none; border: 0; padding: 10px 14px;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.grid2 { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 820px) { .grid2 { grid-template-columns: minmax(0,1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+.form { display: flex; flex-direction: column; gap: 14px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.field small { font-size: 11.5px; color: var(--muted); }
+input, select { font: 500 15px var(--f-mono); color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 7px; padding: 8px 10px; width: 100%; }
+input[type="text"] { font-family: var(--f-body); }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { flex: 1; font: 500 13px var(--f-body); padding: 8px 4px; background: var(--bg); color: var(--muted); border: 0; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.group-label { font: 500 11px var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { font: 600 14px var(--f-body); padding: 9px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.example-note { font-size: 12.5px; background: var(--accent-soft); color: var(--ink); padding: 8px 10px; border-radius: 7px; }
+
+.verdict { display: flex; flex-direction: column; gap: 18px; }
+.headline { border-radius: 10px; padding: 16px 18px; border: 1px solid var(--line); background: var(--surface); }
+.headline .tag { font: 500 11px var(--f-body); letter-spacing: .08em; text-transform: uppercase; }
+.headline h2 { margin-top: 6px; font-size: 19px; }
+.headline p { margin-top: 6px; color: var(--muted); max-width: 70ch; }
+.headline.bad { border-left: 4px solid var(--bad); } .headline.bad .tag { color: var(--bad); }
+.headline.warn { border-left: 4px solid var(--warn); } .headline.warn .tag { color: var(--warn); }
+.headline.good { border-left: 4px solid var(--good); } .headline.good .tag { color: var(--good); }
+
+.funnel { display: flex; flex-direction: column; gap: 6px; }
+.stage { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 10px 12px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); cursor: pointer; text-align: left; font: inherit; color: inherit; width: 100%; }
+.stage .num { font: 500 12px var(--f-mono); color: var(--muted); }
+.stage .name { font-weight: 600; }
+.stage .what { font-size: 12.5px; color: var(--muted); }
+.stage .val { font: 500 14px var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.pill { display: inline-block; font: 600 11px var(--f-body); padding: 2px 8px; border-radius: 99px; margin-top: 3px; }
+.pill.good { background: var(--good-soft); color: var(--good); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad  { background: var(--bad-soft);  color: var(--bad); }
+.pill.na   { background: var(--bg); color: var(--muted); }
+.stage.is-bottleneck { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad) inset; }
+.bar { height: 4px; border-radius: 4px; background: var(--line); margin-top: 6px; overflow: hidden; }
+.bar i { display: block; height: 100%; }
+
+.fixes { display: flex; flex-direction: column; gap: 12px; }
+.fix { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.fix h3 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.fix ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.fix li { max-width: 72ch; }
+
+.history { margin-top: 28px; }
+.history table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.history th { text-align: left; font: 500 11px var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.history td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.history td.n { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.scroll { overflow-x: auto; }
+.linkbtn { background: none; border: 0; color: var(--accent); font: 500 13px var(--f-body); cursor: pointer; padding: 0; }
+
+.checklists { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.check { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-top: 1px solid var(--line); }
+.check:first-of-type { border-top: 0; }
+.check input { width: 18px; height: 18px; margin-top: 2px; flex: none; accent-color: var(--accent); }
+.check span { font-size: 14px; }
+.check em { display: block; font-style: normal; font-size: 12.5px; color: var(--muted); }
+.progress { font: 500 13px var(--f-mono); color: var(--muted); }
+
+.symptoms { display: flex; flex-direction: column; gap: 10px; }
+details.sym { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0; }
+details.sym summary { cursor: pointer; padding: 14px 16px; font-weight: 600; list-style: none; display: flex; gap: 10px; justify-content: space-between; }
+details.sym summary::after { content: "+"; font-family: var(--f-mono); color: var(--muted); }
+details.sym[open] summary::after { content: "–"; }
+details.sym .body { padding: 0 16px 16px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; }
+@media (max-width: 700px) { details.sym .body { grid-template-columns: minmax(0,1fr); } }
+details.sym h4 { margin: 0 0 6px; font: 500 11px var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+details.sym ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+
+table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 14px; background: var(--surface); }
+table.cmp th, table.cmp td { border: 1px solid var(--line); padding: 10px 12px; vertical-align: top; text-align: left; }
+table.cmp thead th { font-family: var(--f-display); font-size: 13px; font-weight: 500; background: var(--accent-soft); }
+table.cmp tbody th { font-weight: 600; width: 170px; color: var(--muted); font-size: 13px; }
+.note { font-size: 12.5px; color: var(--muted); margin-top: 12px; max-width: 80ch; }
+.routine { margin-top: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.routine .step { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.routine .when { font: 500 12px var(--f-mono); color: var(--accent); }
+.routine ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+@media (prefers-reduced-motion: no-preference) { .bar i { transition: width .4s ease; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Доктор шортсов</h1>
+    <p class="lede">Разбор коротких видео для TikTok, Instagram Reels и YouTube Shorts. Вводите цифры из аналитики — инструмент находит, на каком шаге зритель уходит, и говорит, что исправить первым.</p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="diag" aria-selected="true">Разбор видео</button>
+    <button class="tab" role="tab" data-tab="check" aria-selected="false">Перед публикацией</button>
+    <button class="tab" role="tab" data-tab="noviews" aria-selected="false">Почему нет просмотров</button>
+    <button class="tab" role="tab" data-tab="platforms" aria-selected="false">Платформы и режим</button>
+  </nav>
+
+  <!-- ============ DIAGNOSIS ============ -->
+  <section id="tab-diag" role="tabpanel">
+    <div class="grid2">
+      <form class="panel form" id="f" autocomplete="off">
+        <p class="example-note" id="exampleNote">Сейчас заполнен пример. Замените цифры своими: берите их через 48–72 часа после публикации.</p>
+        <div class="field">
+          <label for="title">Название видео (для истории)</label>
+          <input type="text" id="title" value="Пример: 3 ошибки в монтаже">
+        </div>
+        <div class="field">
+          <label>Платформа</label>
+          <div class="seg" id="platform">
+            <button type="button" data-p="tt" aria-pressed="true">TikTok</button>
+            <button type="button" data-p="ig" aria-pressed="false">Reels</button>
+            <button type="button" data-p="yt" aria-pressed="false">Shorts</button>
+          </div>
+        </div>
+
+        <div class="group-label">Просмотры и удержание</div>
+        <div class="row">
+          <div class="field"><label for="views">Просмотры</label><input id="views" type="number" min="0" value="640"></div>
+          <div class="field"><label for="len">Длина, сек</label><input id="len" type="number" min="1" value="34"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="avg">Ср. время просмотра, сек</label><input id="avg" type="number" min="0" step="0.1" value="9.8"></div>
+          <div class="field"><label for="comp">Досмотрели до конца, %</label><input id="comp" type="number" min="0" max="100" step="0.1" value="11"></div>
+        </div>
+        <div class="field">
+          <label for="hook" id="hookLabel">Удержание на 3-й секунде, %</label>
+          <input id="hook" type="number" min="0" max="100" step="0.1" value="48">
+          <small id="hookHint">TikTok: график удержания, точка на 0:03. Можно оставить пустым.</small>
+        </div>
+        <div class="field">
+          <label for="fyp" id="fypLabel">Из рекомендаций («Для вас»), %</label>
+          <input id="fyp" type="number" min="0" max="100" step="0.1" value="72">
+          <small id="fypHint">Источники трафика в аналитике видео. Можно оставить пустым.</small>
+        </div>
+
+        <div class="group-label">Реакции</div>
+        <div class="row">
+          <div class="field"><label for="likes">Лайки</label><input id="likes" type="number" min="0" value="31"></div>
+          <div class="field"><label for="comments">Комментарии</label><input id="comments" type="number" min="0" value="2"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="shares" id="sharesLabel">Репосты</label><input id="shares" type="number" min="0" value="1"></div>
+          <div class="field"><label for="saves">Сохранения</label><input id="saves" type="number" min="0" value="4"></div>
+        </div>
+        <div class="field"><label for="follows">Новые подписчики с видео</label><input id="follows" type="number" min="0" value="1"></div>
+
+        <div class="btns">
+          <button class="btn" type="button" id="saveBtn">Сохранить в историю</button>
+          <button class="btn ghost" type="button" id="clearBtn">Очистить форму</button>
+        </div>
+      </form>
+
+      <div class="verdict">
+        <div class="headline" id="headline"></div>
+        <div>
+          <h2 style="margin-bottom:10px">Воронка видео</h2>
+          <div class="funnel" id="funnel"></div>
+        </div>
+        <div>
+          <h2 style="margin-bottom:10px">Что делать</h2>
+          <div class="fixes" id="fixes"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="history">
+      <h2 style="margin-bottom:10px">История разборов</h2>
+      <p class="note" style="margin:0 0 10px">Хранится только в этом браузере. Сравнивайте видео между собой: ищите, что общего у тех, что зашли.</p>
+      <div class="scroll"><table id="histTable">
+        <thead><tr><th>Видео</th><th>Платф.</th><th>Просм.</th><th>Ср. %</th><th>Досм.</th><th>Главная проблема</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ============ CHECKLIST ============ -->
+  <section id="tab-check" role="tabpanel" hidden>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+      <p class="lede" style="margin:0">Пройдите перед каждой публикацией. Большинство «мёртвых» видео проваливаются на первых пяти пунктах.</p>
+      <div class="btns"><span class="progress" id="checkProgress"></span><button class="btn ghost" type="button" id="resetChecks">Сбросить</button></div>
+    </div>
+    <div class="checklists" id="checklists"></div>
+  </section>
+
+  <!-- ============ NO VIEWS ============ -->
+  <section id="tab-noviews" role="tabpanel" hidden>
+    <p class="lede" style="margin:0 0 16px">Найдите свой симптом. Слева — что обычно его вызывает, справа — что проверить и сделать.</p>
+    <div class="symptoms" id="symptoms"></div>
+  </section>
+
+  <!-- ============ PLATFORMS ============ -->
+  <section id="tab-platforms" role="tabpanel" hidden>
+    <div class="scroll"><table class="cmp">
+      <thead><tr><th></th><th>TikTok</th><th>Instagram Reels</th><th>YouTube Shorts</th></tr></thead>
+      <tbody>
+        <tr><th>Главный сигнал</th><td>Среднее время просмотра и % досмотра, повторные просмотры</td><td>Время просмотра, пересылки в директ («отправки»), лайки на охват</td><td>«Смотрели / пролистали» (viewed vs swiped away), средний % просмотра</td></tr>
+        <tr><th>Длина, которая чаще работает</th><td>15–45 сек; длиннее 1 мин, если история держит</td><td>7–30 сек; до 3 мин тоже попадают в рекомендации</td><td>15–40 сек; лимит до 3 мин</td></tr>
+        <tr><th>Где цифры</th><td>Видео → «…» → Аналитика; или Инструменты автора → Аналитика</td><td>Нужен профессиональный аккаунт. Reels → «Статистика»: охват, % пропусков, время</td><td>YouTube Studio → Контент → Shorts → Аналитика → Взаимодействие</td></tr>
+        <tr><th>Метрика хука</th><td>Удержание на 0:03 на графике</td><td>«Процент пропусков»: чем ниже, тем лучше (хорошо &lt; 40%)</td><td>«Смотрели», % (хорошо &gt; 70%)</td></tr>
+        <tr><th>Текст и хэштеги</th><td>Ключевые слова в описании и в тексте на экране (TikTok работает как поисковик). 3–5 хэштегов по теме</td><td>Ключевые слова в подписи; не больше 5 хэштегов</td><td>Название важно: это заголовок в поиске. #shorts не обязателен</td></tr>
+        <tr><th>Частота</th><td>1–2 в день для роста, минимум 4–5 в неделю</td><td>3–5 Reels в неделю + сторис для своих</td><td>3–7 в неделю; просмотры могут прийти через дни и недели</td></tr>
+        <tr><th>Что режут</th><td>Чужие нарезки без обработки, статичные картинки, вотермарки других приложений</td><td>Репосты чужого контента, вотермарка TikTok, низкое качество</td><td>Повторно залитый чужой контент, музыка с Content ID (видео &gt; 1 мин с заявкой блокируется)</td></tr>
+        <tr><th>Полезная фишка</th><td>Серии и закреплённые видео; ответ видео на комментарий</td><td>«Пробные Reels» показываются только не подписчикам: тест без риска</td><td>Ссылка на связанное длинное видео под Shorts</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Ориентиры усреднённые по нишам. Сравнивайте видео прежде всего со своими же прошлыми роликами: если новое держит лучше вашего среднего, это рост, даже если до «хорошо» ещё далеко.</p>
+
+    <h2 style="margin-top:28px">Режим работы</h2>
+    <div class="routine">
+      <div class="step"><div class="when">До съёмки</div><ul><li>Одна мысль на видео</li><li>Хук в первом кадре придуман заранее</li><li>Смотрите 10 видео в нише: что общего у залетевших</li></ul></div>
+      <div class="step"><div class="when">Через 1–2 часа</div><ul><li>Есть просмотры, но &lt; 50? Проверьте статус видео (модерация, нарушения)</li><li>Ответьте на первые комментарии</li></ul></div>
+      <div class="step"><div class="when">Через 48–72 часа</div><ul><li>Внесите цифры во вкладку «Разбор видео»</li><li>Запишите один вывод: что поменять в следующем</li></ul></div>
+      <div class="step"><div class="when">Раз в неделю</div><ul><li>Сравните историю: 3 лучших и 3 худших видео</li><li>Повторите формат лучшего, исправьте ошибку худшего</li><li>Перезалейте сильные видео на другие две платформы, без вотермарок</li></ul></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+
+  /* ---------- tabs ---------- */
+  const tabs = document.querySelectorAll(".tab");
+  function showTab(name) {
+    tabs.forEach(t => t.setAttribute("aria-selected", String(t.dataset.tab === name)));
+    document.querySelectorAll('[role="tabpanel"]').forEach(p => p.hidden = p.id !== "tab-" + name);
+    store.set("sd_tab", name);
+  }
+  tabs.forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
+  showTab(store.get("sd_tab", "diag"));
+
+  /* ---------- platform ---------- */
+  const P = {
+    tt: { name: "TikTok", hookLabel: "Удержание на 3-й секунде, %", hookHint: "График удержания в аналитике видео, точка на 0:03. Можно оставить пустым.",
+          fypLabel: "Из рекомендаций («Для вас»), %", hookGood: 70, hookWarn: 55, sharesLabel: "Репосты" },
+    ig: { name: "Reels", hookLabel: "Процент пропусков, %", hookHint: "Статистика Reels → «Процент пропусков»: доля тех, кто пролистал в первые 3 сек. Можно оставить пустым.",
+          fypLabel: "Охват не подписчиков, %", hookGood: 60, hookWarn: 45, sharesLabel: "Отправки (в директ)" },
+    yt: { name: "Shorts", hookLabel: "«Смотрели» (не пролистали), %", hookHint: "Studio → Аналитика Shorts → «Смотрели / пролистали». Можно оставить пустым.",
+          fypLabel: "Из ленты Shorts, %", hookGood: 70, hookWarn: 55, sharesLabel: "Репосты" }
+  };
+  let plat = "tt";
+  function setPlatform(p) {
+    plat = p;
+    document.querySelectorAll("#platform button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.p === p)));
+    $("hookLabel").textContent = P[p].hookLabel;
+    $("hookHint").textContent = P[p].hookHint;
+    $("fypLabel").textContent = P[p].fypLabel;
+    $("sharesLabel").textContent = P[p].sharesLabel;
+    run();
+  }
+  document.querySelectorAll("#platform button").forEach(b => b.addEventListener("click", () => setPlatform(b.dataset.p)));
+
+  /* ---------- engine ---------- */
+  const num = (id) => { const v = $(id).value.trim(); return v === "" ? null : Number(v); };
+  const status = (v, good, warn) => v == null || isNaN(v) ? "na" : v >= good ? "good" : v >= warn ? "warn" : "bad";
+  const LBL = { good: "норма", warn: "слабо", bad: "проблема", na: "нет данных" };
+  const pct = (a, b) => b > 0 && a != null ? a / b * 100 : null;
+  const fmt = (v, d = 1) => v == null || isNaN(v) ? "—" : (Math.round(v * 10 ** d) / 10 ** d).toLocaleString("ru-RU");
+
+  function thresholdsByLen(L) {
+    if (L <= 15) return { avg: [85, 65], comp: [50, 30] };
+    if (L <= 30) return { avg: [70, 50], comp: [35, 20] };
+    if (L <= 60) return { avg: [55, 40], comp: [25, 15] };
+    return { avg: [45, 30], comp: [15, 8] };
+  }
+
+  const FIX = {
+    reach: {
+      title: "Видео не вышло из первой волны показов",
+      items: [
+        "Платформа показывает новое видео маленькой тестовой группе (часто 200–500 человек). Если там слабые сигналы, показы останавливаются.",
+        "Если удержание и хук при этом в норме, причина скорее техническая: проверьте статус аккаунта и видео, оригинальность, вотермарки, музыку (вкладка «Почему нет просмотров»).",
+        "Не удаляйте видео пачками и не перезаливайте одно и то же: это снижает доверие к аккаунту.",
+        "Публикуйте регулярно в одной теме, чтобы алгоритм понял, кому вас показывать."
+      ]
+    },
+    fyp: {
+      title: "Видео почти не показывают новым людям",
+      items: [
+        "Большая часть просмотров идёт от подписчиков или из профиля, а не из рекомендаций.",
+        "Тема слишком «внутренняя»: понятна тем, кто вас знает. Делайте первый кадр понятным незнакомцу без контекста.",
+        "Добавьте ключевые слова в текст на экране и в описание: так видео находят через поиск и похожие интересы.",
+        "В Instagram попробуйте «Пробные Reels»: их видят только не подписчики."
+      ]
+    },
+    hook: {
+      title: "Слабый хук: уходят в первые 3 секунды",
+      items: [
+        "В первом кадре должно быть движение, лицо или результат. Никаких «Всем привет, сегодня я расскажу…».",
+        "Начните с конца: покажите итог, ошибку или спорное утверждение, а объяснение дайте потом.",
+        "Крупный текст на экране в первую секунду: о чём видео и почему досмотреть («Не делайте так с…»).",
+        "Обложка и первый кадр должны совпадать по смыслу с описанием, иначе зритель чувствует подвох и листает.",
+        "Проверьте звук: первая фраза должна звучать сразу, без тишины и долгого вступления музыки."
+      ]
+    },
+    hold: {
+      title: "Провал в середине: зритель скучает",
+      items: [
+        "Откройте график удержания и найдите место резкого падения. Вырежьте или ускорьте этот кусок.",
+        "Меняйте картинку каждые 2–3 секунды: план, зум, текст, перебивка.",
+        "Уберите паузы, «эээ», повторы. Обычно видео можно сократить на 20–30% без потери смысла.",
+        "Держите интригу: обещайте главное ближе к концу («третья ошибка самая частая»).",
+        "Видео длиннее, чем нужно для одной мысли. Попробуйте ту же идею в 15–20 секундах."
+      ]
+    },
+    comp: {
+      title: "Не досматривают до конца",
+      items: [
+        "Уберите концовку-прощание («подписывайтесь, всем пока»): люди уходят раньше, и это считается недосмотром.",
+        "Закончите на сильной точке или сделайте зацикливание: последний кадр плавно переходит в первый, видео смотрят повторно.",
+        "Главную ценность или ответ ставьте в последние секунды, а не в середину.",
+        "Сократите. Короткое видео с высоким досмотром часто получает больше показов, чем длинное."
+      ]
+    },
+    engage: {
+      title: "Мало реакций",
+      items: [
+        "Дайте повод для комментария: задайте конкретный вопрос или оставьте спорную мысль («какая вторая ошибка?»).",
+        "Отвечайте на комментарии в первый час. В TikTok отвечайте видео на комментарий: это ещё один ролик.",
+        "Закрепите свой комментарий с вопросом или продолжением.",
+        "Если досмотр хороший, а реакций нет, видео смотрят, но не чувствуют эмоции. Добавьте своё мнение и позицию."
+      ]
+    },
+    share: {
+      title: "Видео не пересылают и не сохраняют",
+      items: [
+        "Пересылают то, что про «нас»: узнаваемые ситуации, юмор, «отправь другу, который…».",
+        "Сохраняют пользу: списки, инструкции, шаблоны, подборки. Скажите прямо: «сохрани, чтобы не потерять».",
+        "В Reels пересылки в директ один из главных сигналов для показа новым людям.",
+        "Одна полезная мысль, которую можно применить сразу, работает лучше общей мотивации."
+      ]
+    },
+    follow: {
+      title: "Смотрят, но не подписываются",
+      items: [
+        "У зрителя нет причины ждать следующее видео. Делайте серии: «часть 1», «день 3 из 30».",
+        "Оформите профиль: понятное имя, одна строка «о чём аккаунт и что зритель получит», 3 закреплённых лучших видео.",
+        "Держитесь одной темы: если каждое видео о разном, подписываться не на что.",
+        "Скажите в конце, что будет дальше: «завтра покажу, как это исправить»."
+      ]
+    },
+    ok: {
+      title: "Видео в хорошей форме",
+      items: [
+        "Повторите формат: тот же хук, длина и структура на другую тему.",
+        "Перезалейте это видео на две другие платформы без вотермарок.",
+        "Сделайте продолжение и сошлитесь на это видео в первых секундах."
+      ]
+    }
+  };
+
+  function compute() {
+    const V = num("views"), L = num("len"), A = num("avg"), C = num("comp");
+    let H = num("hook"); if (H != null && plat === "ig") H = 100 - H;
+    const R = num("fyp");
+    const likes = num("likes"), comments = num("comments"), shares = num("shares"), saves = num("saves"), follows = num("follows");
+    const th = thresholdsByLen(L || 30);
+    const avgPct = L && A != null ? A / L * 100 : null;
+    const likeR = pct(likes, V), comR = pct(comments, V);
+    const shareR = (shares != null || saves != null) && V ? ((shares || 0) + (saves || 0)) / V * 100 : null;
+    const follow1k = follows != null && V ? follows / V * 1000 : null;
+
+    const engSt = (() => {
+      const a = status(likeR, 6, 3), b = status(comR, 0.5, 0.2);
+      const rank = { bad: 0, warn: 1, good: 2, na: 3 };
+      return rank[a] <= rank[b] ? a : b;
+    })();
+
+    const stages = [
+      { key: "reach", name: "Охват", what: "Вышло ли видео за первую волну", val: fmt(V, 0) + " просм.", st: V == null ? "na" : status(V, 1000, 300), bar: V ? Math.min(100, V / 3000 * 100) : 0 },
+      { key: "fyp", name: "Новые зрители", what: "Доля показов из рекомендаций", val: fmt(R, 0) + "%", st: status(R, 60, 40), bar: R || 0 },
+      { key: "hook", name: "Хук", what: plat === "ig" ? "Не пролистали в первые 3 сек" : "Остались после 3 секунд", val: fmt(H, 0) + "%", st: status(H, P[plat].hookGood, P[plat].hookWarn), bar: H || 0 },
+      { key: "hold", name: "Удержание", what: "Средний % просмотра (норма для " + (L || "?") + " сек: от " + th.avg[0] + "%)", val: fmt(avgPct, 0) + "%", st: status(avgPct, th.avg[0], th.avg[1]), bar: Math.min(100, avgPct || 0) },
+      { key: "comp", name: "Досмотр", what: "Досмотрели до конца (норма: от " + th.comp[0] + "%)", val: fmt(C, 0) + "%", st: status(C, th.comp[0], th.comp[1]), bar: C || 0 },
+      { key: "engage", name: "Реакции", what: "Лайки " + fmt(likeR) + "% · комментарии " + fmt(comR, 2) + "% от просмотров", val: fmt(likeR) + "%", st: engSt, bar: Math.min(100, (likeR || 0) * 10) },
+      { key: "share", name: "Пересылки и сохранения", what: "От просмотров (норма: от 1,5%)", val: fmt(shareR, 2) + "%", st: status(shareR, 1.5, 0.6), bar: Math.min(100, (shareR || 0) * 40) },
+      { key: "follow", name: "Подписки", what: "Новых подписчиков на 1000 просмотров (норма: от 5)", val: fmt(follow1k), st: status(follow1k, 5, 2), bar: Math.min(100, (follow1k || 0) * 10) }
+    ];
+
+    // Bottleneck: earliest broken content stage. Reach/fyp are outcomes, so judge them through content stages.
+    const order = ["hook", "hold", "comp", "engage", "share", "follow"];
+    const by = Object.fromEntries(stages.map(s => [s.key, s]));
+    let main = order.find(k => by[k].st === "bad") || order.find(k => by[k].st === "warn");
+    const contentOk = ["hook", "hold", "comp"].every(k => by[k].st === "good" || by[k].st === "na") && ["hook", "hold", "comp"].some(k => by[k].st !== "na");
+    let headline;
+    if (by.reach.st === "bad" && contentOk) {
+      main = "reach";
+      headline = { cls: "bad", tag: "Главное: техническая причина", h: "Зрители смотрят, а платформа не раздаёт видео",
+        p: "Удержание в норме, но показы остановились. Так бывает при ограничениях аккаунта, неоригинальном контенте, вотермарках или проблемах с музыкой. Проверьте пункты во вкладке «Почему нет просмотров»." };
+    } else if (main) {
+      const s = by[main];
+      headline = { cls: s.st, tag: "Главное узкое место: " + s.name.toLowerCase(), h: FIX[main].title,
+        p: "Исправляйте сначала этот шаг: пока зритель уходит здесь, улучшения на следующих шагах почти не повлияют на просмотры." };
+    } else if (by.fyp.st === "bad") {
+      main = "fyp";
+      headline = { cls: "warn", tag: "Главное: охват новых людей", h: FIX.fyp.title, p: "Контент держит зрителей, но видео крутится среди своих. Сделайте его понятным незнакомцам." };
+    } else if (stages.every(s => s.st === "na")) {
+      headline = { cls: "warn", tag: "Нет данных", h: "Введите цифры из аналитики", p: "Минимум: просмотры, длина видео и среднее время просмотра." };
+    } else {
+      main = "ok";
+      headline = { cls: "good", tag: "Без явных проблем", h: FIX.ok.title, p: "Все заполненные показатели в норме. Масштабируйте то, что сработало." };
+    }
+    if (main && main !== "ok" && main !== "reach" && by.reach.st === "bad" && contentOk === false) {
+      headline.p += " Мало просмотров здесь следствие: тестовая группа ушла рано, и платформа перестала показывать видео.";
+    }
+
+    const fixKeys = [];
+    if (main) fixKeys.push(main);
+    stages.forEach(s => { if ((s.st === "bad" || s.st === "warn") && !fixKeys.includes(s.key) && FIX[s.key]) fixKeys.push(s.key); });
+    return { stages, main, headline, fixKeys, by, avgPct, V, C };
+  }
+
+  function run() {
+    const r = compute();
+    const hl = $("headline");
+    hl.className = "headline " + r.headline.cls;
+    hl.innerHTML = `<div class="tag">${r.headline.tag}</div><h2>${r.headline.h}</h2><p>${r.headline.p}</p>`;
+
+    const colors = { good: "var(--good)", warn: "var(--warn)", bad: "var(--bad)", na: "var(--line)" };
+    $("funnel").innerHTML = r.stages.map((s, i) => `
+      <button type="button" class="stage ${s.key === r.main ? "is-bottleneck" : ""}" data-key="${s.key}">
+        <span class="num">${i + 1}</span>
+        <span style="min-width:0"><span class="name">${s.name}</span> <span class="pill ${s.st}">${LBL[s.st]}</span><br><span class="what">${s.what}</span>
+          <span class="bar"><i style="width:${s.st === "na" ? 0 : Math.max(3, s.bar)}%;background:${colors[s.st]}"></i></span></span>
+        <span class="val">${s.st === "na" ? "—" : s.val}</span>
+      </button>`).join("");
+
+    $("fixes").innerHTML = r.fixKeys.map((k, i) => {
+      const s = r.by[k];
+      const pill = s ? `<span class="pill ${s.st}">${s.name}</span>` : "";
+      return `<div class="fix" id="fix-${k}"><h3>${i === 0 ? "Сначала: " : ""}${FIX[k].title} ${pill}</h3><ul>${FIX[k].items.map(x => `<li>${x}</li>`).join("")}</ul></div>`;
+    }).join("");
+
+    document.querySelectorAll(".stage").forEach(b => b.addEventListener("click", () => {
+      const el = $("fix-" + b.dataset.key); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }));
+    return r;
+  }
+
+  document.querySelectorAll("#f input").forEach(i => i.addEventListener("input", () => { $("exampleNote").hidden = true; run(); }));
+  $("clearBtn").addEventListener("click", () => {
+    document.querySelectorAll("#f input").forEach(i => i.value = "");
+    $("exampleNote").hidden = true; run();
+  });
+
+  /* ---------- history ---------- */
+  const FIELDS = ["title", "views", "len", "avg", "comp", "hook", "fyp", "likes", "comments", "shares", "saves", "follows"];
+  function renderHistory() {
+    const h = store.get("sd_hist", []);
+    const tb = document.querySelector("#histTable tbody");
+    if (!h.length) { tb.innerHTML = `<tr><td colspan="7" style="color:var(--muted)">Пока пусто. Разберите видео и нажмите «Сохранить в историю».</td></tr>`; return; }
+    tb.innerHTML = h.map((e, i) => `<tr>
+      <td>${esc(e.v.title || "Без названия")}<br><span style="color:var(--muted);font-size:12px">${e.date}</span></td>
+      <td>${P[e.p].name}</td><td class="n">${fmt(e.views, 0)}</td><td class="n">${fmt(e.avgPct, 0)}%</td><td class="n">${fmt(e.comp, 0)}%</td>
+      <td>${esc(e.problem)}</td>
+      <td><button class="linkbtn" data-load="${i}">Открыть</button> · <button class="linkbtn" data-del="${i}">Удалить</button></td></tr>`).join("");
+    tb.querySelectorAll("[data-load]").forEach(b => b.addEventListener("click", () => {
+      const e = store.get("sd_hist", [])[+b.dataset.load]; if (!e) return;
+      FIELDS.forEach(f => $(f).value = e.v[f] ?? ""); $("exampleNote").hidden = true; setPlatform(e.p);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }));
+    tb.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", () => {
+      const all = store.get("sd_hist", []); all.splice(+b.dataset.del, 1); store.set("sd_hist", all); renderHistory();
+    }));
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+  $("saveBtn").addEventListener("click", () => {
+    const r = compute();
+    const v = {}; FIELDS.forEach(f => v[f] = $(f).value);
+    const all = store.get("sd_hist", []);
+    all.unshift({ p: plat, v, date: new Date().toLocaleDateString("ru-RU"), views: r.V, avgPct: r.avgPct, comp: r.C,
+      problem: r.main === "ok" ? "Нет явных проблем" : r.headline.h });
+    store.set("sd_hist", all.slice(0, 100)); renderHistory();
+    $("saveBtn").textContent = "Сохранено"; setTimeout(() => $("saveBtn").textContent = "Сохранить в историю", 1500);
+  });
+
+  /* ---------- checklist ---------- */
+  const CHECKS = [
+    { h: "Идея и хук", items: [
+      ["Видео про одну мысль", "Если её нельзя сказать одним предложением, видео расползётся"],
+      ["Хук в первые 1–2 секунды", "Результат, проблема, спорное утверждение или вопрос. Без приветствий"],
+      ["Текст на экране в первом кадре", "Многие смотрят без звука: из текста должно быть ясно, о чём видео"],
+      ["Первый кадр понятен незнакомцу", "Без контекста «как я говорил в прошлом видео»"],
+      ["Есть причина досмотреть", "Обещание в начале, ответ в конце"]
+    ]},
+    { h: "Монтаж и качество", items: [
+      ["Вертикаль 9:16, 1080×1920", "Без чёрных полос и растянутой картинки"],
+      ["Вырезаны паузы и повторы", "Темп: смена кадра или события каждые 2–3 секунды"],
+      ["Субтитры не перекрыты интерфейсом", "Держите текст выше нижней 20% зоны и левее правой колонки кнопок"],
+      ["Чистый звук, речь громче музыки", "Плохой звук пролистывают быстрее, чем плохую картинку"],
+      ["Концовка без прощаний", "Закончите на сильной точке или зациклите видео"]
+    ]},
+    { h: "Публикация", items: [
+      ["Нет вотермарок других приложений", "Логотип TikTok или CapCut в Reels и Shorts снижает показы"],
+      ["Контент свой или заметно переработан", "Чужие нарезки без своего вклада платформы режут"],
+      ["Музыка из библиотеки платформы", "Или без авторских прав: иначе видео могут заглушить или ограничить"],
+      ["Описание с ключевыми словами", "Те слова, которые зритель вбил бы в поиск. 3–5 тематических хэштегов"],
+      ["Обложка читается в сетке профиля", "Крупный заголовок, лицо или результат"],
+      ["Вопрос или призыв для комментариев", "Конкретный, на который легко ответить"]
+    ]},
+    { h: "После публикации", items: [
+      ["Первый час: ответить на комментарии", "Ранняя активность помогает видео в тестовой волне"],
+      ["Через 2 часа: проверить статус", "Если меньше 50 просмотров, посмотрите, нет ли ограничений"],
+      ["Через 48–72 часа: разбор цифр", "Вкладка «Разбор видео», сохранить в историю"],
+      ["Не удалять и не перезаливать", "Даже если видео не зашло: удаления вредят аккаунту"]
+    ]}
+  ];
+  function renderChecks() {
+    const state = store.get("sd_checks", {});
+    let total = 0, done = 0;
+    $("checklists").innerHTML = CHECKS.map((g, gi) => `<div class="panel"><h3 style="margin-bottom:8px">${g.h}</h3>${g.items.map((it, ii) => {
+      const id = `c${gi}_${ii}`; total++; if (state[id]) done++;
+      return `<label class="check" for="${id}"><input type="checkbox" id="${id}" ${state[id] ? "checked" : ""}><span>${it[0]}<em>${it[1]}</em></span></label>`;
+    }).join("")}</div>`).join("");
+    $("checkProgress").textContent = `${done} из ${total}`;
+    $("checklists").querySelectorAll("input").forEach(i => i.addEventListener("change", () => {
+      const s = store.get("sd_checks", {}); s[i.id] = i.checked; store.set("sd_checks", s);
+      const t = $("checklists").querySelectorAll("input").length, d = $("checklists").querySelectorAll("input:checked").length;
+      $("checkProgress").textContent = `${d} из ${t}`;
+    }));
+  }
+  $("resetChecks").addEventListener("click", () => { store.set("sd_checks", {}); renderChecks(); });
+
+  /* ---------- symptoms ---------- */
+  const SYM = [
+    ["0–50 просмотров несколько часов", [
+      "Видео на модерации или ограничено за нарушение правил",
+      "Аккаунт получил предупреждение или ограничение рекомендаций",
+      "Подозрение на спам: много видео подряд, массовые удаления, накрутка"
+    ], [
+      "TikTok: Настройки → Аккаунт → «Статус аккаунта»",
+      "Instagram: Настройки → «Статус аккаунта» → «Что может быть рекомендовано»",
+      "YouTube: Studio → Контент: значки ограничений и заявок об авторских правах",
+      "Проверьте видео на запрещённое: опасные действия, оружие, алкоголь, чужие бренды, ссылки, призывы перейти в другие соцсети",
+      "Если нарушение ошибочное, подайте апелляцию прямо из уведомления"
+    ]],
+    ["Застряло на 200–500 просмотрах", [
+      "Видео не прошло тест на первой группе зрителей: слабый хук или удержание",
+      "Неоригинальный контент или вотермарка другой платформы",
+      "Алгоритм не понимает, кому показывать: аккаунт пишет на разные темы"
+    ], [
+      "Внесите цифры во вкладку «Разбор видео» и посмотрите узкое место",
+      "Сравните удержание на 3-й секунде с лучшими вашими видео",
+      "Сократите вступление: начните с самого интересного кадра",
+      "Держитесь одной темы минимум 15–20 видео подряд"
+    ]],
+    ["Раньше было нормально, теперь резко упало", [
+      "Сменили тему или формат, и старая аудитория не реагирует",
+      "Удаляли или перезаливали видео, публиковали дубли",
+      "Перерыв в публикациях или, наоборот, резкий рост частоты",
+      "Использовали трек, который потом убрали из библиотеки"
+    ], [
+      "Найдите последнее «нормальное» видео и сравните: длина, хук, тема, музыка",
+      "Вернитесь к работающему формату на 5–7 видео и меняйте по одному параметру",
+      "Проверьте статус аккаунта: ограничения иногда приходят без заметного уведомления",
+      "Не удаляйте неудачные видео: архивируйте или просто оставьте"
+    ]],
+    ["Просмотры есть, подписчиков нет", [
+      "Видео разовое: зрителю незачем ждать следующее",
+      "Профиль не объясняет, о чём аккаунт",
+      "Каждое видео на новую тему"
+    ], [
+      "Делайте серии и упоминайте следующую часть",
+      "Шапка профиля: кто вы и что получит подписчик, в одной строке",
+      "Закрепите 3 лучших видео, которые показывают суть аккаунта"
+    ]],
+    ["Смотрят только подписчики", [
+      "Видео понятно только «своим»",
+      "Нет ключевых слов: платформа не знает, кому ещё показать",
+      "Слабый хук для холодной аудитории"
+    ], [
+      "Посмотрите источники трафика: доля «Для вас» / ленты Shorts / не подписчиков ниже 40% — это сигнал",
+      "Первая фраза должна работать для человека, который видит вас впервые",
+      "Instagram: публикуйте «Пробные Reels» для теста на новых людях"
+    ]],
+    ["Зрители не из той страны или не той аудитории", [
+      "Регион аккаунта, SIM-карта или VPN не совпадают со страной целевой аудитории",
+      "Музыка, язык или тренд привязаны к другой стране",
+      "Видео подхватила случайная аудитория, и алгоритм теперь тестирует его не на тех людях"
+    ], [
+      "Проверьте географию зрителей в аналитике видео и аккаунта",
+      "Субтитры и текст на экране на языке вашей аудитории",
+      "Хэштеги и ключевые слова на том же языке, что и аудитория"
+    ]],
+    ["Shorts набирает медленно", [
+      "Для Shorts это нормально: видео может «проснуться» через несколько дней или недель",
+      "Слабое название: Shorts тоже ищут через поиск",
+      "Музыка с Content ID: Shorts длиннее 1 минуты с заявкой блокируются"
+    ], [
+      "Не судите Shorts раньше чем через 7 дней",
+      "Смотрите «Смотрели / пролистали»: ниже 60% — переделывайте начало",
+      "Привязывайте Shorts к длинному видео на канале через «Связанное видео»"
+    ]],
+    ["Reels показывают хуже, чем TikTok с тем же видео", [
+      "Видео с вотермаркой TikTok или CapCut",
+      "Перезалив с потерей качества",
+      "Аудитория Instagram реагирует на другой темп: обычно короче и эстетичнее"
+    ], [
+      "Сохраняйте исходник без вотермарки и заливайте его отдельно",
+      "Добавьте в Reels свою обложку и подпись под Instagram",
+      "Смотрите «Процент пропусков»: выше 50% — начало не работает для этой аудитории"
+    ]]
+  ];
+  $("symptoms").innerHTML = SYM.map((s, i) => `<details class="sym" ${i === 0 ? "open" : ""}><summary>${s[0]}</summary><div class="body">
+    <div><h4>Частые причины</h4><ul>${s[1].map(x => `<li>${x}</li>`).join("")}</ul></div>
+    <div><h4>Что проверить и сделать</h4><ul>${s[2].map(x => `<li>${x}</li>`).join("")}</ul></div></div></details>`).join("");
+
+  renderChecks();
+  renderHistory();
+  setPlatform("tt");
+})();
+</script>

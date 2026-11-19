@@ -1616,6 +1616,7 @@ class App:
             if not win.winfo_exists():
                 return
             tree.delete(*tree.get_children())
+            state["res"] = res
             state["issues"] = [dict(i) for i in res.get("issues") or []]
             state["rows"] = {}
             for i in state["issues"]:
@@ -1782,6 +1783,13 @@ class App:
         b_fix = ttk.Button(bar, text=T("🛠  Исправить отмеченное"), style="Big.TButton", command=do_fix)
         b_fix.pack(side="left")
         ttk.Button(bar, text=T("🔎  Проверить заново"), command=recheck).pack(side="left", padx=6)
+
+        def add_manual(issue):
+            res = dict(state.get("res") or {}, issues=state["issues"] + [issue])
+            fill(res)
+            status.config(text=T("Добавлено ручное размытие. Нажми «Исправить отмеченное»."))
+        ttk.Button(bar, text=T("✏  Размыть вручную"),
+                   command=lambda: self._manual_blur(win, c["path"], add_manual)).pack(side="left")
         ttk.Button(bar, text=T("Закрыть"), command=lambda: (release_players(), win.destroy())).pack(side="right")
         win.protocol("WM_DELETE_WINDOW", lambda: (release_players(), win.destroy()))
         res = c.get("policy") or policy.load_results().get(os.path.normpath(c["path"]))
@@ -1790,6 +1798,98 @@ class App:
         else:
             fill({"issues": [], "note": ""})
             recheck()
+
+    def _manual_blur(self, parent, clip_path: str, on_add):
+        """Ручное размытие: двигаешь ползунок до нужного кадра, обводишь мышкой область, ставишь «с» и «по»."""
+        import cv2
+        cap = cv2.VideoCapture(clip_path)
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        dur = (cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0) / fps or 30.0
+        win = tk.Toplevel(parent)
+        win.title(T("Размыть вручную"))
+        win.transient(parent)
+        W, H = 360, 640
+        top = ttk.Frame(win, padding=8)
+        top.pack(fill="both", expand=True)
+        ttk.Label(top, wraplength=360, justify="left", text=T(
+            "1) Ползунком найди кадр с нарушением.  2) Обведи мышкой, что размыть (без рамки — весь кадр).  "
+            "3) Поставь начало и конец.  4) «Добавить».")).pack(anchor="w")
+        cv = tk.Canvas(top, width=W, height=H, cursor="crosshair", highlightthickness=0, bg="#000000")
+        cv.pack(pady=6)
+        st = {"img": None, "rect": None, "box": None, "t0": None, "t1": None, "x": 0, "y": 0}
+        pos = tk.DoubleVar(value=0.0)
+        info = ttk.Label(top, text="")
+        info.pack(anchor="w")
+
+        def show(*_):
+            cap.set(cv2.CAP_PROP_POS_MSEC, pos.get() * 1000)
+            ok, frame = cap.read()
+            if not ok:
+                return
+            small = cv2.resize(frame, (W, H), interpolation=cv2.INTER_AREA)
+            ok, buf = cv2.imencode(".ppm", small)
+            st["img"] = tk.PhotoImage(data=buf.tobytes(), format="PPM")
+            cv.delete("frame")
+            cv.create_image(0, 0, image=st["img"], anchor="nw", tags="frame")
+            cv.tag_lower("frame")
+            upd()
+
+        def upd():
+            t0, t1 = st["t0"], st["t1"]
+            info.config(text=T("Кадр: {0:.1f} с   ·   с: {1}   по: {2}   ·   {3}").format(
+                pos.get(), "—" if t0 is None else f"{t0:.1f}", "—" if t1 is None else f"{t1:.1f}",
+                T("область выбрана") if st["box"] else T("весь кадр")))
+
+        def press(e):
+            st["x"], st["y"] = e.x, e.y
+            if st["rect"]:
+                cv.delete(st["rect"])
+            st["rect"] = cv.create_rectangle(e.x, e.y, e.x, e.y, outline="#ff3b30", width=3)
+
+        def drag(e):
+            cv.coords(st["rect"], st["x"], st["y"], e.x, e.y)
+
+        def release(e):
+            x0, x1 = sorted((max(0, min(W, st["x"])), max(0, min(W, e.x))))
+            y0, y1 = sorted((max(0, min(H, st["y"])), max(0, min(H, e.y))))
+            st["box"] = [x0 / W, y0 / H, (x1 - x0) / W, (y1 - y0) / H] if x1 - x0 > 6 and y1 - y0 > 6 else None
+            if not st["box"] and st["rect"]:
+                cv.delete(st["rect"])
+                st["rect"] = None
+            upd()
+        cv.bind("<ButtonPress-1>", press)
+        cv.bind("<B1-Motion>", drag)
+        cv.bind("<ButtonRelease-1>", release)
+        ttk.Scale(top, from_=0, to=max(0.1, dur - 0.05), variable=pos, orient="horizontal", length=W,
+                  command=lambda v: show()).pack(fill="x")
+        row = ttk.Frame(top)
+        row.pack(fill="x", pady=4)
+
+        def mark(which):
+            st[which] = round(pos.get(), 2)
+            upd()
+        ttk.Button(row, text=T("⏮ Начало здесь"), command=lambda: mark("t0")).pack(side="left")
+        ttk.Button(row, text=T("Конец здесь ⏭"), command=lambda: mark("t1")).pack(side="left", padx=6)
+
+        def add():
+            t0 = st["t0"] if st["t0"] is not None else max(0.0, pos.get() - 1)
+            t1 = st["t1"] if st["t1"] is not None else min(dur, pos.get() + 1)
+            if t1 <= t0:
+                t0, t1 = t1, t0
+            from . import policy
+            issue = policy._issue("manual", t0, t1 if t1 > t0 else t0 + 0.5, T("отмечено вручную"), st["box"],
+                                  source="video")
+            issue["on"] = True
+            cap.release()
+            win.destroy()
+            on_add(issue)
+        bar = ttk.Frame(top)
+        bar.pack(fill="x", pady=(6, 0))
+        ttk.Button(bar, text=T("➕  Добавить"), style="Big.TButton", command=add).pack(side="left")
+        ttk.Button(bar, text=T("Отмена"), command=lambda: (cap.release(), win.destroy())).pack(side="right")
+        win.protocol("WM_DELETE_WINDOW", lambda: (cap.release(), win.destroy()))
+        self.manual_window = win  # для проверок
+        win.after(100, show)
 
     def _stream_rows(self) -> dict:
         """Все известные стримы по каналам: из памяти программы + загруженные с сайта."""

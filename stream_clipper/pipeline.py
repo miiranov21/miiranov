@@ -459,7 +459,7 @@ def _quick_policy(d: dict, log=print) -> None:
     """Быстрая проверка речи на мат/оскорбления/музыку сразу после нарезки (без Claude, мгновенно)."""
     try:
         from . import policy
-        issues = policy.check_words(d.get("words") or [])
+        issues = policy.check_words(d.get("words") or []) + policy.check_nudity(d["file"], log)
         policy.save_result(d["file"], {"issues": issues, "visual": False, "checked": __import__("time").time(),
                                        "note": "" if d.get("words") else "речи нет или субтитры выключены",
                                        "words": d.get("words") or []})

@@ -65,10 +65,12 @@ RULES = {
                       {"YouTube": "удаление (нарушение приватности)", "TikTok": "удаление", "Instagram": "удаление"}),
     "hate_symbol": ("Символ ненависти", "high",
                     {"YouTube": "удаление и страйк", "TikTok": "удаление", "Instagram": "удаление"}),
+    "manual": ("Размыть вручную", "medium", {"YouTube": "закрыто вручную", "TikTok": "закрыто вручную",
+                                             "Instagram": "закрыто вручную"}),
     "other": ("Другое нарушение", "medium", {"YouTube": "риск ограничений", "TikTok": "риск ограничений",
                                              "Instagram": "риск ограничений"}),
 }
-FIX_FOR = {"slur": "bleep", "profanity": "bleep", "music": "mute", "nudity": "blur", "gore": "blur",
+FIX_FOR = {"manual": "blur", "slur": "bleep", "profanity": "bleep", "music": "mute", "nudity": "blur", "gore": "blur",
            "drugs": "blur", "personal_info": "blur", "hate_symbol": "blur", "other": "blur"}
 
 # строка субтитров в кадре 1080x1920 (стиль Default: внизу по центру, отступ 560) — размываем её на время писка
@@ -153,7 +155,8 @@ VISION_PROMPT = """You check a short vertical gaming-stream clip (1080x1920) aga
 You get frames taken at the listed times and the auto transcript of what the streamer says.
 
 Flag ONLY clear, real risks:
-- nudity: nudity or sexually explicit content (in the game or on camera)
+- nudity: nudity or sexually explicit content — ALSO for video-game characters: exposed buttocks (e.g. a character in a
+  shower or naked), exposed breasts or genitals count even in a game; give a tight box around the exposed body part
 - gore: realistic graphic gore or real-world violence (NOT ordinary video-game shooting/fighting — GTA violence is allowed)
 - drugs: real drug use or clearly dangerous real-life acts
 - personal_info: readable phone numbers, home addresses, emails, passwords, ID documents on screen
@@ -241,6 +244,17 @@ def check_visual(clip: str, words: list, key: str, log=print) -> list[dict]:
     return out
 
 
+def check_nudity(clip: str, log=print) -> list[dict]:
+    """Обнажёнка в кадре — локальная модель, без интернета и без Claude (каждые полсекунды)."""
+    try:
+        from . import nudity
+        found = nudity.scan_clip(clip, log=log)
+    except Exception as e:
+        log(f"поиск обнажёнки не удался: {e}")
+        return []
+    return [_issue("nudity", f["t0"], f["t1"], f["what"], f["box"], source="video") for f in found]
+
+
 # ---------- проверка целиком + память результатов ----------
 def _store() -> str:
     return os.path.join(paths.default_work_dir(), "policy.json")
@@ -275,11 +289,16 @@ def check_clip(clip: dict, key: str | None = None, log=print, whisper_model: str
         else:
             note = "речь не проверена: не установлено распознавание речи (install_subs.bat)"
     issues = check_words(words or [])
+    issues += check_nudity(path, log)
     visual = False
     if key:
         log("Claude смотрит картинку клипа...")
         try:
-            issues += check_visual(path, words or [], key, log)
+            local = [i for i in issues if i["kind"] == "nudity"]
+            for v in check_visual(path, words or [], key, log):
+                if v["kind"] == "nudity" and any(v["t0"] < i["t1"] and v["t1"] > i["t0"] for i in local):
+                    continue
+                issues.append(v)
             visual = True
         except Exception as e:
             note = (note + "; " if note else "") + f"картинка не проверена: {type(e).__name__}: {e}"
@@ -384,7 +403,8 @@ def build_fix_filters(issues: list, size=(1080, 1920), subs_burned: bool = True,
     if blurs:
         chain, cur = [], "0:v"
         for n, ((x, y, w, h), (a, b)) in enumerate(blurs):
-            chain.append(f"[{cur}]split[m{n}][c{n}];[c{n}]crop={w}:{h}:{x}:{y},boxblur=40:4[b{n}];"
+            r = max(2, min(40, min(w, h) // 4 - 1))
+            chain.append(f"[{cur}]split[m{n}][c{n}];[c{n}]crop={w}:{h}:{x}:{y},boxblur={r}:4[b{n}];"
                          f"[m{n}][b{n}]overlay={x}:{y}:enable='between(t,{a:.2f},{b:.2f})'[v{n}]")
             cur = f"v{n}"
         if redraw_ass:  # поверх размытого — та же строка, но «б**» вместо мата, чтобы субтитры не пропадали

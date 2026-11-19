@@ -522,5 +522,19 @@
         "без музыки с Content ID"
       ]
     }
-  }
+  },
+  "commands": [
+    {
+      "id": "reset-2026-11-19",
+      "type": "reset_posted",
+      "keep": [
+        {
+          "clip": "19.11.2026/IShowSpeed/61_17ч03м13с.mp4",
+          "platforms": [
+            "tiktok"
+          ]
+        }
+      ]
+    }
+  ]
 }

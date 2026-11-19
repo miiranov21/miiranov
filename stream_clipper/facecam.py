@@ -195,3 +195,74 @@ def detect_facecam(video: str, samples: int = 20, cam_aspect: float = 1080 / 672
     x0 = min(max(0.0, cx_px - reg_w_px / 2), W - reg_w_px)
     y0 = min(max(0.0, cy_px - reg_h_px / 2), H - reg_h_px)
     return tuple(round(float(v), 4) for v in (x0 / W, y0 / H, reg_w_px / W, reg_h_px / H))
+
+
+def grab_stream_frame(kind: str, target: str, name: str, log=print, at: float = 900.0) -> str | None:
+    """Кадр прямо со стрима — чтобы указать вебку, не нарезая клип. kind: "twitch" / "youtube".
+    Если стример в эфире — кадр из эфира, иначе — из последней записи (качается всего 2 секунды)."""
+    import cv2
+    import subprocess
+    from . import twitch
+    work = os.path.join(paths.default_work_dir(), "frames")
+    os.makedirs(work, exist_ok=True)
+    raw = os.path.join(work, "grab_raw.png")
+    flags = 0x08000000 if os.name == "nt" else 0
+    fmt = {"format": "best[height<=720][vcodec!=none]/best"}
+
+    def from_url(media_url: str, seek: float | None = None) -> bool:
+        cmd = ["ffmpeg", "-y", "-v", "error"] + (["-ss", str(seek)] if seek else []) + \
+              ["-i", media_url, "-frames:v", "1", raw]
+        r = subprocess.run(cmd, capture_output=True, timeout=90, creationflags=flags)
+        return r.returncode == 0 and os.path.exists(raw)
+
+    ok = False
+    live_url = f"https://www.twitch.tv/{target}" if kind == "twitch" else twitch.youtube_live_url(target)
+    try:  # 1) стример в эфире — берём кадр из эфира
+        info = twitch.get_info(live_url, fmt)
+        if info.get("is_live") and info.get("url"):
+            log("Беру кадр из эфира...")
+            ok = from_url(info["url"])
+    except Exception:
+        pass
+    if not ok:  # 2) иначе — 2 секунды из последней записи стрима
+        try:
+            vods = twitch.list_streams(kind, target, 1)
+        except Exception as e:
+            log(f"Не нашёл записей стрима: {e}")
+            vods = []
+        if vods:
+            v = vods[0]
+            t = min(at, max(10.0, (v.get("duration") or at * 2) / 3))
+            log("Стример не в эфире — беру кадр из последней записи...")
+            base = os.path.join(work, "grab_seg")
+            for f in os.listdir(work):
+                if f.startswith("grab_seg"):
+                    try:
+                        os.remove(os.path.join(work, f))
+                    except OSError:
+                        pass
+            try:
+                seg = twitch.download_section(v["url"], t, t + 2, base, 720)
+                cap = cv2.VideoCapture(seg)
+                okf, frame = cap.read()
+                cap.release()
+                if okf:
+                    cv2.imwrite(raw, frame)
+                    ok = True
+                os.remove(seg)
+            except Exception as e:
+                log(f"Не получилось скачать кусок записи: {e}")
+    if not ok:
+        return None
+    frame = cv2.imread(raw)
+    if frame is None:
+        return None
+    h, w = frame.shape[:2]
+    frame = cv2.resize(frame, (960, int(960 * h / w)))
+    out = frame_path(name)
+    cv2.imwrite(out, frame)
+    try:
+        os.remove(raw)
+    except OSError:
+        pass
+    return out

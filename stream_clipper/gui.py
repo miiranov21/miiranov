@@ -788,6 +788,7 @@ class App:
         ttk.Button(side, text=T("⏫ Первым"), command=lambda: self._queue_move("top")).pack(fill="x")
         ttk.Button(side, text=T("▲ Выше"), command=lambda: self._queue_move(-1)).pack(fill="x", pady=4)
         ttk.Button(side, text=T("▼ Ниже"), command=lambda: self._queue_move(1)).pack(fill="x")
+        ttk.Button(side, text=T("🎥 Вебка"), command=self.queue_facecam).pack(fill="x", pady=(10, 0))
         st = ttk.Frame(f)
         st.pack(fill="x", pady=(6, 0))
         ttk.Label(st, text=T("Начать с:")).pack(side="left")
@@ -1188,11 +1189,12 @@ class App:
         if not e or not e.get("ranges"):
             return
         sm = progress.summary(e)
-        if sm["finished"] or not sm["resume"]:
+        if sm["finished"] or not sm["upto"]:
             return
         if messagebox.askyesno(T("Этот стрим уже разбирали"),
-                               T('Разобрано: {0}.\nПродолжить с {1} (место остановки)?\n\n«Нет» — пройти стрим с самого начала.').format(sm['done'], progress.fmt(sm['resume']))):
-            t = sm["resume"]
+                               T("Стрим уже разобран до {0}.\nПродолжить с {0}?\n\n«Нет» — пройти стрим с самого начала.")
+                               .format(progress.fmt(sm["upto"]))):
+            t = sm["upto"]
             self.v["start_from"].set(f"{int(t // 3600)}:{int(t % 3600 // 60):02d}")
             self.v["start_mode"].set(T("от начала стрима"))
 
@@ -1496,17 +1498,16 @@ class App:
         ttk.Button(btns, text=T("🗑  Убрать из списка"), command=self.forget_stream).pack(side="left")
         frame = ttk.Frame(parent)
         frame.pack(fill="both", expand=True, pady=6)
-        cols = ("date", "title", "link", "length", "done", "left", "clips", "status")
+        cols = ("date", "title", "link", "upto", "live")
         self.st_tree = ttk.Treeview(frame, columns=cols, show="tree headings", selectmode="browse")
         self.st_tree.heading("#0", text=T("Стример"))
         self.st_tree.column("#0", width=115, stretch=False)
-        for c, title, w in (("date", T("Дата стрима"), 100), ("title", T("Название"), 140),
-                            ("link", T("Ссылка"), 170), ("length", T("Длина"), 62),
-                            ("done", T("Разобрано"), 105), ("left", T("Не разобрано"), 125), ("clips", T("Клипов"), 66),
-                            ("status", T("Где остановились"), 215)):
+        for c, title, w in (("date", T("Дата стрима"), 110), ("title", T("Название"), 300),
+                            ("link", T("Ссылка"), 220), ("upto", T("Разобрано до"), 150), ("live", T("Эфир"), 110)):
             self.st_tree.heading(c, text=title)
             self.st_tree.column(c, width=w, stretch=(c == "title"),
-                                anchor="w" if c in ("title", "status") else "center")
+                                anchor="w" if c == "title" else "center")
+        self.st_tree.tag_configure("live", foreground="#ff4d4d")
         sb = ttk.Scrollbar(frame, orient="vertical", command=self.st_tree.yview)
         self.st_tree.configure(yscrollcommand=sb.set)
         self.st_tree.pack(side="left", fill="both", expand=True)
@@ -2542,29 +2543,24 @@ class App:
                 continue
             items = sorted(rows[ch].values(), key=lambda r: -(r.get("stream_ts") or r.get("updated") or 0))
             parent = self.st_tree.insert("", "end", text=names[ch], open=True,
-                                         values=("", T('стримов: {0}').format(len(items)), "", "", "", "", "", ""))
+                                         values=("", T('стримов: {0}').format(len(items)), "", "", ""))
             for r in items:
                 sm = progress.summary(r)
-                if r.get("live") and r.get("ranges"):
-                    status = T("🔴 эфир идёт, разбираю")
-                elif sm["finished"]:
-                    status = T("✔ досмотрен")
+                live = bool(r.get("live") and r.get("ranges"))
+                if sm["finished"]:
+                    upto = T("✔ весь стрим")
                 elif not r.get("ranges"):
-                    status = T("— ещё не смотрели")
-                elif not sm["resume"] and sm["gaps"]:
-                    status = T('⏸ не разобрано начало (до {0})').format(progress.fmt(sm['gaps'][0][1]))
+                    upto = T("— не смотрели")
                 else:
-                    status = T('⏸ остановились на {0}').format(progress.fmt(sm['resume'] or 0))
+                    upto = T("до {0}").format(progress.fmt(sm["upto"]))
                 if not sm["finished"]:
                     unfinished += 1
                 ts = r.get("stream_ts")
                 date = datetime.fromtimestamp(ts).strftime("%d.%m %H:%M") if ts else "—"
-                dur = float(r.get("duration") or 0)
-                iid = self.st_tree.insert(parent, "end", text="", tags=("done",) if sm["finished"] else (),
+                tags = ("live",) if live else (("done",) if sm["finished"] else ())
+                iid = self.st_tree.insert(parent, "end", text="", tags=tags,
                                           values=(date, r.get("title") or "—", _short_url(r.get("url") or ""),
-                                                  progress.fmt(dur) if dur else "?",
-                                                  sm["done"], "—" if sm["finished"] else sm["gaps_txt"],
-                                                  r.get("clips") or 0, status))
+                                                  upto, T("🔴 идёт") if live else ""))
                 self.stream_rows[iid] = dict(r, summary=sm)
                 if r.get("key") == sel_key:
                     self.st_tree.selection_set(iid)
@@ -2573,7 +2569,8 @@ class App:
                                      "откуда продолжать. Выбери стримера и нажми «Показать все стримы канала», чтобы "
                                      "увидеть и те, что ещё не смотрели."))
         else:
-            self.st_info.config(text=T('Не досмотрено стримов: {0}.  «Разобрано» — какие часы стрима программа уже проверила, «Не разобрано» — что осталось. Выбери стрим и нажми «Продолжить» — анализ начнётся ровно с места остановки.').format(unfinished))
+            self.st_info.config(text=T("«Разобрано до» — до какого времени стрима программа уже всё проверила. Выбери стрим и нажми "
+                                       "«Продолжить» — анализ начнётся с этого времени."))
 
     def load_channel_streams(self):
         """Тянем с сайта последние стримы выбранного канала — чтобы видеть и те, что ещё не разбирали."""
@@ -2636,7 +2633,7 @@ class App:
                 return
             start = 0
         else:
-            start = sm["resume"] or 0
+            start = sm["upto"] or 0
         if self.proc:
             messagebox.showinfo(T("Стримы"), T("Сейчас программа уже работает. Нажми «Стоп», потом «Продолжить»."))
             return
@@ -2650,7 +2647,7 @@ class App:
         r = self._stream_selected()
         if not r or not r.get("url"):
             return
-        t = int(r["summary"]["resume"] or 0)
+        t = int(r["summary"]["upto"] or 0)
         url = r["url"]
         if t:
             if "twitch.tv/videos/" in url:
@@ -3141,18 +3138,85 @@ class App:
         self.refresh_clips()
         self.clips_info.config(text=T("В корзине: {0}. Вернуть — кнопка «♻ Корзина».").format(len(sel)))
 
+    def _spec_for(self, channel: str) -> str | None:
+        """Стример из списка (twitch-логин или @ник YouTube), которому соответствует имя канала из клипа."""
+        ch = channel.lower().lstrip("@")
+        for n in self._read_streamers():
+            k = n.strip()
+            k = k[3:] if k.startswith("yt:") else k
+            if k.lower().lstrip("@") == ch or k.lower().rstrip("/").split("/")[-1].lstrip("@") == ch:
+                return k
+        return None
+
+    @staticmethod
+    def _spec_kind(spec: str) -> tuple[str, str, str]:
+        """(платформа, что передать сайту, имя для памяти вебки)."""
+        s = spec.strip()
+        s = s[3:] if s.startswith("yt:") else s
+        if s.startswith("@") or "youtu" in s:
+            return "youtube", s, s.rstrip("/").split("/")[-1].lstrip("@").lower()
+        return "twitch", s.lower(), s.lower()
+
+    def queue_facecam(self):
+        """Кнопка «Вебка» во вкладке «Очередь»: указать вебку выбранного стримера по кадру со стрима."""
+        sel = self.queue_list.curselection()
+        if not sel or sel[0] >= len(self.queue_keys):
+            messagebox.showinfo(T("Вебка"), T("Выбери стримера в списке."))
+            return
+        kind, target, name = self._spec_kind(self.queue_keys[sel[0]])
+        self._facecam_window(name, kind, target)
+
+    def _fetch_stream_frame(self, name: str, kind: str, target: str, then):
+        """Берёт кадр со стрима в фоне (из эфира или последней записи), потом вызывает then()."""
+        from . import facecam
+        self.clips_info.config(text=T("Беру кадр со стрима {0}... (до минуты)").format(name))
+        self._append(T("Беру кадр со стрима {0}... (до минуты)").format(name) + "\n")
+
+        def work():
+            msgs = []
+            try:
+                res = facecam.grab_stream_frame(kind, target, name, log=msgs.append)
+            except Exception as e:
+                res, msgs = None, msgs + [f"{type(e).__name__}: {e}"]
+            self.root.after(0, lambda: done(res, msgs))
+
+        def done(res, msgs):
+            if not res:
+                messagebox.showwarning(T("Вебка"), T("Не получилось взять кадр со стрима {0}.").format(name) + "\n"
+                                       + "\n".join(tr_line(m) for m in msgs[-3:]))
+                return
+            self.clips_info.config(text="")
+            then()
+        threading.Thread(target=work, daemon=True).start()
+
     def pick_facecam(self):
         """Окно, где мышкой обводят вебку стримера — дальше она всегда будет браться отсюда."""
-        from . import facecam
         sel = self._selected()
         if not sel:
             return
         channel = sel[0].get("channel", "")
+        spec = self._spec_for(channel)
+        if spec:
+            kind, target, _ = self._spec_kind(spec)
+        else:
+            url = sel[0].get("vod_url") or ""
+            kind, target = ("youtube", "@" + channel) if "youtu" in url else ("twitch", channel.lower())
+        self._facecam_window(channel, kind, target)
+
+    def _facecam_window(self, channel: str, kind: str, target: str, fresh: bool = False):
+        from . import facecam
         frame = facecam.frame_path(channel)
-        if not os.path.exists(frame):
-            messagebox.showinfo(T("Вебка"), T('Пока нет кадра со стрима {0}. Он появится, когда программа нарежет следующий клип этого стримера.').format(channel))
+        if fresh or not os.path.exists(frame):
+            self._fetch_stream_frame(channel, kind, target, lambda: self._facecam_window(channel, kind, target))
             return
+        old = getattr(self, "facecam_win", None)
+        if old is not None:
+            try:
+                old.destroy()
+            except tk.TclError:
+                pass
         win = tk.Toplevel(self.root)
+        self.facecam_win = win
         win.title(T('Вебка стримера {0}').format(channel))
         win.transient(self.root)
         img = tk.PhotoImage(file=frame)
@@ -3217,6 +3281,9 @@ class App:
         ttk.Button(bar, text=T("У этого стримера нет вебки"), command=no_cam).pack(side="left", padx=6)
         ttk.Button(bar, text=T("Искать автоматически"), command=auto).pack(side="left")
         ttk.Button(bar, text=T("Отмена"), command=win.destroy).pack(side="right")
+        ttk.Button(bar, text=T("📡 Другой кадр со стрима"),
+                   command=lambda: (win.destroy(), self._facecam_window(channel, kind, target, fresh=True))
+                   ).pack(side="right", padx=6)
         win.grab_set()
         self.facecam_window = win  # для проверок
 

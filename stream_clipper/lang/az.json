@@ -650,5 +650,21 @@
 "Файл вставлен, {0} начал загрузку.": "Fayl yapışdırıldı, {0} yükləməyə başladı.",
 "Готово: проверь и нажми «Опубликовать» в окне {0}.": "Hazırdır: yoxla və {0} pəncərəsində «Dərc et» düyməsini bas.",
 "Нажми «Создать» → «Публикация» в окне Instagram — дальше программа продолжит сама.": "Instagram pəncərəsində «Yarat» → «Paylaşım» düyməsini bas — sonra proqram özü davam edəcək.",
-"Войди в {0} в открывшемся окне — это нужно только один раз.": "Açılan pəncərədə {0}-a daxil ol — bu yalnız bir dəfə lazımdır."
+"Войди в {0} в открывшемся окне — это нужно только один раз.": "Açılan pəncərədə {0}-a daxil ol — bu yalnız bir dəfə lazımdır.",
+"Разобрано до": "Yoxlanılıb",
+"Эфир": "Yayım",
+"✔ весь стрим": "✔ bütün strim",
+"— не смотрели": "— baxılmayıb",
+"до {0}": "{0}-a qədər",
+"🔴 идёт": "🔴 gedir",
+"«Разобрано до» — до какого времени стрима программа уже всё проверила. Выбери стрим и нажми «Продолжить» — анализ начнётся с этого времени.": "«Yoxlanılıb» — proqramın strimi hansı vaxta qədər yoxladığı. Strimi seç və «Davam et» düyməsini bas — yoxlama həmin vaxtdan başlayacaq.",
+"Стрим уже разобран до {0}.\nПродолжить с {0}?\n\n«Нет» — пройти стрим с самого начала.": "Strim artıq {0}-a qədər yoxlanılıb.\n{0}-dan davam edilsin?\n\n«Xeyr» — strimi lap əvvəldən keç.",
+"🎥 Вебка": "🎥 Veb-kamera",
+"📡 Другой кадр со стрима": "📡 Strimdən başqa kadr",
+"Беру кадр со стрима {0}... (до минуты)": "{0} strimindən kadr götürürəm... (bir dəqiqəyə qədər)",
+"Не получилось взять кадр со стрима {0}.": "{0} strimindən kadr götürmək alınmadı.",
+"Беру кадр из эфира...": "Canlı yayımdan kadr götürürəm...",
+"Стример не в эфире — беру кадр из последней записи...": "Strimer yayımda deyil — son qeyddən kadr götürürəm...",
+"Не нашёл записей стрима: {0}": "Strim qeydləri tapılmadı: {0}",
+"Не получилось скачать кусок записи: {0}": "Qeydin hissəsini yükləmək alınmadı: {0}"
 }

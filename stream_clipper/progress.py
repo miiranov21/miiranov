@@ -126,7 +126,8 @@ def summary(e: dict) -> dict:
     gaps_txt = ", ".join(f"{fmt(a)}–{fmt(b)}" if b else T('с {0}').format(fmt(a)) for a, b in gaps)
     if e.get("live") and ranges:
         gaps_txt = ", ".join([t for t in [gaps_txt] if t] + [T("эфир идёт")])
-    return {"done": done_txt, "left": left, "resume": resume, "finished": finished, "seen": seen,
+    upto = max((b for a, b in ranges), default=0.0)  # до какого времени стрима всё уже проверено
+    return {"done": done_txt, "left": left, "resume": resume, "finished": finished, "seen": seen, "upto": upto,
             "gaps": gaps, "gaps_txt": gaps_txt or "—"}
 
 

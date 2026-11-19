@@ -18,8 +18,8 @@ STREAM CLIPPER — ОБЩАЯ ПАПКА ДЛЯ ДВОИХ (общие клип�
 4. В Stream Clipper: «Настройки» → «👥 Общая папка с другом» → «Выбрать…» (указать эту папку) → вписать своё имя
    → «✔ Включить общую папку». Программа спросит, перенести ли уже нарезанные клипы: «Да», и их увидит друг.
 5. Галочку «Этот компьютер ведёт автопилот и публикации через Telegram» оставьте только у ОДНОГО из вас,
-   иначе бот будет присылать посты дважды. Если хотите, чтобы оба получали посты, добавьте обоих в одну группу
-   Telegram с ботом: нажать «✅ Выложил» сможет любой.
+   иначе бот будет присылать посты дважды. Чтобы посты приходили обоим: друг жмёт «Старт» в вашем боте, а тот,
+   у кого включён автопилот, нажимает «Настройки» → Telegram → «➕ Добавить друга». Нажать «✅ Выложил» сможет любой.
 6. Договоритесь, кто за какими стримерами следит, чтобы не нарезать одно и то же дважды
    (повтор одного момента программа и так пропускает).
 
@@ -42,7 +42,8 @@ Necə qurmaq (bir dəfə)
 4. Stream Clipper-də: «Ayarlar» → «👥 Dostla ümumi qovluq» → «Seç…» (bu qovluğu göstərin) → adınızı yazın →
    «✔ Ümumi qovluğu yandır». Proqram artıq kəsilmiş klipləri köçürməyi soruşacaq — «Bəli».
 5. «Bu kompüter avtopilotu və Telegram paylaşımlarını aparır» işarəsini yalnız BİRİNİZDƏ saxlayın,
-   yoxsa bot postları iki dəfə göndərəcək.
+   yoxsa bot postları iki dəfə göndərəcək. Postlar ikinizə də gəlsin deyə: dost botda «Start» basır, avtopilotu
+   olan isə «Ayarlar» → Telegram → «➕ Dostu əlavə et» düyməsini basır.
 6. Kim hansı strimerləri izləyir — razılaşın.
 
 Bir şey görünmürsə: buludun sinxronizasiyası üçün bir dəqiqə gözləyin və «Kliplər» bölməsində «⟳ Yenilə» düyməsini basın.

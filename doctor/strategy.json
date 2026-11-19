@@ -161,7 +161,8 @@
     "19.11: три видео в TikTok за 6 минут — пачки делят тестовый показ, держать паузу 3–4 ч",
     "19.11: #shorts/#reels/#fyp/#viral в TikTok — убрать",
     "19.11: голые нарезки IShowSpeed — добавлять свой монтаж и хук",
-    "19.11: надписи однотипные («X и его реакция в GTA 6» ×N) — без ключа Claude программа берёт 5–6 шаблонов; добавлен hook_bank"
+    "19.11: надписи однотипные («X и его реакция в GTA 6» ×N) — без ключа Claude программа берёт 5–6 шаблонов; добавлен hook_bank",
+    "19.11: пользователь доверил «Доктору» настройки клипов — clip_settings"
   ],
   "hook_bank": {
     "rules": [
@@ -292,6 +293,58 @@
         "{s} WAS DEAD SERIOUS",
         "{s} EXPLAINED EVERYTHING"
       ]
+    }
+  },
+  "clip_settings": {
+    "why": "Выбирает «Доктор» по трендам коротких видео: большинство смотрит без звука, удержание решают первые 1–2 с, лицо стримера с эмоцией держит лучше, чем мелкая игра на весь кадр.",
+    "defaults": {
+      "subs": true,
+      "caption": true,
+      "facecam": true,
+      "layout": "auto",
+      "game_view": "wide",
+      "audio": true,
+      "auto_length": true,
+      "length": 35,
+      "top": 3,
+      "quality": 1080,
+      "credit": true,
+      "credit_pos": "top-left",
+      "watermark_text": "@ytcuznation",
+      "watermark_pos": "corner",
+      "watermark_opacity": 0.3
+    },
+    "reasons": {
+      "subs": "85% коротких видео смотрят без звука; субтитры поднимают досмотр",
+      "caption": "хук-плашка в первые 2 с — главный фактор, чтобы не пролистали",
+      "facecam": "реакция лица — то, ради чего смотрят нарезки стримеров; вебка сверху, игра снизу",
+      "game_view": "wide — игра крупнее, чем «целиком»: на телефоне мелкая картинка не читается; center — только для моментов, где действие в центре",
+      "auto_length": "длина под момент 12–45 с: пустые секунды до и после реакции убивают удержание",
+      "top": "3 клипа на час стрима — с запасом для отбора; слабые уйдут в архив",
+      "credit": "подпись автора снижает риск жалоб и банов за перезалив",
+      "watermark_text": "свой ник мелко в углу: защищает от перезаливов и узнаётся"
+    },
+    "per_streamer": {
+      "IShowSpeed": {
+        "facecam": true,
+        "game_view": "wide"
+      },
+      "kaicenat": {
+        "facecam": true,
+        "game_view": "wide"
+      },
+      "theburntpeanut": {
+        "facecam": true,
+        "game_view": "wide"
+      },
+      "ravshann": {
+        "facecam": true,
+        "game_view": "wide"
+      }
+    },
+    "no_facecam_fallback": {
+      "layout": "blur",
+      "game_view": "center"
     }
   }
 }

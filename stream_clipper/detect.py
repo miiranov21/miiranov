@@ -34,6 +34,8 @@ class Highlight:
     chat_z: float
     audio_z: float
     top_messages: list[str]
+    jump_z: float = 0.0     # резкий скачок звука (крик)
+    vis_z: float = 0.0      # резкая смена картинки (взрыв, авария)
 
     def to_dict(self):
         return asdict(self)
@@ -157,9 +159,11 @@ def find_highlights(msgs: list[ChatMessage], duration: int, *, audio_db: np.ndar
         # что писал чат в этот момент — подсказка для названия ролика
         texts = [m.text.strip() for m in msgs if start + chat_lag <= m.t <= end + chat_lag and m.text.strip()]
         top_msgs = [t for t, _ in Counter(t.lower()[:60] for t in texts).most_common(8)]
+        lo, hi = max(0, p - 6), min(len(chat_z), p + 7)  # действие — в окрестности пика
         result.append(Highlight(start=start, end=end, peak=float(p), score=round(val, 2),
                                 chat_z=round(float(chat_z[p]), 2), audio_z=round(float(audio_z[p]), 2),
-                                top_messages=top_msgs))
+                                top_messages=top_msgs, jump_z=round(float(jump_z[lo:hi].max()), 2),
+                                vis_z=round(float(vis_z[lo:hi].max()), 2)))
     if not result:
         log(f"  ничего не найдено выше порога {min_score} (попробуй --min-score поменьше)")
     return sorted(result, key=lambda h: h.start)

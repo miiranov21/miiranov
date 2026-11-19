@@ -384,7 +384,7 @@ class LiveSession:
         return None
 
     def process(self, final: bool = False) -> list[dict]:
-        from .pipeline import _analyze, _fmt, _make_short, _finish, refresh_live
+        from .pipeline import _analyze, _fmt, _make_short, _finish, refresh_live, _final_rating
         refresh_live(self.cfg, self.log)
 
         cfg, log = self.cfg, self.log
@@ -434,6 +434,7 @@ class LiveSession:
                 meta = {"streamer": self.channel, "title": self.title, "top_messages": h.top_messages, "lang": lang}
                 d["caption"] = _make_short(seg, tmp, cfg, log, meta)
                 d["transcript"], d["lang"] = meta.get("transcript", ""), lang
+                d["rating"] = _final_rating(d, meta)
                 os.remove(seg)
                 d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, self.channel)
                 log(f"  [{i}/{len(hl)}] готово -> {d['file']}")

@@ -20,7 +20,9 @@ The caption sits in a white box over the video and is the hook that makes people
 - name the streamer the way fans call them (a short nickname is fine);
 - write in the language you are told to use.
 
-Reply with the caption text only."""
+Reply in exactly this format:
+CAPTION: <the caption>
+SCORE: <1-10, how likely this clip goes viral as a Short: 9-10 = something wild clearly happens on screen or the streamer reacts huge; 5-6 = decent but ordinary; 1-3 = the streamer just talks and nothing really happens>"""
 
 
 def detect_language(texts: list[str], title: str = "") -> str:
@@ -165,10 +167,14 @@ def template_caption(streamer: str, title: str, top_messages: list[str], lang: s
     return random.choice(fresh)
 
 
+LAST_SCORE: dict = {"value": None}  # оценка Claude для последней надписи (1–10)
+
+
 def make_caption(streamer: str, title: str, top_messages: list[str], transcript: str, lang: str,
                  log=print, frames: list[str] | None = None, quote: str | None = None) -> str:
     key = _api_key()
     text = None
+    LAST_SCORE["value"] = None
     if key:
         try:
             text = _claude_caption(key, streamer, title, top_messages, transcript, lang, frames or [])
@@ -221,10 +227,19 @@ def _claude_caption(key: str, streamer: str, title: str, top_messages: list[str]
     if response.stop_reason == "refusal":
         raise RuntimeError("модель отказалась")
     out = next((b.text for b in response.content if b.type == "text"), "").strip()
-    out = out.strip('"«»“” \n').splitlines()[0] if out else ""
-    if not out:
+    caption, score = out, None
+    if "CAPTION:" in out:
+        caption = out.split("CAPTION:", 1)[1].split("SCORE:", 1)[0]
+    if "SCORE:" in out:
+        try:
+            score = float(out.split("SCORE:", 1)[1].strip().split()[0].split("/")[0])
+        except (ValueError, IndexError):
+            score = None
+    caption = caption.strip().strip('"«»“” \n').splitlines()[0] if caption.strip() else ""
+    if not caption:
         raise RuntimeError("пустой ответ")
-    return out[:90]
+    LAST_SCORE["value"] = score
+    return caption[:90]
 
 
 # ---------- описание и хэштеги для публикации (YouTube Shorts / Instagram Reels / TikTok) ----------
@@ -285,3 +300,22 @@ def make_post(streamer: str, caption: str, title: str, transcript: str, lang: st
         except Exception as e:
             log(f"описание от Claude не получилось ({e}) — делаю по шаблону")
     return template_post(streamer, caption, title, lang, link)
+
+
+
+# ---------- оценка клипа: насколько он яркий (0–10) ----------
+def rate_clip(d: dict, transcript: str = "") -> float:
+    """Чем больше настоящего действия (крик, взрыв, резкий поворот событий) и реакции — тем выше.
+    «Пустая болтовня» (много слов, но ни звука, ни картинки) получает штраф."""
+    chat = max(0.0, float(d.get("chat_z", 0)))
+    audio = max(0.0, float(d.get("audio_z", 0)))
+    jump = max(0.0, float(d.get("jump_z", 0)))
+    vis = max(0.0, float(d.get("vis_z", 0)))
+    action = jump + vis
+    r = 1.0 + 0.16 * min(chat, 20) + 0.22 * min(audio, 12) + 0.35 * min(jump, 10) + 0.4 * min(vis, 10)
+    words = len(transcript.split())
+    if words > 55 and action < 1.5:
+        r -= 2.0  # стример просто разговаривает, ничего не происходит
+    elif action < 0.5 and audio < 1:
+        r -= 1.0  # только чат шумит, а на экране и в звуке тихо
+    return round(max(0.0, min(10.0, r)), 1)

@@ -131,6 +131,9 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
                          render.write_watermark_ass(base + ".wm.ass", cfg.watermark_text.strip(),
                                                     cfg.watermark_pos, cfg.watermark_opacity))
     meta["transcript"] = transcript[:800]
+    if cfg.caption:
+        from .caption import LAST_SCORE
+        meta["ai_score"] = LAST_SCORE.get("value")
     render.render_vertical(segment, out, layout, facecam, cfg.zoom, ass_files, cfg.preset,
                            logo=cfg.watermark_image or None, logo_pos=cfg.watermark_pos,
                            logo_opacity=cfg.watermark_opacity, logo_with_text=bool(cfg.watermark_text.strip()),
@@ -395,6 +398,7 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                                 "lang": lang or "en"}
                         d["caption"] = _make_short(seg, tmp, cfg, log, meta)
                         d["transcript"], d["lang"] = meta.get("transcript", ""), lang or "en"
+                        d["rating"] = _final_rating(d, meta)
                         if not cfg.keep_raw:
                             os.remove(seg)
                         d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, channel)
@@ -416,6 +420,16 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
 
     _finish(cfg, new, work, done + new, title, link, log)
     return new
+
+
+def _final_rating(d: dict, meta: dict) -> float:
+    """Оценка клипа 0–10: по звуку/картинке/чату; если Claude тоже оценил кадры — среднее."""
+    from .caption import rate_clip
+    r = rate_clip(d, meta.get("transcript", ""))
+    ai = meta.get("ai_score")
+    if isinstance(ai, (int, float)) and 0 < ai <= 10:
+        r = round((r + float(ai)) / 2, 1)
+    return r
 
 
 def _clip_no(path: str) -> str:
@@ -462,6 +476,7 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
             meta = {"streamer": name, "title": name, "top_messages": h.top_messages, "lang": lang}
             d["caption"] = _make_short(seg, tmp, cfg, log, meta)
             d["transcript"], d["lang"] = meta.get("transcript", ""), lang
+            d["rating"] = _final_rating(d, meta)
             if not cfg.keep_raw:
                 os.remove(seg)
             d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, name)

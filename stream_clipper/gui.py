@@ -8,6 +8,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
@@ -100,6 +101,162 @@ def _load_json(path, default):
             return {**default, **json.load(f)}
     except Exception:
         return dict(default)
+
+
+class VideoPreview(ttk.Frame):
+    """Просмотр клипа прямо в окне: картинка через OpenCV, звук (Windows) — через встроенный winsound."""
+    W, H = 180, 320
+
+    def __init__(self, parent, app):
+        super().__init__(parent)
+        self.app = app
+        self.cap = None
+        self.path = None
+        self.playing = False
+        self.sound = tk.BooleanVar(value=True)
+        self.fps = 30.0
+        self.frames_total = 0
+        self.pos = 0
+        self.job = None
+        self.wav = os.path.join(paths.default_work_dir(), "preview.wav")
+        self.screen = tk.Label(self, width=self.W, height=self.H, bg="#000000", fg="#888888",
+                               text="Выбери клип\nв списке —\nон покажется здесь", justify="center")
+        self.screen.pack()
+        bar = ttk.Frame(self)
+        bar.pack(fill="x", pady=(4, 0))
+        self.b_play = ttk.Button(bar, text="▶", width=3, command=self.toggle)
+        self.b_play.pack(side="left")
+        ttk.Checkbutton(bar, text="звук", variable=self.sound, command=self._sound_changed).pack(side="left", padx=4)
+        self.time_lbl = ttk.Label(bar, text="0:00", foreground=app.muted)
+        self.time_lbl.pack(side="right")
+        self.img = None
+
+    # --- выбор клипа ---
+    def show_selected(self):
+        sel = [self.app.clip_by_iid[i] for i in self.app.tree.selection() if i in self.app.clip_by_iid]
+        if len(sel) == 1 and sel[0]["path"] != self.path:
+            self.load(sel[0]["path"])
+
+    def play_selected(self):
+        self.show_selected()
+        if self.path and not self.playing:
+            self.toggle()
+
+    def load(self, path: str):
+        self.stop()
+        try:
+            import cv2
+        except ImportError:
+            self.screen.config(image="", text="Просмотр недоступен:\nнет OpenCV")
+            return
+        if self.cap is not None:
+            self.cap.release()
+        self.cap = cv2.VideoCapture(path)
+        if not self.cap.isOpened():
+            self.screen.config(image="", text="Не удалось\nоткрыть клип")
+            self.cap = None
+            return
+        self.path = path
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
+        self.frames_total = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        self.pos = 0
+        self._show_frame(read=True)
+
+    def release(self):
+        """Закрыть файл (Windows не даёт удалить открытый в плеере клип)."""
+        self.stop()
+        if self.cap is not None:
+            self.cap.release()
+        self.cap = None
+        self.path = None
+        self.img = None
+        self.screen.config(image="", text="Выбери клип\nв списке —\nон покажется здесь")
+
+    # --- воспроизведение ---
+    def toggle(self):
+        if not self.cap:
+            return
+        if self.playing:
+            self.stop()
+        else:
+            if self.frames_total and self.pos >= self.frames_total - 1:
+                self.pos = 0
+                import cv2
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            self.playing = True
+            self.b_play.config(text="⏸")
+            self.t0 = time.time() - self.pos / self.fps
+            self._start_sound()
+            self._tick()
+
+    def stop(self):
+        self.playing = False
+        self.b_play.config(text="▶")
+        if self.job:
+            self.after_cancel(self.job)
+            self.job = None
+        self._stop_sound()
+
+    def _tick(self):
+        if not self.playing or not self.cap:
+            return
+        import cv2
+        want = int((time.time() - self.t0) * self.fps)
+        while self.pos < want - 1:  # отстаём — пропускаем кадры, чтобы не расходиться со звуком
+            if not self.cap.grab():
+                break
+            self.pos += 1
+        if not self._show_frame(read=True):
+            self.stop()
+            return
+        delay = max(1, int(1000 * ((self.pos + 1) / self.fps - (time.time() - self.t0))))
+        self.job = self.after(delay, self._tick)
+
+    def _show_frame(self, read: bool = True) -> bool:
+        import cv2
+        ok, frame = self.cap.read()
+        if not ok:
+            return False
+        self.pos += 1
+        h, w = frame.shape[:2]
+        scale = min(self.W / w, self.H / h)
+        frame = cv2.resize(frame, (max(2, int(w * scale)), max(2, int(h * scale))), interpolation=cv2.INTER_AREA)
+        ok, buf = cv2.imencode(".ppm", frame)
+        if ok:
+            self.img = tk.PhotoImage(data=buf.tobytes(), format="PPM")
+            self.screen.config(image=self.img, text="", width=self.W, height=self.H)
+        sec = int(self.pos / self.fps)
+        total = int(self.frames_total / self.fps) if self.frames_total else 0
+        self.time_lbl.config(text=f"{sec // 60}:{sec % 60:02d} / {total // 60}:{total % 60:02d}")
+        return True
+
+    # --- звук (Windows) ---
+    def _sound_changed(self):
+        if self.playing:
+            self._stop_sound()
+            self._start_sound()
+
+    def _start_sound(self):
+        if not self.sound.get() or os.name != "nt" or not self.path:
+            return
+        try:
+            import winsound
+            flags = 0x08000000
+            start = self.pos / self.fps
+            r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.2f}", "-i", self.path, "-vn",
+                                "-ac", "2", "-ar", "44100", self.wav], capture_output=True, creationflags=flags)
+            if r.returncode == 0:
+                winsound.PlaySound(self.wav, winsound.SND_FILENAME | winsound.SND_ASYNC)
+        except Exception:
+            pass
+
+    def _stop_sound(self):
+        if os.name == "nt":
+            try:
+                import winsound
+                winsound.PlaySound(None, 0)
+            except Exception:
+                pass
 
 
 class App:
@@ -359,10 +516,15 @@ class App:
         self.log_detailed = tk.BooleanVar(value=False)
         self.log_lines: list = []  # (текст, важная ли строка)
         ttk.Label(logbar, text="Коротко: что началось и какие клипы готовы", foreground=self.muted).pack(side="left")
+        self.b_hide_log = ttk.Button(logbar, text="Скрыть ▴", command=self._toggle_log)
+        self.b_hide_log.pack(side="right", padx=(6, 0))
         self.b_details = ttk.Button(logbar, text="Подробнее ▾", command=self._toggle_details)
         self.b_details.pack(side="right")
         self.log = ScrolledText(logf, height=8, font=("Consolas", 10), state="disabled", wrap="word")
         self.log.pack(fill="both", expand=True)
+        self.logf = logf
+        if self.cfg.get("log_hidden"):
+            self.root.after(50, self._toggle_log)
         bottom = ttk.Frame(main)
         bottom.pack(side="bottom", fill="x", pady=(4, 0), before=logf)
         self.v["autoupdate"] = tk.BooleanVar(value=bool(self.cfg.get("autoupdate", True)))
@@ -710,7 +872,9 @@ class App:
         self.key_status.config(text="✔ ключ есть" if ok else "нет ключа — надписи по шаблону")
 
     def _save_settings(self):
+        hidden = self.cfg.get("log_hidden", False)
         self.cfg = {k: (v.get()) for k, v in self.v.items()}
+        self.cfg["log_hidden"] = hidden
         with open(SETTINGS, "w", encoding="utf-8") as f:
             json.dump(self.cfg, f, ensure_ascii=False, indent=1)
 
@@ -937,6 +1101,26 @@ class App:
         if text.strip() and important:
             self.status.config(text=text.strip().splitlines()[-1][:120])
 
+    def _toggle_log(self):
+        """Свернуть / развернуть окно «Что происходит» (последнее событие всё равно видно внизу)."""
+        hidden = self.log.winfo_ismapped()
+        if hidden:
+            self.log.pack_forget()
+            self.logf.pack_configure(fill="x", expand=False)
+            self.b_hide_log.config(text="Показать ▾")
+        else:
+            self.log.pack(fill="both", expand=True)
+            self.logf.pack_configure(fill="both", expand=True)
+            self.b_hide_log.config(text="Скрыть ▴")
+        self.cfg["log_hidden"] = hidden
+        try:
+            data = _load_json(SETTINGS, DEFAULTS)
+            data["log_hidden"] = hidden
+            with open(SETTINGS, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=1)
+        except OSError:
+            pass
+
     def _toggle_details(self):
         self.log_detailed.set(not self.log_detailed.get())
         self.b_details.config(text="Коротко ▴" if self.log_detailed.get() else "Подробнее ▾")
@@ -1099,6 +1283,12 @@ class App:
         ttk.Checkbutton(bar, text="Скрыть выложенные везде", variable=self.hide_posted,
                         command=self.refresh_clips).pack(side="left")
         ttk.Button(bar, text="⟳ Обновить", command=self.refresh_clips).pack(side="right")
+        self.sort_var = tk.StringVar(value="лучшие сверху")
+        sort_box = ttk.Combobox(bar, textvariable=self.sort_var, values=["лучшие сверху", "новые сверху"],
+                                width=14, state="readonly")
+        sort_box.pack(side="right", padx=6)
+        sort_box.bind("<<ComboboxSelected>>", lambda e: self.refresh_clips())
+        ttk.Label(bar, text="Порядок:").pack(side="right")
 
         style = ttk.Style()
         style.configure("Clips.Treeview", rowheight=70, font=("Segoe UI", 10))
@@ -1109,7 +1299,7 @@ class App:
         btns = ttk.Frame(parent)
         btns.pack(side="bottom", fill="x")
         ttk.Button(btns, text="☑  Выбрать все", command=self.select_all_clips).pack(side="left", padx=(0, 6))
-        ttk.Button(btns, text="▶  Смотреть", command=self.play_clip).pack(side="left", padx=(0, 6))
+
         ttk.Button(btns, text="✍  Описание и хэштеги", style="Big.TButton",
                    command=self.post_texts).pack(side="left", padx=(0, 6))
         posted_mb = ttk.Menubutton(btns, text="✔  Отметить: выложено в…")
@@ -1121,6 +1311,7 @@ class App:
         ttk.Button(btns, text="🗑  Удалить", command=self.delete_clip).pack(side="left", padx=(0, 6))
         more = ttk.Menubutton(btns, text="Ещё ▾")
         mm = tk.Menu(more, tearoff=0)
+        mm.add_command(label="▶  Открыть в отдельном плеере", command=self.play_clip)
         mm.add_command(label="📋  Копировать надпись", command=self.copy_caption)
         mm.add_command(label="📂  Показать в папке", command=self.reveal_clip)
         mm.add_command(label="🎥  Указать вебку этого стримера", command=self.pick_facecam)
@@ -1128,22 +1319,25 @@ class App:
         more.pack(side="left")
         frame = ttk.Frame(parent)
         frame.pack(fill="both", expand=True, pady=6)
-        cols = ("streamer", "moment", "caption", "created", "youtube", "instagram", "tiktok")
+        self.preview = VideoPreview(frame, self)  # просмотр клипа прямо в программе
+        self.preview.pack(side="right", fill="y", padx=(8, 0))
+        cols = ("rating", "streamer", "moment", "caption", "youtube", "instagram", "tiktok")
         self.tree = ttk.Treeview(frame, columns=cols, show="tree headings", style="Clips.Treeview",
                                  selectmode="extended", height=3)
         self.tree.heading("#0", text="Превью")
         self.tree.column("#0", width=66, stretch=False)
-        for c, title, w in (("streamer", "Стример", 110), ("moment", "Момент", 70), ("caption", "Надпись", 300),
-                            ("created", "Создан", 66), ("youtube", "YouTube", 80), ("instagram", "Instagram", 88),
-                            ("tiktok", "TikTok", 70)):
+        for c, title, w in (("rating", "Оценка", 78), ("streamer", "Стример", 96), ("moment", "Момент", 64),
+                            ("caption", "Надпись", 220), ("youtube", "YT", 40), ("instagram", "Inst", 44),
+                            ("tiktok", "TikTok", 50)):
             self.tree.heading(c, text=title)
             self.tree.column(c, width=w, stretch=(c == "caption"), anchor="w" if c == "caption" else "center")
         sb = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=sb.set)
         self.tree.pack(side="left", fill="both", expand=True)
         sb.pack(side="left", fill="y")
-        self.tree.bind("<Double-1>", lambda e: self.play_clip())
-        self.tree.bind("<Return>", lambda e: self.play_clip())
+        self.tree.bind("<Double-1>", lambda e: self.preview.play_selected())
+        self.tree.bind("<Return>", lambda e: self.preview.play_selected())
+        self.tree.bind("<<TreeviewSelect>>", lambda e: self.preview.show_selected())
         self.tree.bind("<Delete>", lambda e: self.delete_clip())
         self.tree.bind("<Button-3>", self._clips_menu)
         self.clip_by_iid: dict = {}
@@ -1170,6 +1364,17 @@ class App:
         self.clip_by_iid = {}
         missing = []
         shown = 0
+        from .caption import rate_clip
+        for c in clips:
+            if c.get("rating") is None:  # клипы, сделанные до появления оценки
+                c["rating"] = rate_clip(c, c.get("transcript", ""))
+        ranked = sorted(clips, key=lambda c: -float(c.get("rating") or 0))
+        n = len(ranked)
+        tier = {}
+        for i, c in enumerate(ranked):  # ярлык относительно остальных клипов дня
+            tier[c["path"]] = "🔥" if i < max(1, round(n * 0.3)) else ("👍" if i < round(n * 0.7) else "💤")
+        if self.sort_var.get() == "лучшие сверху":
+            clips = ranked
         for c in clips:
             if self.streamer_var.get() != "Все" and c.get("channel") != self.streamer_var.get():
                 continue
@@ -1179,8 +1384,8 @@ class App:
             if img is None:
                 missing.append(c["path"])
             sec = int(c.get("moment", c.get("start", 0)))
-            values = (c.get("channel", ""), f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}",
-                      c.get("caption", "") or "—", c.get("created", ""),
+            values = (f"{tier.get(c['path'], '')} {float(c.get('rating') or 0):.1f}", c.get("channel", ""),
+                      f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}", c.get("caption", "") or "—",
                       *("✔" if c["posted"].get(p) else "—" for p in library.PLATFORMS))
             iid = self.tree.insert("", "end", text="", image=img or "", values=values)
             self.clip_by_iid[iid] = c
@@ -1188,8 +1393,8 @@ class App:
                 self.tree.selection_add(iid)
             shown += 1
         fresh = sum(1 for c in clips if not any(c["posted"].values()))
-        self.clips_info.config(text=f"Клипов за {date or '—'}: {len(clips)}, ещё нигде не выложено: {fresh}. "
-                                    f"Двойной клик — посмотреть. Несколько клипов: Ctrl или Shift + клик.")
+        self.clips_info.config(text=f"Клипов за {date or '—'}: {len(clips)}, нигде не выложено: {fresh}.  "
+                                    f"🔥 самые яркие · 👍 хорошие · 💤 слабые.  Клик — посмотреть справа.")
         self.nb.tab(1, text=f"  Клипы ({fresh} новых)  " if clips else "  Клипы  ")
         if missing:
             threading.Thread(target=self._make_thumbs, args=(missing,), daemon=True).start()
@@ -1329,6 +1534,8 @@ class App:
     def delete_clip(self):
         sel = self._selected()
         if sel and messagebox.askyesno("Удалить", f"Удалить клипов: {len(sel)}? Файлы удалятся с диска."):
+            if self.preview.path in {c["path"] for c in sel}:
+                self.preview.release()
             for c in sel:
                 for p in (c["path"], library.thumb_path(c["path"])):
                     try:

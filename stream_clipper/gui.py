@@ -3492,9 +3492,9 @@ class App:
         """Причина для каждого поля окна: reasons — словарь по ключам «Доктора» или общий текст."""
         r = cs.get("reasons")
         out = {}
-        general = r if isinstance(r, str) else " ".join(map(str, r)) if isinstance(r, list) else ""
+        general = r if isinstance(r, str) else " ".join(map(str, r)) if isinstance(r, list) else str(cs.get("why") or "")
         if isinstance(r, dict):
-            general = str(r.get("general") or r.get("all") or r.get("defaults") or "")
+            general = str(r.get("general") or r.get("all") or r.get("defaults") or cs.get("why") or "")
             for dk, gks in self.DOC_MAP.items():
                 if r.get(dk):
                     for g in gks:

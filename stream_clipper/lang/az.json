@@ -666,5 +666,19 @@
 "Беру кадр из эфира...": "Canlı yayımdan kadr götürürəm...",
 "Стример не в эфире — беру кадр из последней записи...": "Strimer yayımda deyil — son qeyddən kadr götürürəm...",
 "Не нашёл записей стрима: {0}": "Strim qeydləri tapılmadı: {0}",
-"Не получилось скачать кусок записи: {0}": "Qeydin hissəsini yükləmək alınmadı: {0}"
+"Не получилось скачать кусок записи: {0}": "Qeydin hissəsini yükləmək alınmadı: {0}",
+"{0} клипов за час, по {1} с": "saatda {0} klip, hər biri {1} san",
+"Субтитры": "Altyazılar",
+"Надпись-плашка": "Yazı-lövhə",
+"Вебка сверху": "Veb-kamera yuxarıda",
+"Поиск по звуку и картинке": "Səs və görüntüyə görə axtarış",
+"вкл": "açıq",
+"выкл": "bağlı",
+"игра в кадре: {0}": "kadrda oyun: {0}",
+"качество: {0}": "keyfiyyət: {0}",
+"без изменений": "dəyişiklik yoxdur",
+"Настройки изменены: {0} — применятся к следующим клипам, работа не прерывается.": "Ayarlar dəyişdi: {0} — növbəti kliplərə tətbiq olunacaq, iş dayanmır.",
+"Не удалось передать настройки: {0}": "Ayarları ötürmək alınmadı: {0}",
+"Новые настройки подхвачены: ": "Yeni ayarlar götürüldü: ",
+"субтитры: {0}": "altyazılar: {0}"
 }

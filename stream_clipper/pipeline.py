@@ -209,6 +209,24 @@ def refresh_live(cfg: Settings, log=print) -> None:
     if cpos in render.CREDIT_POS and cpos != cfg.credit_pos:
         cfg.credit_pos = cpos
         changed.append("подпись автора перенесена")
+    names = {"subs": "субтитры", "caption": "надпись-плашка", "audio": "поиск по звуку и картинке"}
+    for key, name in names.items():
+        val = live.get(key)
+        if isinstance(val, bool) and val != bool(getattr(cfg, key)):
+            setattr(cfg, key, val)
+            changed.append(f"{name}: {'вкл' if val else 'выкл'}")
+    fc = live.get("facecam")
+    if isinstance(fc, bool) and fc != (cfg.layout != "blur"):
+        cfg.layout = "auto" if fc else "blur"
+        changed.append(f"вебка сверху: {'вкл' if fc else 'выкл'}")
+    gv = live.get("game_view")
+    if gv in ("full", "wide", "center") and gv != cfg.game_view:
+        cfg.game_view = gv
+        changed.append(f"игра в кадре: {gv}")
+    q = live.get("quality")
+    if isinstance(q, int) and q in (720, 1080) and q != cfg.max_height:
+        cfg.max_height = q
+        changed.append(f"качество: {q}")
     if changed:
         log("Новые настройки подхвачены: " + ", ".join(changed))
 
@@ -386,7 +404,9 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
         if finished and not live:
             covered = max(covered, vod_duration)
         duration = max(covered, 1)
-        if media:
+        if cfg.audio and media is None:  # «искать по звуку и картинке» включили во время работы
+            media = MediaAnalysis(url, work, log)
+        if media and cfg.audio:
             media.cover(max(start_at, boundary - 60), duration)
         if not lang and len(msgs) > 200 or (finished and not lang):
             lang = detect_language([m.text for m in msgs], title)
@@ -402,8 +422,9 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
         counted = [d for d in done + new if d.get("start", 0) >= start_at - 1]
         allowed = clip_budget(cfg.top, duration - start_at) - len(counted)
         if allowed > 0:
-            hl = _analyze(msgs, duration, media.audio(duration) if media else None, cfg, skip, log, top=allowed,
-                          visual=media.visual(duration) if media else None)
+            use = media if (media and cfg.audio) else None
+            hl = _analyze(msgs, duration, use.audio(duration) if use else None, cfg, skip, log, top=allowed,
+                          visual=use.visual(duration) if use else None)
             for i, h in enumerate(hl, 1):
                 if paths.stop_requested():
                     stopped = True

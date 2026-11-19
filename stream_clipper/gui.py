@@ -478,6 +478,7 @@ class App:
                           ("audio", T("Искать по звуку и картинке (без чата)"))):
             self.v[key] = tk.BooleanVar(value=bool(self.cfg.get(key)))
             ttk.Checkbutton(opt, text=text, variable=self.v[key]).pack(anchor="w", pady=2)
+            self.v[key].trace_add("write", lambda *a: self._on_live_setting(quick=True))
         grid = ttk.Frame(opt)
         grid.pack(anchor="w", pady=(6, 0))
         digits = (self.root.register(lambda p: p == "" or (p.isdigit() and len(p) <= 3)), "%P")
@@ -511,6 +512,8 @@ class App:
         self.gv_preview = ttk.Label(grid)
         self.gv_preview.grid(row=0, column=2, rowspan=4, padx=(10, 0), sticky="ne")
         self.v["game_view"].trace_add("write", lambda *a: self._update_gv_preview())
+        self.v["game_view"].trace_add("write", lambda *a: self._on_live_setting(quick=True))
+        self.v["quality"].trace_add("write", lambda *a: self._on_live_setting(quick=True))
         self._update_gv_preview()
         ttk.Label(grid, text=T("числа можно вписать свои;\nменяются и во время работы"),
                   foreground=self.muted).grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
@@ -1063,27 +1066,59 @@ class App:
         pre = max(2, round(length * 0.57))
         return top, pre, max(2, length - pre)
 
-    def _on_live_setting(self):
-        """Поменяли «клипов в час» или длину во время работы — передаём сразу (с задержкой на ввод)."""
+    def _on_live_setting(self, quick: bool = False):
+        """Поменяли настройку во время работы — передаём её рабочей части (числа — с задержкой на ввод)."""
         if getattr(self, "_live_job", None):
             self.root.after_cancel(self._live_job)
-        self._live_job = self.root.after(1200, self._push_live_settings)
+        self._live_job = self.root.after(300 if quick else 1200, self._push_live_settings)
+
+    def _live_values(self) -> dict:
+        top, pre, post = self._clip_numbers()
+        subs = bool(self.v["subs"].get())
+        if subs and importlib.util.find_spec("faster_whisper") is None:
+            subs = False  # распознавание речи не установлено — включать нечего (предупреждение — в журнале)
+        return {"top": top, "pre": pre, "post": post, "credit": bool(self.v["credit_auto"].get()),
+                "credit_pos": CREDIT_POS.get(self.v["credit_pos"].get(), "bottom-left"),
+                "subs": subs, "caption": bool(self.v["caption"].get()), "facecam": bool(self.v["facecam"].get()),
+                "audio": bool(self.v["audio"].get()), "game_view": GAME_VIEW.get(self.v["game_view"].get(), "full"),
+                "quality": int(self.v["quality"].get() or 1080)}
+
+    _LIVE_NAMES = {"subs": "Субтитры", "caption": "Надпись-плашка", "facecam": "Вебка сверху",
+                   "audio": "Поиск по звуку и картинке"}
 
     def _push_live_settings(self):
         self._live_job = None
         if not self.v["top"].get() or not self.v["length"].get():
             return  # ещё печатает
-        top, pre, post = self._clip_numbers()
         self._save_settings()
         if not self.proc:
             return
-        try:
-            with open(paths.live_settings_path(), "w", encoding="utf-8") as f:
-                json.dump({"top": top, "pre": pre, "post": post, "credit": bool(self.v["credit_auto"].get()),
-                           "credit_pos": CREDIT_POS.get(self.v["credit_pos"].get(), "bottom-left")}, f)
-        except OSError:
+        new = self._live_values()
+        old = getattr(self, "_live_sent", None) or {}
+        if new == old:
             return
-        self._append(T('Настройки изменены: {0} клипов за час, по {1} с — применятся к следующим клипам.\n').format(top, pre + post))
+        try:
+            os.makedirs(os.path.dirname(paths.live_settings_path()), exist_ok=True)
+            with open(paths.live_settings_path(), "w", encoding="utf-8") as f:
+                json.dump(new, f)
+        except OSError as e:
+            self._append(T("Не удалось передать настройки: {0}").format(e) + "\n")
+            return
+        self._live_sent = new
+        parts = []
+        if (new["top"], new["pre"], new["post"]) != (old.get("top"), old.get("pre"), old.get("post")):
+            parts.append(T("{0} клипов за час, по {1} с").format(new["top"], new["pre"] + new["post"]))
+        for k, name in self._LIVE_NAMES.items():
+            if k in old and new[k] != old[k]:
+                parts.append(T(name) + ": " + (T("вкл") if new[k] else T("выкл")))
+        if old and new["game_view"] != old.get("game_view"):
+            parts.append(T("игра в кадре: {0}").format(self.v["game_view"].get()))
+        if old and new["quality"] != old.get("quality"):
+            parts.append(T("качество: {0}").format(new["quality"]))
+        if self.v["subs"].get() and not new["subs"]:
+            self._append(T("⚠ Субтитры не установлены — запусти install_subs.bat. Пока режу без них.\n"))
+        self._append(T("Настройки изменены: {0} — применятся к следующим клипам, работа не прерывается.\n").format(
+            "; ".join(parts) or T("без изменений")))
 
     def _flags(self, for_link: bool = False) -> list[str]:
         self._save_settings()
@@ -1148,6 +1183,10 @@ class App:
             self.proc = None
             return
         self._set_running(True, what)
+        try:
+            self._live_sent = self._live_values()
+        except Exception:
+            self._live_sent = None
         threading.Thread(target=self._reader, args=(self.proc,), daemon=True).start()
 
     def apply_streamers(self):

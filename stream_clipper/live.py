@@ -406,6 +406,7 @@ class LiveSession:
         if tail:
             skip.append({"start": max(0.0, now_t - tail), "end": now_t + tail})
         log(f"[{self.channel}] {'финальный' if final else 'промежуточный'} проход по записи эфира")
+        self._record_progress(max(self.cutoff, chunks[0][1]), now_t - tail, final)
         from .pipeline import clip_budget
         allowed = clip_budget(cfg.top, duration) - len(self.done)
         if allowed <= 0:
@@ -448,6 +449,10 @@ class LiveSession:
                 log(f"  ошибка: {e}")
                 daily.log_event(cfg.out_dir, f"{self.channel}: не удалось сделать клип {_fmt(h.start)} — {e}")
         self.done += new
+        if new:
+            from . import progress
+            progress.record(self._progress_key(), 0, 0, channel=self.channel, platform=self._platform(),
+                            clips=len(new), live=not final)
 
         # дальше ищем только в последних ~10 минутах до хвоста; старые куски удаляем
         if not final:
@@ -460,6 +465,26 @@ class LiveSession:
         _finish(cfg, new, self.work, self.done, self.title, None, log)
         self._save_state()
         return new
+
+    # ---------- память «что разобрано» (вкладка «Стримы») ----------
+    def _platform(self) -> str:
+        return "YouTube" if self.is_youtube else "Twitch"
+
+    def _progress_key(self) -> str:
+        # у YouTube запись эфира потом становится видео с тем же id; у Twitch id записи другой — сопоставим по времени
+        if self.is_youtube:
+            return self.vid
+        return f"tw-live:{self.channel.lower()}:{int(self.stream_start or self.rec_start)}"
+
+    def _record_progress(self, rec_from: float, rec_to: float, final: bool = False) -> None:
+        if self.cfg.dry_run:
+            return
+        from . import progress
+        off = (self.rec_start - self.stream_start) if self.stream_start else 0.0
+        progress.record(self._progress_key(), off + rec_from, off + rec_to, channel=self.channel,
+                        platform=self._platform(), title=self.title,
+                        url=self.chat_url if self.is_youtube else f"https://www.twitch.tv/{self.channel}",
+                        stream_ts=self.stream_start or self.rec_start, duration=off + rec_to, live=not final)
 
     def cleanup(self) -> None:
         if not self.cfg.keep_raw:

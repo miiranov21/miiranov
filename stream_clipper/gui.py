@@ -410,11 +410,14 @@ class App:
         cb_theme.pack(side="left", padx=6)
         cb_theme.bind("<<ComboboxSelected>>", self._change_theme)
         self.nb.add(main, text="  Управление  ")
+        streams = ttk.Frame(self.nb, padding=8)
         self.nb.add(clips, text="  Клипы  ")
+        self.nb.add(streams, text="  Стримы  ")
         self.nb.add(sett, text="  Настройки  ")
         self.sett = sett
         self._build_clips(clips)
-        self.nb.bind("<<NotebookTabChanged>>", lambda e: self.refresh_clips())
+        self._build_streams(streams)
+        self.nb.bind("<<NotebookTabChanged>>", self._on_tab)
 
         top = ttk.Frame(main)
         top.pack(fill="x")
@@ -1129,7 +1132,33 @@ class App:
         if not url.startswith("http"):
             messagebox.showwarning("Нет ссылки", "Вставь ссылку на запись стрима (twitch.tv/videos/... или youtube.com/watch?v=...).")
             return
+        self._offer_resume(url)
         self._run(["vod", url, *self._flags(for_link=True)], "Нарезаю " + url, job=["vod", url])
+
+    def _offer_resume(self, url: str):
+        """Ссылку уже разбирали, а время стоит «с начала» — предлагаем продолжить с места остановки."""
+        from . import progress
+        from urllib.parse import parse_qs, urlparse
+        if self.v["start_from"].get() not in ("", "с начала"):
+            return
+        if "watch?v=" in url:
+            key = (parse_qs(urlparse(url).query).get("v") or [""])[0]
+        elif "youtu.be/" in url or "/live/" in url:
+            key = urlparse(url).path.rstrip("/").split("/")[-1]
+        else:
+            key = url.rstrip("/").split("/")[-1].split("?")[0].lstrip("v")
+        e = progress.load().get(key)
+        if not e or not e.get("ranges"):
+            return
+        sm = progress.summary(e)
+        if sm["finished"] or not sm["resume"]:
+            return
+        if messagebox.askyesno("Этот стрим уже разбирали",
+                               f"Разобрано: {sm['done']}.\nПродолжить с {progress.fmt(sm['resume'])} "
+                               f"(место остановки)?\n\n«Нет» — пройти стрим с самого начала."):
+            t = sm["resume"]
+            self.v["start_from"].set(f"{int(t // 3600)}:{int(t % 3600 // 60):02d}")
+            self.v["start_mode"].set("от начала стрима")
 
     def stop(self):
         """Первое нажатие — аккуратно: программа дорежет начатое и сохранит прогресс.
@@ -1398,6 +1427,261 @@ class App:
         except Exception as e:
             messagebox.showinfo("Обновление", f"Обновление установлено. Открой программу заново.\n({e})")
         self.root.destroy()
+
+    def _on_tab(self, e=None):
+        i = self.nb.index(self.nb.select())
+        if i == 1:
+            self.refresh_clips()
+        elif i == 2:
+            self.refresh_streams()
+
+    # ---------- вкладка «Стримы»: что уже разобрано и откуда продолжать ----------
+    def _build_streams(self, parent):
+        self.online_streams: dict = {}   # канал -> список его стримов с сайта (загружается кнопкой)
+        self.stream_rows: dict = {}
+        bar = ttk.Frame(parent)
+        bar.pack(fill="x")
+        ttk.Label(bar, text="Стример:").pack(side="left")
+        self.st_channel = tk.StringVar(value="Все")
+        self.st_box = ttk.Combobox(bar, textvariable=self.st_channel, width=20, state="readonly")
+        self.st_box.pack(side="left", padx=4)
+        self.st_box.bind("<<ComboboxSelected>>", lambda e: self.refresh_streams())
+        ttk.Button(bar, text="🔎  Показать все стримы канала", command=self.load_channel_streams).pack(side="left",
+                                                                                                    padx=6)
+        ttk.Button(bar, text="⟳ Обновить", command=self.refresh_streams).pack(side="right")
+        self.st_info = ttk.Label(parent, text="", anchor="w", foreground=self.muted, wraplength=1100, justify="left")
+        self.st_info.pack(side="bottom", fill="x", pady=(6, 0))
+        btns = ttk.Frame(parent)
+        btns.pack(side="bottom", fill="x")
+        ttk.Button(btns, text="▶  Продолжить с места остановки", style="Big.TButton",
+                   command=self.continue_stream).pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text="🔗  Открыть стрим на этом месте", command=self.open_stream).pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text="✔  Отметить досмотренным", command=self.mark_stream_done).pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text="🗑  Убрать из списка", command=self.forget_stream).pack(side="left")
+        frame = ttk.Frame(parent)
+        frame.pack(fill="both", expand=True, pady=6)
+        cols = ("date", "title", "length", "done", "left", "clips", "status")
+        self.st_tree = ttk.Treeview(frame, columns=cols, show="tree headings", selectmode="browse")
+        self.st_tree.heading("#0", text="Стример")
+        self.st_tree.column("#0", width=130, stretch=False)
+        for c, title, w in (("date", "Дата стрима", 100), ("title", "Название", 200), ("length", "Длина", 60),
+                            ("done", "Разобрано", 130), ("left", "Не разобрано", 150), ("clips", "Клипов", 66),
+                            ("status", "Где остановились", 250)):
+            self.st_tree.heading(c, text=title)
+            self.st_tree.column(c, width=w, stretch=(c == "title"),
+                                anchor="w" if c in ("title", "status") else "center")
+        sb = ttk.Scrollbar(frame, orient="vertical", command=self.st_tree.yview)
+        self.st_tree.configure(yscrollcommand=sb.set)
+        self.st_tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="left", fill="y")
+        self.st_tree.tag_configure("done", foreground=self.muted)
+        self.st_tree.bind("<Double-1>", lambda e: self.continue_stream())
+
+    def _stream_rows(self) -> dict:
+        """Все известные стримы по каналам: из памяти программы + загруженные с сайта."""
+        from . import progress
+        data = progress.load()
+        rows: dict = {}  # канал(lower) -> {key: row}
+        # эфир, который программа писала сама (у Twitch), — это тот же стрим, что и его запись (VOD)
+        merged_into: dict = {}
+        for k in [k for k in data if k.startswith("tw-live:")]:
+            e = data[k]
+            ch = e.get("channel", "").lower()
+            others = [(o, data[o]) for o in data if not o.startswith("tw-live:")]
+            others += [(v["key"], {"channel": e.get("channel"), "stream_ts": v.get("ts")})
+                       for v in self.online_streams.get(ch, [])]
+            for o, oe in others:
+                if oe.get("channel", "").lower() == ch and oe.get("stream_ts") and e.get("stream_ts") \
+                        and abs(float(oe["stream_ts"]) - float(e["stream_ts"])) < 1800:
+                    merged_into[k] = o
+                    break
+        for k, e in data.items():
+            if k not in merged_into:
+                rows.setdefault(e.get("channel", "?").lower(), {})[k] = dict(e, key=k)
+        for ch, vods in self.online_streams.items():
+            for v in vods:
+                r = rows.setdefault(ch, {}).get(v["key"])
+                if r is None:
+                    rows[ch][v["key"]] = {"key": v["key"], "channel": v.get("channel", ch), "title": v["title"],
+                                          "url": v["url"], "duration": v["duration"], "stream_ts": v.get("ts"),
+                                          "platform": v.get("platform", ""), "ranges": [], "clips": 0}
+                else:
+                    r["duration"] = max(float(r.get("duration") or 0), v["duration"])
+                    r["url"] = v["url"]
+                    r["stream_ts"] = r.get("stream_ts") or v.get("ts")
+        for k, target in merged_into.items():
+            e = data[k]
+            ch = e.get("channel", "?").lower()
+            r = rows.setdefault(ch, {}).setdefault(target, {"key": target, "channel": e.get("channel"),
+                                                              "url": "", "ranges": [], "clips": 0})
+            r["ranges"] = list(r.get("ranges") or []) + list(e.get("ranges") or [])
+            r["clips"] = int(r.get("clips") or 0) + int(e.get("clips") or 0)
+            r["title"] = r.get("title") or e.get("title", "")
+            r["stream_ts"] = r.get("stream_ts") or e.get("stream_ts")
+            r["live"] = r.get("live") or e.get("live")
+            r["duration"] = max(float(r.get("duration") or 0), float(e.get("duration") or 0))
+        return rows
+
+    def refresh_streams(self):
+        from . import progress
+        from datetime import datetime
+        rows = self._stream_rows()
+        names = {ch: next((r.get("channel") for r in items.values() if r.get("channel")), ch)
+                 for ch, items in rows.items()}
+        known = [n.lstrip("@") for n in self._read_streamers()]
+        self.st_box.config(values=["Все", *sorted({*names.values(), *known}, key=str.lower)])
+        want = self.st_channel.get()
+        sel = self.st_tree.selection()
+        sel_key = self.stream_rows.get(sel[0], {}).get("key") if sel else None
+        self.st_tree.delete(*self.st_tree.get_children())
+        self.stream_rows = {}
+        unfinished = 0
+        for ch in sorted(rows, key=lambda c: names[c].lower()):
+            if want != "Все" and names[ch].lower().lstrip("@") != want.lower().lstrip("@"):
+                continue
+            items = sorted(rows[ch].values(), key=lambda r: -(r.get("stream_ts") or r.get("updated") or 0))
+            parent = self.st_tree.insert("", "end", text=names[ch], open=True,
+                                         values=("", f"стримов: {len(items)}", "", "", "", "", ""))
+            for r in items:
+                sm = progress.summary(r)
+                if r.get("live") and r.get("ranges"):
+                    status = "🔴 эфир идёт, разбираю"
+                elif sm["finished"]:
+                    status = "✔ досмотрен"
+                elif not r.get("ranges"):
+                    status = "— ещё не смотрели"
+                elif not sm["resume"] and sm["gaps"]:
+                    status = f"⏸ не разобрано начало (до {progress.fmt(sm['gaps'][0][1])})"
+                else:
+                    status = f"⏸ остановились на {progress.fmt(sm['resume'] or 0)}"
+                if not sm["finished"]:
+                    unfinished += 1
+                ts = r.get("stream_ts")
+                date = datetime.fromtimestamp(ts).strftime("%d.%m %H:%M") if ts else "—"
+                dur = float(r.get("duration") or 0)
+                iid = self.st_tree.insert(parent, "end", text="", tags=("done",) if sm["finished"] else (),
+                                          values=(date, r.get("title") or "—", progress.fmt(dur) if dur else "?",
+                                                  sm["done"], "—" if sm["finished"] else sm["gaps_txt"],
+                                                  r.get("clips") or 0, status))
+                self.stream_rows[iid] = dict(r, summary=sm)
+                if r.get("key") == sel_key:
+                    self.st_tree.selection_set(iid)
+        if not self.stream_rows:
+            self.st_info.config(text="Тут появятся стримы, которые программа разбирала: какой кусок уже просмотрен и "
+                                     "откуда продолжать. Выбери стримера и нажми «Показать все стримы канала», чтобы "
+                                     "увидеть и те, что ещё не смотрели.")
+        else:
+            self.st_info.config(text=f"Не досмотрено стримов: {unfinished}.  «Разобрано» — какие часы стрима программа "
+                                     f"уже проверила, «Не разобрано» — что осталось. Выбери стрим и нажми «Продолжить» "
+                                     f"— анализ начнётся ровно с места остановки.")
+
+    def load_channel_streams(self):
+        """Тянем с сайта последние стримы выбранного канала — чтобы видеть и те, что ещё не разбирали."""
+        from . import progress
+        name = self.st_channel.get()
+        if name in ("", "Все"):
+            messagebox.showinfo("Стримы", "Сначала выбери стримера в списке «Стример».")
+            return
+        tw, yt = split_platforms(self._read_streamers())
+        plat = next((e.get("platform") for e in progress.load().values()
+                     if e.get("channel", "").lower() == name.lower()), "")
+        bare = name.lower().lstrip("@")
+        if bare in {n.lower() for n in tw}:
+            kind, target = "twitch", name
+        elif bare in {n.lower().lstrip("@") for n in yt}:
+            kind, target = "youtube", next(n for n in yt if n.lower().lstrip("@") == bare)
+        else:
+            kind, target = ("youtube", "@" + name.lstrip("@")) if plat == "YouTube" else ("twitch", name)
+        self.st_info.config(text=f"Загружаю список стримов {name}...")
+
+        def work():
+            from . import twitch
+            try:
+                vods, err = twitch.list_streams(kind, target), None
+            except Exception as e:
+                vods, err = [], e
+            for v in vods:
+                v["channel"], v["platform"] = name, "YouTube" if kind == "youtube" else "Twitch"
+            self.root.after(0, lambda: done(vods, err))
+
+        def done(vods, err):
+            if err is not None:
+                self.st_info.config(text=f"Не получилось загрузить стримы {name}: {err}")
+                return
+            self.online_streams[name.lower()] = vods
+            self.refresh_streams()
+            self.st_info.config(text=f"{name}: найдено записей стримов — {len(vods)}. "
+                                     f"Те, что ещё не смотрели, отмечены «— ещё не смотрели».")
+        threading.Thread(target=work, daemon=True).start()
+
+    def _stream_selected(self) -> dict | None:
+        sel = self.st_tree.selection()
+        r = self.stream_rows.get(sel[0]) if sel else None
+        if r is None:
+            messagebox.showinfo("Стримы", "Выбери стрим в списке (строку под именем стримера).")
+        return r
+
+    def continue_stream(self):
+        r = self._stream_selected()
+        if not r:
+            return
+        sm = r["summary"]
+        url = r.get("url") or ""
+        if not any(p in url for p in ("/videos/", "watch?v=", "youtu.be/")):
+            messagebox.showinfo("Стримы", "У этого эфира нет сохранённой записи (стример её не оставил), продолжить "
+                                          "нельзя. Нажми «Показать все стримы канала» — если запись появилась, "
+                                          "она подтянется сюда.")
+            return
+        if sm["finished"]:
+            if not messagebox.askyesno("Стримы", "Этот стрим уже разобран целиком. Пройти его ещё раз с начала?"):
+                return
+            start = 0
+        else:
+            start = sm["resume"] or 0
+        if self.proc:
+            messagebox.showinfo("Стримы", "Сейчас программа уже работает. Нажми «Стоп», потом «Продолжить».")
+            return
+        self.url.set(url)
+        self.v["start_from"].set("с начала" if start < 60 else f"{int(start // 3600)}:{int(start % 3600 // 60):02d}")
+        self.v["start_mode"].set("от начала стрима")
+        self.nb.select(0)
+        self.start_vod()
+
+    def open_stream(self):
+        r = self._stream_selected()
+        if not r or not r.get("url"):
+            return
+        t = int(r["summary"]["resume"] or 0)
+        url = r["url"]
+        if t:
+            if "twitch.tv/videos/" in url:
+                url += f"?t={t // 3600}h{t % 3600 // 60}m{t % 60}s"
+            elif "watch?v=" in url:
+                url += f"&t={t}s"
+        webbrowser.open(url)
+
+    def mark_stream_done(self):
+        from . import progress
+        r = self._stream_selected()
+        if not r:
+            return
+        if not r.get("duration"):
+            messagebox.showinfo("Стримы", "Длина этого стрима неизвестна — нажми «Показать все стримы канала».")
+            return
+        progress.record(r["key"], 0, float(r["duration"]), channel=r.get("channel", ""),
+                        platform=r.get("platform", ""), title=r.get("title", ""), url=r.get("url", ""),
+                        stream_ts=r.get("stream_ts"), duration=float(r["duration"]))
+        self.refresh_streams()
+
+    def forget_stream(self):
+        from . import progress
+        r = self._stream_selected()
+        if r and messagebox.askyesno("Стримы", "Убрать этот стрим из списка? Клипы не удалятся — программа просто "
+                                               "забудет, какой кусок разобран."):
+            progress.forget(r["key"])
+            for vods in self.online_streams.values():
+                vods[:] = [v for v in vods if v["key"] != r["key"]]
+            self.refresh_streams()
 
     # ---------- вкладка «Клипы» ----------
     def _build_clips(self, parent):

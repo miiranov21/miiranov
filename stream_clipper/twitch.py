@@ -200,3 +200,61 @@ def timestamp_link(url: str, sec: float) -> str:
     s = int(sec)
     base = url.split("?")[0]
     return f"{base}?t={s // 3600}h{s % 3600 // 60}m{s % 60}s"
+
+
+def _twitch_vods_gql(login: str, n: int) -> list[dict]:
+    """Список записей канала с датами — одним запросом к Twitch (тот же доступ, что и для чата)."""
+    import requests
+    from .chat import GQL_CLIENT_ID, GQL_URL
+    q = ('query{user(login:"%s"){videos(first:%d,type:ARCHIVE,sort:TIME){edges{node{id title lengthSeconds '
+         'createdAt}}}}}' % (login.replace('"', ""), n))
+    r = requests.post(GQL_URL, json={"query": q}, headers={"Client-Id": GQL_CLIENT_ID}, timeout=20)
+    r.raise_for_status()
+    edges = (((r.json().get("data") or {}).get("user") or {}).get("videos") or {}).get("edges") or []
+    from datetime import datetime
+    out = []
+    for e in edges:
+        node = e.get("node") or {}
+        vid = str(node.get("id") or "")
+        if not vid:
+            continue
+        ts = None
+        try:
+            ts = datetime.fromisoformat(str(node.get("createdAt")).replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            pass
+        out.append({"key": vid, "url": f"https://www.twitch.tv/videos/{vid}", "title": node.get("title") or "",
+                    "duration": float(node.get("lengthSeconds") or 0), "ts": ts})
+    return out
+
+
+def list_streams(kind: str, target: str, n: int = 15) -> list[dict]:
+    """Последние стримы канала: [{key, url, title, duration, ts}], новые первыми.
+    kind — "twitch" (target = логин) или "youtube" (target = @ник или ссылка на канал)."""
+    if kind == "twitch":
+        try:
+            vods = _twitch_vods_gql(target, n)
+            if vods:
+                return vods
+        except Exception:
+            pass
+        url = f"https://www.twitch.tv/{target}/videos?filter=archives&sort=time"
+    else:
+        base = target if target.startswith("http") else f"https://www.youtube.com/{target if target.startswith('@') else '@' + target}"
+        url = base.rstrip("/") + "/streams"
+    with yt_dlp.YoutubeDL(dict(_BASE, extract_flat=True, playlistend=n)) as ydl:
+        info = ydl.extract_info(url, download=False)
+    out = []
+    for e in list(info.get("entries") or [])[:n]:
+        if kind == "twitch":
+            key = str(e.get("id") or "").lstrip("v")
+            link = e.get("url") or f"https://www.twitch.tv/videos/{key}"
+        else:
+            key = str(e.get("id") or "")
+            link = f"https://www.youtube.com/watch?v={key}"
+            if e.get("live_status") in ("is_live", "is_upcoming"):
+                continue
+        if key:
+            out.append({"key": key, "url": link, "title": e.get("title") or "",
+                        "duration": float(e.get("duration") or 0), "ts": e.get("timestamp") or e.get("release_timestamp")})
+    return out

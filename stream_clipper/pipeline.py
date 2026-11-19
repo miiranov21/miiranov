@@ -369,8 +369,13 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
         boundary = start_at
         if done:
             log(f"  начинаю с {_fmt(start_at)}, как выбрано; уже готовые клипы ({len(done)}) не повторятся")
+    from . import progress as prog
+    stream_ts = info.get("release_timestamp") or info.get("timestamp")
+    page_url = info.get("webpage_url") or url
+    counted_clips = 0
     while True:
         refresh_live(cfg, log)
+        stopped = False
         msgs, finished = download_chat_part(url, cache, None if cfg.dry_run else last + step, log,
                                             start_from=start_at)
         covered = last = msgs[-1].t if msgs else 0
@@ -397,6 +402,7 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                           visual=media.visual(duration) if media else None)
             for i, h in enumerate(hl, 1):
                 if paths.stop_requested():
+                    stopped = True
                     break
                 refresh_live(cfg, log)
                 d = dict(h.to_dict(), vod_url=url, vod_title=title, link=link(h.start))
@@ -426,6 +432,13 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                 new.append(d)
                 if on_clip:
                     on_clip(d)
+        if not cfg.dry_run:
+            # запоминаем, какой кусок стрима разобран — видно во вкладке «Стримы»
+            upto = max(duration, vod_duration) if finished and not live else next_boundary
+            prog.record(vid, boundary, boundary if stopped else upto, channel=channel,
+                        platform="YouTube" if yt else "Twitch", title=title, url=page_url, stream_ts=stream_ts,
+                        duration=max(vod_duration, covered), live=live, clips=len(new) - counted_clips)
+            counted_clips = len(new)
         boundary = next_boundary
         if finished or cfg.dry_run:
             break

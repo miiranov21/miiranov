@@ -1371,7 +1371,7 @@ ${imgs.length ? `Прикреплены кадры из видео по поря
     const gap = Math.max(2, +$("cGap").value || 4), thr = +$("cDel").value || 20;
     const plats = Array.from(document.querySelectorAll("#cPlats input:checked")).map(i => i.value);
     const clips = catalog.clips.map(c => Object.assign({ _: scoreClip(c, now) }, c));
-    const anyPosted = (c) => Object.values(c.posted || {}).some(Boolean);
+    const anyPosted = (c) => Object.values(c.posted || {}).some(Boolean) || Object.values(c.published || {}).some(Boolean);
     // duplicates: same streamer, moments within 25 s -> keep the best
     const byS = {};
     clips.forEach(c => (byS[c.streamer] = byS[c.streamer] || []).push(c));
@@ -1395,7 +1395,8 @@ ${imgs.length ? `Прикреплены кадры из видео по поря
       if (c._.score < thr) reasons.push(`низкая оценка (${c._.score} из 100)`);
       if (reasons.length) { c._.delReason = reasons.join("; "); del.push(c); } else pool.push(c);
     });
-    const cand = pool.filter(c => plats.some(p => !(c.posted || {})[p])).sort((a, b) => b._.score - a._.score);
+    const done = (c, p) => !!((c.posted || {})[p] || (c.published || {})[p]);
+    const cand = pool.filter(c => plats.some(p => !done(c, p))).sort((a, b) => b._.score - a._.score);
     // time slots
     const slots = [];
     for (let d = 0; d < days + 1 && slots.length < perDay * days; d++) {
@@ -1415,7 +1416,7 @@ ${imgs.length ? `Прикреплены кадры из видео по поря
     });
     const posts = [];
     chosen.forEach((c, i) => plats.forEach((p, k) => {
-      if ((c.posted || {})[p]) return;
+      if (done(c, p)) return;
       posts.push({ c, p, when: new Date(slots[i].getTime() + k * 20 * 60 * 1000) });
     }));
     return { chosen, posts, del, plats, total: clips.length };
@@ -1489,6 +1490,15 @@ ${JSON.stringify(items)}
         decisions[c.id] = dec;
       });
       plan.del.forEach(c => { decisions[c.id] = { id: c.id, platforms: {}, delete: true, reason: c._.delReason }; });
+      // match published clips with real videos from analytics -> posted
+      $("cNote").textContent = "Сверяю выложенные клипы с аналитикой Windsor.ai…";
+      const matches = await matchPublished(catalog.clips);
+      matches.forEach(m => {
+        const d = decisions[m.c.id] || (decisions[m.c.id] = { id: m.c.id, platforms: {}, delete: false, reason: "" });
+        d.posted = Object.assign(d.posted || {}, { [m.p]: true });
+        if (d.platforms[m.p]) delete d.platforms[m.p];
+      });
+      plan.matches = matches;
       decisionsOut = { version: 1, generated: isoLocal(new Date()), decisions: Object.values(decisions) };
       renderClipPlan(plan, out);
       $("cSave").hidden = false;
@@ -1498,6 +1508,34 @@ ${JSON.stringify(items)}
       $("cNote").textContent = "Не получилось составить план: " + (e && e.message ? e.message : e);
     } finally { btn.disabled = false; }
   });
+
+  const normTxt = (s) => String(s || "").toLowerCase().replace(/#\S+/g, "").replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim();
+  async function matchPublished(clips) {
+    const want = clips.filter(c => c.published && Object.keys(c.published).some(p => c.published[p] && !(c.posted || {})[p]));
+    if (!want.length) return [];
+    let mcp = null;
+    try { mcp = await claude.use("mcp"); } catch (e) {}
+    if (!mcp) return [];
+    const KEY = { tiktok: "tt", instagram: "ig", youtube: "yt" };
+    const vids = {};
+    for (const p of Object.keys(KEY)) {
+      if (!want.some(c => c.published[p])) continue;
+      try { vids[p] = (await getData(mcp, KEY[p])).map(r => mapRow(KEY[p], r)); } catch (e) { vids[p] = []; }
+    }
+    const out = [];
+    want.forEach(c => Object.entries(c.published).forEach(([p, pub]) => {
+      if (!pub || (c.posted || {})[p] || !vids[p]) return;
+      const t = normTxt(pub.title || pub.description).slice(0, 40), tp = Date.parse(pub.time || "");
+      const v = vids[p].find(v => {
+        const vt = normTxt(v.title);
+        const textOk = t.length >= 8 && (vt.startsWith(t.slice(0, 25)) || vt.includes(t.slice(0, 25)));
+        const timeOk = !isNaN(tp) && Math.abs(Date.parse(v.date) - tp) < 20 * 60 * 1000;
+        return textOk || (timeOk && t && vt && vt.slice(0, 12) === t.slice(0, 12));
+      });
+      if (v) out.push({ c, p, v });
+    }));
+    return out;
+  }
 
   function renderClipPlan(plan, texts) {
     const o = $("cOut"); o.innerHTML = "";
@@ -1521,6 +1559,8 @@ ${JSON.stringify(items)}
     o.append(sch);
     const hooks = plan.chosen.filter(c => !c.has_hook && texts[c.id] && texts[c.id].hook);
     if (hooks.length) o.append(listCard("Добавить хук на первые 3 секунды", hooks.map(c => `${c.streamer} · ${c.id.split("/").pop()}: «${texts[c.id].hook}»`), "warn"));
+    if (plan.matches && plan.matches.length) o.append(listCard("Найдено в аналитике — отмечу как выложенное",
+      plan.matches.map(m => `${PL_NAME[m.p]}: ${m.c.streamer} · ${m.c.id.split("/").pop()} — ${fmt(m.v.f.views, 0)} просм.`), "good"));
     if (plan.del.length) o.append(listCard("Советую удалить", plan.del.slice(0, 60).map(c => `${c.streamer} · ${c.id.split("/").pop()}: ${c._.delReason}`).concat(plan.del.length > 60 ? [`и ещё ${plan.del.length - 60}`] : []), "bad"));
   }
 

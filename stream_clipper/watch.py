@@ -156,22 +156,34 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
             state[vid] = saved
             if not cfg.dry_run:
                 _save(state_path, state)
-        # с какого места анализировать этот стрим: выбранное в окне запоминаем для всех следующих проходов
-        from .pipeline import parse_start
+        # с какого места анализировать этот стрим: у каждого стримера своё время (вкладка «Очередь»);
+        # выбранное запоминаем для всех следующих проходов
         key, text_key = f"{vid}__from", f"{vid}__from_text"
         start_at = state.get(key)
         jump = False
-        if cfg.start_from and cfg.start_from != state.get(text_key):
-            # в окне выбрали новое «начать с» — прыгаем туда, даже если по стриму уже были клипы
-            start_at = parse_start(cfg.start_from)
-            jump = True
+        own = paths.load_start_times().get(paths.priority_key(src.spec or src.target)) or {}
+        value, mode = own.get("value") or cfg.start_from, own.get("mode", "stream")
+        spec_text = f"{value}|{mode}" if value else None
+        if spec_text and spec_text != state.get(text_key):
+            # выбрали новое «начать с» — прыгаем туда, даже если по стриму уже были клипы
+            started = (twitch.LAST_LIVE_INFO.get(src.target) or {}).get("timestamp")
+            if mode == "clock" and not started:
+                try:
+                    started = twitch.get_info(url).get("timestamp")
+                except Exception:
+                    started = None
+            start_at = paths.resolve_start(value, mode, started)
+            jump = start_at is not None
+            if jump and start_at != "now":
+                log(f"[{src.name}] начинаю с {int(start_at // 3600)}:{int(start_at % 3600 // 60):02d} от начала стрима"
+                    + (f" (это {value} по часам)" if mode == "clock" else ""))
         progress: dict = {}
         try:
             new = process_vod(url, cfg, done=done, live=live, log=log, on_clip=on_clip,
                               start_at=start_at, progress=progress, jump=jump)
             if jump or (progress.get("start_at") and state.get(key) is None):
                 state[key] = progress.get("start_at") or start_at
-                state[text_key] = cfg.start_from
+                state[text_key] = spec_text
                 if not cfg.dry_run:
                     _save(state_path, state)
         except Exception as e:
@@ -202,9 +214,10 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
 
     def start_recorder(src: Source):
         from .live import LiveSession
-        if cfg.start_from:
-            log(f"[{src.name}] «Начать с {cfg.start_from}» для этого эфира не сработает: его программа записывает "
-                f"сама — с текущего момента, прошлое эфира ей недоступно")
+        own = paths.load_start_times().get(paths.priority_key(src.spec or src.target)) or {}
+        if own.get("value") or cfg.start_from:
+            log(f"[{src.name}] «Начать с {own.get('value') or cfg.start_from}» для этого эфира не сработает: "
+                f"его программа записывает сама — с текущего момента, прошлое эфира ей недоступно")
         url = src.target if src.kind == "youtube" else f"https://www.twitch.tv/{src.target}"
         sess = LiveSession(url, cfg, log=log, max_height=min(cfg.max_height, 1080))
         try:

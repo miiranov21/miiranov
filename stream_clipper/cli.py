@@ -41,6 +41,8 @@ def _common(p: argparse.ArgumentParser) -> None:
     g.add_argument("--max-height", type=int, default=1080, help="макс. качество исходника (720/1080)")
     p.add_argument("--from", dest="start_from", default=None,
                    help="с какого места стрима начать анализ: 1:30 (часы:минуты) или сейчас; по умолчанию с начала")
+    p.add_argument("--from-mode", choices=["stream", "clock"], default="stream",
+                   help="stream — время от начала стрима; clock — время по часам (13:00 = в 13:00 дня)")
     p.add_argument("-o", "--out", default=None,
                    help="куда складывать клипы (по умолчанию Рабочий стол\\YouTube): папки ДД.ММ.ГГГГ\\стример\\клипы")
     p.add_argument("--cookies-browser", help="брать куки из браузера (chrome/firefox/edge) — если YouTube просит войти")
@@ -90,8 +92,17 @@ def _vod_with_memory(url: str, cfg) -> None:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(state, f, ensure_ascii=False)
     state.setdefault(url, list(done))
-    from .pipeline import parse_start
-    process_vod(url, cfg, done=done, on_clip=on_clip, start_at=parse_start(cfg.start_from))
+    start = None
+    if cfg.start_from:
+        started = None
+        if getattr(cfg, "start_mode", "stream") == "clock":
+            try:
+                from . import twitch
+                started = twitch.get_info(url).get("timestamp")
+            except Exception:
+                started = None
+        start = paths.resolve_start(cfg.start_from, getattr(cfg, "start_mode", "stream"), started)
+    process_vod(url, cfg, done=done, on_clip=on_clip, start_at=start)
 
 
 def _channels_from_file() -> list[str]:
@@ -146,6 +157,7 @@ def main(argv=None) -> None:
         print("Архив:", daily.build_zip(folder) or "нет шортсов за этот день")
         return
     cfg = _settings(a)
+    cfg.start_mode = getattr(a, "from_mode", "stream")
     print(f"Клипы будут здесь: {cfg.out_dir}")
     from .ffmpeg_setup import ensure_ffmpeg
     if not ensure_ffmpeg():

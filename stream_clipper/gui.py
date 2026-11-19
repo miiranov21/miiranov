@@ -28,7 +28,7 @@ STREAMERS_HEADER = """# Стримеры, за которыми следит п�
 DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
             "top": "3", "length": "35", "quality": "1080", "autoupdate": True,
             "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": "плавает по экрану", "wm_op": "средне", "game_view": "целиком", "yt_browser": "не брать",
-            "start_from": "с начала", "theme": "Фиолетовая (как Twitch)"}
+            "start_from": "с начала", "start_mode": "от начала стрима", "theme": "Фиолетовая (как Twitch)"}
 WM_POS = {"плавает по экрану": "moving", "по центру": "center", "в углу": "corner"}
 
 # цветовые темы окна: bg — фон, panel — блоки, field — поля ввода, accent — главные кнопки и акценты
@@ -105,7 +105,7 @@ def _load_json(path, default):
 
 class VideoPreview(ttk.Frame):
     """Просмотр клипа прямо в окне: картинка через OpenCV, звук (Windows) — через встроенный winsound."""
-    W, H = 180, 320
+    W, H = 288, 512
 
     def __init__(self, parent, app):
         super().__init__(parent)
@@ -269,8 +269,8 @@ class App:
         self.v: dict = {}
         self.pal = self._apply_theme(self.cfg.get("theme"))
         self.muted = self.pal["muted"] if self.pal else "#666"
-        root.geometry("920x820")
-        root.minsize(700, 640)
+        root.geometry("1120x880")
+        root.minsize(900, 700)
         try:
             root.iconbitmap(os.path.join(PROG, "icon.ico"))
         except Exception:
@@ -500,13 +500,17 @@ class App:
         self.b_vod.pack(side="left", padx=6)
         fromrow = ttk.Frame(main)
         fromrow.pack(fill="x", pady=(0, 4))
-        ttk.Label(fromrow, text="Начать анализ стрима с:").pack(side="left")
+        ttk.Label(fromrow, text="Для ссылки — начать с:").pack(side="left")
         self.v["start_from"] = tk.StringVar(value=self.cfg.get("start_from") or "с начала")
         ttk.Combobox(fromrow, textvariable=self.v["start_from"], width=11,
                      values=["с начала", "сейчас", "0:30", "1:00", "1:30", "2:00", "3:00", "4:00"]
                      ).pack(side="left", padx=6)
+        lm = self.cfg.get("start_mode")
+        self.v["start_mode"] = tk.StringVar(value=lm if lm in ("от начала стрима", "по часам") else "от начала стрима")
+        ttk.Combobox(fromrow, textvariable=self.v["start_mode"], width=16, state="readonly",
+                     values=["от начала стрима", "по часам"]).pack(side="left", padx=(0, 6))
         ttk.Label(fromrow, foreground=self.muted,
-                  text="часы:минуты от начала стрима. Для ссылки и для уже идущих стримов Twitch").pack(side="left")
+                  text="Для стримеров время задаётся отдельно: «За кем следим» → «Очередь»").pack(side="left")
 
         # журнал
         logf = ttk.LabelFrame(main, text=" Что происходит ", padding=6)
@@ -674,6 +678,17 @@ class App:
         ttk.Button(side, text="⏫ Первым", command=lambda: self._queue_move("top")).pack(fill="x")
         ttk.Button(side, text="▲ Выше", command=lambda: self._queue_move(-1)).pack(fill="x", pady=4)
         ttk.Button(side, text="▼ Ниже", command=lambda: self._queue_move(1)).pack(fill="x")
+        st = ttk.Frame(f)
+        st.pack(fill="x", pady=(6, 0))
+        ttk.Label(st, text="Начать с:").pack(side="left")
+        self.q_start = tk.StringVar(value="")
+        ttk.Combobox(st, textvariable=self.q_start, width=8,
+                     values=["с начала", "сейчас", "1:00", "2:00", "13:00", "18:00"]).pack(side="left", padx=4)
+        self.q_mode = tk.StringVar(value="от начала стрима")
+        ttk.Combobox(st, textvariable=self.q_mode, width=16, state="readonly",
+                     values=["от начала стрима", "по часам"]).pack(side="left")
+        ttk.Button(st, text="Задать выбранному", command=self._queue_set_start).pack(side="left", padx=4)
+        self.queue_list.bind("<<ListboxSelect>>", lambda e: self._queue_show_start())
         self.queue_keys: list[str] = []
         self.platforms.bind("<<NotebookTabChanged>>", lambda e: self._refresh_queue(), add="+")
         self._refresh_queue()
@@ -696,10 +711,14 @@ class App:
         tw = _unique([norm_twitch(n) for n in self._platform_names(self.tw_text)])
         yt_ = _unique([norm_youtube(n) for n in self._platform_names(self.yt_text)])
         shown = {paths.priority_key(x): x for x in tw + yt_}  # как записано (с большими буквами)
+        starts = paths.load_start_times()
         for i, k in enumerate(self.queue_keys, 1):
             yt = k.startswith("@") or "youtube.com" in k or "youtu.be" in k
             orig = shown.get(k, k)
             name = orig.lstrip("@") if not orig.startswith("http") else orig.rstrip("/").split("/")[-1]
+            st = starts.get(k) or {}
+            if st.get("value"):
+                name += f"   ⏱ с {st['value']}" + (" по часам" if st.get("mode") == "clock" else " от начала")
             self.queue_list.insert("end", f"{i}. {'YouTube' if yt else 'Twitch'} — {name}")
         if sel and sel[0] < len(self.queue_keys):
             self.queue_list.selection_set(sel[0])
@@ -725,6 +744,41 @@ class App:
         if self.proc:
             self._append("Очередь изменена — применится на следующем круге проверки: "
                          + " → ".join(k.lstrip("@") for k in keys) + "\n")
+
+    def _queue_show_start(self):
+        sel = self.queue_list.curselection()
+        if not sel or sel[0] >= len(self.queue_keys):
+            return
+        st = paths.load_start_times().get(self.queue_keys[sel[0]]) or {}
+        self.q_start.set(st.get("value") or "с начала")
+        self.q_mode.set("по часам" if st.get("mode") == "clock" else "от начала стрима")
+
+    def _queue_set_start(self):
+        sel = self.queue_list.curselection()
+        if not sel or sel[0] >= len(self.queue_keys):
+            messagebox.showinfo("Очередь", "Выбери стримера в списке.")
+            return
+        key = self.queue_keys[sel[0]]
+        value = self.q_start.get().strip()
+        try:
+            parsed = paths.parse_start(value)
+        except ValueError as e:
+            messagebox.showwarning("Время", str(e))
+            return
+        data = paths.load_start_times()
+        if parsed is None:
+            data.pop(key, None)
+            text = "с начала стрима"
+        else:
+            data[key] = {"value": value, "mode": "clock" if self.q_mode.get() == "по часам" else "stream"}
+            text = f"с {value} " + ("по часам" if self.q_mode.get() == "по часам" else "от начала стрима")
+        paths.save_start_times(data)
+        self._refresh_queue()
+        self.queue_list.selection_set(sel[0])
+        yt = key.startswith("@") or "youtube" in key
+        self._append(f"Для {key.lstrip('@')}: начинать {text}"
+                     + (" (для YouTube-эфира прошлое недоступно — запись идёт с момента запуска)" if yt else "")
+                     + ("; применится на следующем круге проверки" if self.proc else "") + "\n")
 
     def _platform_names(self, t: tk.Text) -> list[str]:
         return [ln.strip() for ln in t.get("1.0", "end").splitlines() if ln.strip()]
@@ -919,7 +973,7 @@ class App:
             return
         self._append(f"Настройки изменены: {top} клипов за час, по {pre + post} с — применятся к следующим клипам.\n")
 
-    def _flags(self) -> list[str]:
+    def _flags(self, for_link: bool = False) -> list[str]:
         self._save_settings()
         c = self.cfg
         top, pre, post = self._clip_numbers()
@@ -938,15 +992,18 @@ class App:
             f.append("--no-caption")
         if not c["audio"]:
             f.append("--no-audio")
-        try:
-            start = paths.parse_start(c.get("start_from"))
-        except ValueError as e:
-            messagebox.showwarning("Время", str(e))
-            start = None
-        if start == "now":
-            f += ["--from", "сейчас"]
-        elif start:
-            f += ["--from", f"{int(start // 3600)}:{int(start % 3600 // 60):02d}"]
+        if for_link:  # у слежки время своё для каждого стримера (вкладка «Очередь»)
+            try:
+                start = paths.parse_start(c.get("start_from"))
+            except ValueError as e:
+                messagebox.showwarning("Время", str(e))
+                start = None
+            if start == "now":
+                f += ["--from", "сейчас"]
+            elif start:
+                f += ["--from", f"{int(start // 3600)}:{int(start % 3600 // 60):02d}"]
+            if start and c.get("start_mode") == "по часам":
+                f += ["--from-mode", "clock"]
         browser = YT_BROWSERS.get(c.get("yt_browser"), "")
         if browser:
             f += ["--cookies-browser", browser]
@@ -999,7 +1056,7 @@ class App:
         if not url.startswith("http"):
             messagebox.showwarning("Нет ссылки", "Вставь ссылку на запись стрима (twitch.tv/videos/... или youtube.com/watch?v=...).")
             return
-        self._run(["vod", url, *self._flags()], "Нарезаю " + url, job=["vod", url])
+        self._run(["vod", url, *self._flags(for_link=True)], "Нарезаю " + url, job=["vod", url])
 
     def stop(self):
         """Первое нажатие — аккуратно: программа дорежет начатое и сохранит прогресс.
@@ -1242,11 +1299,16 @@ class App:
             self.force_stop()
 
     def _resume_after_update(self):
+        """Продолжить работу — только если окно только что перезапустилось ради обновления/темы.
+        Старый файл (например, программа закрылась не до конца) не должен запускать слежку при обычном открытии."""
         try:
+            fresh = time.time() - os.path.getmtime(RESUME) < 10 * 60
             with open(RESUME, encoding="utf-8") as f:
                 job = json.load(f)
             os.remove(RESUME)
         except Exception:
+            return
+        if not fresh:
             return
         self._append("\n=== Программа обновлена — продолжаю работу с того же места ===\n")
         if job and job[0] == "vod" and len(job) > 1:
@@ -1326,7 +1388,7 @@ class App:
                                  selectmode="extended", height=3)
         self.tree.heading("#0", text="Превью")
         self.tree.column("#0", width=66, stretch=False)
-        for c, title, w in (("rating", "Оценка", 78), ("streamer", "Стример", 96), ("moment", "Момент", 64),
+        for c, title, w in (("rating", "Интерес", 70), ("streamer", "Стример", 96), ("moment", "Момент", 64),
                             ("caption", "Надпись", 220), ("youtube", "YT", 40), ("instagram", "Inst", 44),
                             ("tiktok", "TikTok", 50)):
             self.tree.heading(c, text=title)
@@ -1369,10 +1431,6 @@ class App:
             if c.get("rating") is None:  # клипы, сделанные до появления оценки
                 c["rating"] = rate_clip(c, c.get("transcript", ""))
         ranked = sorted(clips, key=lambda c: -float(c.get("rating") or 0))
-        n = len(ranked)
-        tier = {}
-        for i, c in enumerate(ranked):  # ярлык относительно остальных клипов дня
-            tier[c["path"]] = "🔥" if i < max(1, round(n * 0.3)) else ("👍" if i < round(n * 0.7) else "💤")
         if self.sort_var.get() == "лучшие сверху":
             clips = ranked
         for c in clips:
@@ -1384,7 +1442,8 @@ class App:
             if img is None:
                 missing.append(c["path"])
             sec = int(c.get("moment", c.get("start", 0)))
-            values = (f"{tier.get(c['path'], '')} {float(c.get('rating') or 0):.1f}", c.get("channel", ""),
+            score10 = max(1, min(10, round(float(c.get("rating") or 0))))
+            values = (f"{score10}/10", c.get("channel", ""),
                       f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}", c.get("caption", "") or "—",
                       *("✔" if c["posted"].get(p) else "—" for p in library.PLATFORMS))
             iid = self.tree.insert("", "end", text="", image=img or "", values=values)
@@ -1394,7 +1453,7 @@ class App:
             shown += 1
         fresh = sum(1 for c in clips if not any(c["posted"].values()))
         self.clips_info.config(text=f"Клипов за {date or '—'}: {len(clips)}, нигде не выложено: {fresh}.  "
-                                    f"🔥 самые яркие · 👍 хорошие · 💤 слабые.  Клик — посмотреть справа.")
+                                    f"Интерес 1–10: чем выше, тем ярче момент.  Клик — посмотреть справа.")
         self.nb.tab(1, text=f"  Клипы ({fresh} новых)  " if clips else "  Клипы  ")
         if missing:
             threading.Thread(target=self._make_thumbs, args=(missing,), daemon=True).start()

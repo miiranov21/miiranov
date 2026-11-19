@@ -107,3 +107,43 @@ def parse_start(text) -> float | str | None:
         raise ValueError(f"не понял время «{text}»: пиши часы:минуты, например 1:30")
     sec = nums[0] * 3600 + (nums[1] * 60 if len(nums) > 1 else 0) + (nums[2] if len(nums) > 2 else 0)
     return sec if sec > 0 else None
+
+
+# ---------- время начала анализа для каждого стримера ----------
+def start_times_path() -> str:
+    return os.path.join(default_work_dir(), "start_times.json")
+
+
+def load_start_times() -> dict:
+    """{ключ стримера: {"value": "13:00", "mode": "stream"|"clock"}}"""
+    import json
+    try:
+        with open(start_times_path(), encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_start_times(data: dict) -> None:
+    import json
+    os.makedirs(os.path.dirname(start_times_path()), exist_ok=True)
+    with open(start_times_path(), "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1)
+
+
+def resolve_start(value, mode: str = "stream", stream_start_ts: float | None = None):
+    """Время начала анализа → секунды от начала стрима (или "now"/None).
+    mode="stream": «13:00» = 13 часов от начала стрима; mode="clock": «13:00» = 13:00 по часам компьютера."""
+    sec = parse_start(value)
+    if sec in (None, "now") or mode != "clock":
+        return sec
+    if not stream_start_ts:
+        return None  # не знаем, когда начался стрим — начнём с начала
+    import datetime as _dt
+    start = _dt.datetime.fromtimestamp(stream_start_ts)
+    target = start.replace(hour=int(sec // 3600) % 24, minute=int(sec % 3600 // 60), second=0, microsecond=0)
+    if target < start:
+        target += _dt.timedelta(days=1)  # «01:00» для стрима, начавшегося вечером, — это уже следующие сутки
+    off = (target - start).total_seconds()
+    return off if off > 0 else None

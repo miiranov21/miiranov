@@ -36,7 +36,7 @@ class Settings:
     caption: bool = True      # плашка с подписью к моменту
     game_view: str = "full"   # игра в кадре: full — целиком, wide — крупнее, center — только центр
     start_from: str | None = None  # с какого места стрима начать анализ: «1:30», «сейчас» или пусто — с начала
-    credit: bool = True       # подпись автора стрима на клипе: «Twitch | KaiCenat»
+    credit: bool = False      # сразу вшивать подпись автора «Twitch | KaiCenat» (иначе — галочкой на нужных клипах)
     credit_pos: str = "bottom-left"  # bottom-left | top-left | top-right
     watermark_text: str = ""  # водяной знак текстом, например "@мой_канал"
     watermark_image: str = "" # водяной знак картинкой (PNG)
@@ -426,6 +426,8 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                         if not cfg.keep_raw:
                             os.remove(seg)
                         d["words"] = meta.get("words") or []
+                        d["platform"], d["credit_name"] = meta["platform"], meta["credit_name"]
+                        d["credit_burned"] = bool(cfg.credit)
                         d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, channel)
                         _quick_policy(d, log)
                         log(f"    готово -> {d['file']}")

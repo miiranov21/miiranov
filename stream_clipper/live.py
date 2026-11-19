@@ -441,6 +441,8 @@ class LiveSession:
                 d["rating"] = _final_rating(d, meta)
                 os.remove(seg)
                 d["words"] = meta.get("words") or []
+                d["platform"], d["credit_name"] = meta["platform"], meta["credit_name"]
+                d["credit_burned"] = bool(cfg.credit)
                 d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, self.channel)
                 from .pipeline import _quick_policy
                 _quick_policy(d, log)

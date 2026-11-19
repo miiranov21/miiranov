@@ -543,5 +543,19 @@
 "половые органы": "cinsiyyət orqanları",
 "Скачиваю модель поиска обнажёнки (~12 МБ, один раз)...": "Çılpaqlığı axtaran modeli yükləyirəm (~12 MB, bir dəfə)...",
 "Не удалось скачать модель поиска обнажёнки: {0}": "Çılpaqlığı axtaran modeli yükləmək alınmadı: {0}",
-"поиск обнажёнки не удался: {0}": "çılpaqlıq axtarışı alınmadı: {0}"
+"поиск обнажёнки не удался: {0}": "çılpaqlıq axtarışı alınmadı: {0}",
+"Сразу подписывать все новые клипы": "Bütün yeni klipləri dərhal imzala",
+"иначе — галочкой в колонке «Автор» на нужных клипах (вкладка «Клипы»)": "əks halda — «Kliplər» bölməsində lazım olan kliplərdə «Müəllif» sütununda işarə ilə",
+"Автор": "Müəllif",
+"✍  Подписать автора / убрать подпись": "✍  Müəllifi imzala / imzanı götür",
+"Подождите — предыдущая подпись ещё накладывается...": "Gözlə — əvvəlki imza hələ qoyulur...",
+"Подпись на этом клипе вшита при нарезке — снять её нельзя.": "Bu klipdə imza kəsiləndə yazılıb — onu götürmək olmur.",
+"Этот клип нарезан до обновления — на нём уже может быть подпись автора (раньше она ставилась всем клипам). Посмотри превью справа. Всё равно подписать?": "Bu klip yeniləmədən əvvəl kəsilib — onda artıq müəllif imzası ola bilər (əvvəllər bütün kliplərə qoyulurdu). Sağdakı önizləməyə bax. Yenə də imzalansın?",
+"Подписываю автора на клипах: {0}...": "Kliplərdə müəllifi imzalayıram: {0}...",
+"Убираю подпись автора: {0}...": "Müəllif imzasını götürürəm: {0}...",
+"Готово: автор подписан ({0} шт.). Снять — ещё раз нажми на галочку.": "Hazırdır: müəllif imzalandı ({0} ədəd). Götürmək üçün — işarəyə bir də bas.",
+"Готово: подпись убрана ({0} шт.).": "Hazırdır: imza götürüldü ({0} ədəd).",
+"подпись вшита при нарезке — снять её нельзя": "imza kəsiləndə yazılıb — onu götürmək olmur",
+"чистая версия клипа не найдена": "klipin təmiz versiyası tapılmadı",
+"клип менялся после подписи (например, исправляли нарушения) — снять подпись нельзя": "klip imzadan sonra dəyişib (məsələn, pozuntular düzəldilib) — imzanı götürmək olmur"
 }

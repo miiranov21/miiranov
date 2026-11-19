@@ -31,7 +31,7 @@ STREAMERS_HEADER = T("""# Стримеры, за которыми следит �
 DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
             "top": "3", "length": "35", "quality": "1080", "autoupdate": True,
             "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": T("плавает по экрану"), "wm_op": T("средне"), "game_view": T("целиком"), "yt_browser": T("не брать"),
-            "credit_on": True, "credit_pos": T("внизу слева"), "lang": i18n.LANG,
+            "credit_auto": False, "credit_pos": T("внизу слева"), "lang": i18n.LANG,
             "start_from": T("с начала"), "start_mode": T("от начала стрима"), "theme": T("Фиолетовая (как Twitch)")}
 CREDIT_POS = {T("внизу слева"): "bottom-left", T("вверху слева"): "top-left", T("вверху справа"): "top-right"}
 SHOW_ALL = T("все клипы")
@@ -570,16 +570,16 @@ class App:
         # подпись автора
         cr = ttk.LabelFrame(sett, text=T(" Подпись автора — чей это клип (Twitch | KaiCenat) "), padding=6)
         cr.pack(fill="x", pady=(0, 6))
-        self.v["credit_on"] = tk.BooleanVar(value=bool(self.cfg.get("credit_on", True)))
-        ttk.Checkbutton(cr, text=T("Подписывать платформу и стримера"), variable=self.v["credit_on"]).pack(side="left")
+        self.v["credit_auto"] = tk.BooleanVar(value=bool(self.cfg.get("credit_auto", False)))
+        ttk.Checkbutton(cr, text=T("Сразу подписывать все новые клипы"), variable=self.v["credit_auto"]).pack(side="left")
         ttk.Label(cr, text=T("  Где:")).pack(side="left")
         self.v["credit_pos"] = tk.StringVar(value=self.cfg.get("credit_pos") if self.cfg.get("credit_pos") in CREDIT_POS
                                             else T("внизу слева"))
         ttk.Combobox(cr, textvariable=self.v["credit_pos"], values=list(CREDIT_POS), width=14,
                      state="readonly").pack(side="left", padx=4)
-        for k in ("credit_on", "credit_pos"):
+        for k in ("credit_auto", "credit_pos"):
             self.v[k].trace_add("write", lambda *a: self._on_live_setting())
-        ttk.Label(cr, text=T("  указывает источник — так требуют правила площадок"),
+        ttk.Label(cr, text=T("  иначе — галочкой в колонке «Автор» на нужных клипах (вкладка «Клипы»)"),
                   foreground=self.muted).pack(side="left")
 
         self._build_telegram(sett)
@@ -739,6 +739,7 @@ class App:
         m.add_command(label=T("📋  Копировать надпись   Ctrl+C"), command=self.copy_caption)
         m.add_command(label=T("✍  Описание и хэштеги"), command=self.post_texts)
         m.add_command(label=T("🛡  Проверить правила / исправить нарушение"), command=self.fix_violations)
+        m.add_command(label=T("✍  Подписать автора / убрать подпись"), command=self.toggle_credit)
         for key, label in library.PLATFORM_NAMES.items():
             m.add_command(label=T('✔  Выложено в {0} / снять').format(label), command=lambda k=key: self.toggle_posted(k))
         m.add_command(label=T("📂  Показать в папке"), command=self.reveal_clip)
@@ -1075,7 +1076,7 @@ class App:
             return
         try:
             with open(paths.live_settings_path(), "w", encoding="utf-8") as f:
-                json.dump({"top": top, "pre": pre, "post": post, "credit": bool(self.v["credit_on"].get()),
+                json.dump({"top": top, "pre": pre, "post": post, "credit": bool(self.v["credit_auto"].get()),
                            "credit_pos": CREDIT_POS.get(self.v["credit_pos"].get(), "bottom-left")}, f)
         except OSError:
             return
@@ -1115,10 +1116,8 @@ class App:
         browser = YT_BROWSERS.get(c.get("yt_browser"), "")
         if browser:
             f += ["--cookies-browser", browser]
-        if not c.get("credit_on", True):
-            f += ["--no-credit"]
-        else:
-            f += ["--credit-pos", CREDIT_POS.get(c.get("credit_pos"), "bottom-left")]
+        if c.get("credit_auto"):
+            f += ["--credit", "--credit-pos", CREDIT_POS.get(c.get("credit_pos"), "bottom-left")]
         text, image = c.get("wm_text", "").strip(), c.get("wm_image", "")
         if c.get("wm_on") and (text or (image and os.path.exists(image))):
             if text:
@@ -1555,6 +1554,72 @@ class App:
         self.st_info.config(text=T("Ссылка скопирована: ") + url)
 
     # ---------- правила площадок: проверка и исправление нарушений ----------
+    def _clips_click(self, e):
+        """Клик по колонке «Автор» — поставить или снять подпись автора на этом клипе."""
+        if self.tree.identify_region(e.x, e.y) != "cell" or self.tree.identify_column(e.x) != "#3":
+            return
+        iid = self.tree.identify_row(e.y)
+        if not iid:
+            return
+        if iid not in self.tree.selection():
+            self.tree.selection_set(iid)
+        self.root.after(10, self.toggle_credit)
+        return "break"
+
+    def toggle_credit(self):
+        """Подпись «Twitch | KaiCenat» на выбранных клипах: у кого нет — поставить, у кого есть — снять."""
+        from . import credit
+        sel = self._selected()
+        if not sel:
+            return
+        if getattr(self, "_credit_busy", False):
+            self.clips_info.config(text=T("Подождите — предыдущая подпись ещё накладывается..."))
+            return
+        data = credit.load()
+        states = [credit.state(c, data) for c in sel]
+        if all(st == "burned" for st in states):
+            messagebox.showinfo(T("Автор"), T("Подпись на этом клипе вшита при нарезке — снять её нельзя."))
+            return
+        turn_on = any(st in ("off", "unknown") for st in states)
+        todo = [c for c, st in zip(sel, states) if (st in ("off", "unknown")) == turn_on and st != "burned"]
+        if turn_on and any(st == "unknown" for c, st in zip(sel, states) if c in todo):
+            if not messagebox.askyesno(T("Автор"), T("Этот клип нарезан до обновления — на нём уже может быть подпись "
+                                                    "автора (раньше она ставилась всем клипам). Посмотри превью справа. "
+                                                    "Всё равно подписать?")):
+                return
+        pos = CREDIT_POS.get(self.v["credit_pos"].get(), "bottom-left")
+        if self.preview.path in {c["path"] for c in todo}:
+            self.preview.release()
+        self._credit_busy = True
+        self.clips_info.config(text=(T("Подписываю автора на клипах: {0}...") if turn_on
+                                     else T("Убираю подпись автора: {0}...")).format(len(todo)))
+
+        def work():
+            errors = []
+            for c in todo:
+                try:
+                    credit.add(c, pos) if turn_on else credit.remove(c)
+                    try:
+                        os.remove(library.thumb_path(c["path"]))
+                    except OSError:
+                        pass
+                    library.make_thumb(c["path"])
+                except Exception as ex:
+                    errors.append(f"{c.get('channel', '')}: {ex}")
+            self.root.after(0, lambda: done(errors))
+
+        def done(errors):
+            self._credit_busy = False
+            for c in todo:
+                self.images.pop(c["path"], None)
+            self.refresh_clips()
+            if errors:
+                messagebox.showwarning(T("Автор"), "\n".join(tr_line(x) for x in errors))
+            else:
+                self.clips_info.config(text=(T("Готово: автор подписан ({0} шт.). Снять — ещё раз нажми на галочку.")
+                                             if turn_on else T("Готово: подпись убрана ({0} шт.).")).format(len(todo)))
+        threading.Thread(target=work, daemon=True).start()
+
     def _policy_cell(self, c: dict) -> str:
         res = c.get("policy")
         if not res:
@@ -2164,12 +2229,12 @@ class App:
         self.preview = VideoPreview(panes, self)  # просмотр клипа прямо в программе
         panes.add(frame, weight=3)
         panes.add(self.preview, weight=2)
-        cols = ("rating", "rules", "streamer", "moment", "caption", "youtube", "instagram", "tiktok")
+        cols = ("rating", "rules", "author", "streamer", "moment", "caption", "youtube", "instagram", "tiktok")
         self.tree = ttk.Treeview(frame, columns=cols, show="tree headings", style="Clips.Treeview",
                                  selectmode="extended", height=3)
         self.tree.heading("#0", text=T("Превью"))
         self.tree.column("#0", width=66, stretch=False)
-        for c, title, w in (("rating", T("Интерес"), 70), ("rules", T("Правила"), 64), ("streamer", T("Стример"), 96), ("moment", T("Момент"), 64),
+        for c, title, w in (("rating", T("Интерес"), 70), ("rules", T("Правила"), 64), ("author", T("Автор"), 56), ("streamer", T("Стример"), 96), ("moment", T("Момент"), 64),
                             ("caption", T("Надпись"), 220), ("youtube", "YT", 40), ("instagram", "Inst", 44),
                             ("tiktok", "TikTok", 50)):
             self.tree.heading(c, text=title)
@@ -2183,6 +2248,7 @@ class App:
         self.tree.bind("<<TreeviewSelect>>", lambda e: self.preview.show_selected())
         self.tree.bind("<Delete>", lambda e: self.delete_clip())
         self.tree.bind("<Button-3>", self._clips_menu)
+        self.tree.bind("<Button-1>", self._clips_click, add="+")
         self.clip_by_iid: dict = {}
         self.root.after(1000, self._auto_refresh)
 
@@ -2216,6 +2282,8 @@ class App:
         scores = display_ratings(pool or clips)
         from . import policy
         pol_results = policy.load_results()
+        from . import credit
+        credit_data = credit.load()
         for c in clips:
             c["score10"] = scores.get(c["path"], 1)
             c["policy"] = pol_results.get(os.path.normpath(c["path"]))
@@ -2236,7 +2304,9 @@ class App:
             if img is None:
                 missing.append(c["path"])
             sec = int(c.get("moment", c.get("start", 0)))
-            values = (f"{c['score10']}/10", self._policy_cell(c), c.get("channel", ""),
+            cst = credit.state(c, credit_data)
+            values = (f"{c['score10']}/10", self._policy_cell(c), {"on": "☑", "burned": "☑", "off": "☐", "unknown": "?"}[cst],
+                      c.get("channel", ""),
                       f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}", c.get("caption", "") or "—",
                       *("✔" if c["posted"].get(p) else "—" for p in library.PLATFORMS))
             iid = self.tree.insert("", "end", text="", image=img or "", values=values)

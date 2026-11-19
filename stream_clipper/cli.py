@@ -23,6 +23,7 @@ def _common(p: argparse.ArgumentParser) -> None:
                    help="auto = сама ищет вебку стримера и ставит её сверху (иначе blur); blur = игра на размытом фоне; "
                         "crop = обрезка по центру; facecam = вебка сверху по координатам --facecam")
     g.add_argument("--no-caption", action="store_true", help="без плашки с подписью")
+    g.add_argument("--credit", action="store_true", help="сразу вшивать подпись автора стрима во все клипы")
     g.add_argument("--no-credit", action="store_true", help="не подписывать автора стрима на клипе")
     g.add_argument("--credit-pos", choices=["bottom-left", "top-left", "top-right"], default="bottom-left",
                    help="где подпись автора: внизу слева / вверху слева / вверху справа")
@@ -59,7 +60,7 @@ def _settings(a) -> Settings:
                    layout=a.layout, zoom=a.zoom, subs=a.subs, whisper_model=a.whisper_model,
                    language=a.lang, max_height=a.max_height, dry_run=a.dry_run, keep_raw=a.keep_raw,
                    preset=a.preset, caption=not a.no_caption, game_view=a.game_view, start_from=a.start_from,
-                   credit=not a.no_credit, credit_pos=a.credit_pos,
+                   credit=a.credit and not a.no_credit, credit_pos=a.credit_pos,
                    watermark_text=a.watermark_text, watermark_image=a.watermark_image,
                    watermark_pos=a.watermark_pos, watermark_opacity=a.watermark_opacity)
     if a.facecam:

@@ -175,6 +175,17 @@ def download_section(url: str, start: float, end: float, out_base: str, max_heig
     })
 
 
+def download_analysis_section(url: str, start: float, end: float, out_base: str) -> str:
+    """Облегчённый кусок (144–160p со звуком) только для анализа звука и картинки — быстро и мало весит."""
+    fmt = ("worst[acodec!=none][vcodec!=none]/worstvideo+worstaudio/worst" if is_youtube(url)
+           else "worst[vcodec!=none]/worst")
+    return _download(url, out_base, {
+        "format": fmt,
+        "merge_output_format": "mp4",
+        "download_ranges": download_range_func(None, [(start, end)]),
+    })
+
+
 def download_audio(url: str, out_base: str) -> str:
     """Скачивает только звук VOD (~70 МБ/час) для анализа громкости."""
     return _download(url, out_base, {"format": "bestaudio/audio_only/worst"})

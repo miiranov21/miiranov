@@ -130,6 +130,7 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
         ass_files.insert(len(ass_files) - (1 if text else 0),
                          render.write_watermark_ass(base + ".wm.ass", cfg.watermark_text.strip(),
                                                     cfg.watermark_pos, cfg.watermark_opacity))
+    meta["transcript"] = transcript[:800]
     render.render_vertical(segment, out, layout, facecam, cfg.zoom, ass_files, cfg.preset,
                            logo=cfg.watermark_image or None, logo_pos=cfg.watermark_pos,
                            logo_opacity=cfg.watermark_opacity, logo_with_text=bool(cfg.watermark_text.strip()),
@@ -192,6 +193,78 @@ def refresh_live(cfg: Settings, log=print) -> None:
         log("Новые настройки подхвачены: " + ", ".join(changed))
 
 
+class MediaAnalysis:
+    """Громкость и «резкость смены картинки» по секундам стрима, собираемые кусками по ходу работы."""
+    CHUNK = 1800
+
+    def __init__(self, url: str, work: str, log=print):
+        self.url, self.work, self.log = url, work, log
+        self.a = np.full(0, np.nan, dtype=np.float32)
+        self.v = np.full(0, np.nan, dtype=np.float32)
+        self.done_chunks: set = set()
+        self.failed = 0
+        self.announced = False
+
+    def _grow(self, n: int):
+        if n > self.a.size:
+            self.a = np.concatenate([self.a, np.full(n - self.a.size, np.nan, dtype=np.float32)])
+            self.v = np.concatenate([self.v, np.full(n - self.v.size, np.nan, dtype=np.float32)])
+
+    def put(self, offset: int, audio, visual):
+        for arr_name, data in (("a", audio), ("v", visual)):
+            if data is None or not len(data):
+                continue
+            self._grow(offset + len(data))
+            getattr(self, arr_name)[offset:offset + len(data)] = data
+
+    def cover(self, lo: float, hi: float):
+        """Убедиться, что для отрезка [lo, hi] звук и картинка посчитаны (качает недостающие куски)."""
+        from . import twitch
+        from .audio import loudness_per_second, scene_per_second
+        if self.failed >= 3:
+            return
+        for c in range(int(max(0, lo)) // self.CHUNK, int(hi) // self.CHUNK + 1):
+            s, e = c * self.CHUNK, min((c + 1) * self.CHUNK, int(hi))
+            full = e == (c + 1) * self.CHUNK
+            if (c, full) in self.done_chunks or e - s < 60:
+                continue
+            npz = os.path.join(self.work, f"media_{s}_{e}.npz")
+            try:
+                if os.path.exists(npz):
+                    d = np.load(npz)
+                    aud, vis = d["a"], d["v"]
+                else:
+                    if not self.announced:
+                        self.log("  анализирую звук и картинку стрима (облегчённое видео, по кускам)...")
+                        self.announced = True
+                    f = twitch.download_analysis_section(self.url, s, e, os.path.join(self.work, f"media_{s}_{e}"))
+                    aud, vis = loudness_per_second(f), scene_per_second(f)
+                    os.remove(f)
+                    if full:
+                        np.savez(npz, a=aud, v=vis)
+                self.put(s, aud, vis)
+                self.done_chunks.add((c, full))
+            except Exception as e:
+                self.failed += 1
+                self.log(f"  звук/картинка для {s // 60}–{e // 60} мин не получились ({e}) — режу по чату")
+
+    def _filled(self, arr, n: int):
+        if not np.isfinite(arr).any():
+            return None
+        out = np.full(n, np.nanmedian(arr), dtype=np.float32)
+        m = min(n, arr.size)
+        seg = arr[:m]
+        out[:m] = np.where(np.isfinite(seg), seg, out[:m])
+        return out
+
+    def audio(self, n: int):
+        return self._filled(self.a, int(n) + 1)
+
+    def visual(self, n: int):
+        v = self._filled(self.v, int(n) + 1)
+        return v
+
+
 def clip_budget(per_hour: int, seconds: float) -> int:
     """Сколько клипов положено на столько-то секунд стрима («клипов за час стрима»)."""
     import math
@@ -199,10 +272,10 @@ def clip_budget(per_hour: int, seconds: float) -> int:
 
 
 def _analyze(msgs: list[ChatMessage], duration: float, audio_db, cfg: Settings, done: list[dict], log,
-             top: int | None = None):
+             top: int | None = None, visual=None):
     log(f"Ищу моменты (длительность {_fmt(duration)}, сообщений {len(msgs)})...")
     hl = detect.find_highlights(
-        msgs, int(duration), audio_db=audio_db, top=cfg.top if top is None else top, clip_pre=cfg.clip_pre, clip_post=cfg.clip_post,
+        msgs, int(duration), audio_db=audio_db, visual=visual, top=cfg.top if top is None else top, clip_pre=cfg.clip_pre, clip_post=cfg.clip_post,
         chat_lag=cfg.chat_lag, audio_weight=cfg.audio_weight, min_score=cfg.min_score,
         hype_words=cfg.hype_words, exclude=[(d["start"], d["end"]) for d in done], log=log)
     hl = [h for h in hl if not _overlaps(h, done)]
@@ -245,28 +318,15 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
     title = info.get("title") or vid
     channel = (info.get("uploader_id") or info.get("channel") or info.get("uploader") or "stream").lstrip("@")
     vod_duration = float(info.get("duration") or 0)
+    log(f"▶ {channel}: начинаю работу{' (стрим идёт)' if live else ''} — «{title[:60]}»")
     link = (lambda s: f"https://youtu.be/{vid}?t={int(s)}") if yt else (lambda s: twitch.timestamp_link(url, s))
 
-    # звук качаем параллельно с чатом — анализ не ждёт его
-    audio = {"db": None}
-    audio_thread = None
-    if cfg.audio and not live:
-        npy = os.path.join(work, "loudness.npy")
-        if os.path.exists(npy):
-            audio["db"] = np.load(npy)
-        else:
-            def load_audio():
-                try:
-                    a = twitch.download_audio(url, os.path.join(work, "audio"))
-                    audio["db"] = loudness_per_second(a)
-                    np.save(npy, audio["db"])
-                    os.remove(a)
-                    log("  громкость проанализирована — дальше учитываю и её")
-                except Exception as e:
-                    log(f"  громкость не получилась ({e}) — режу только по чату")
-            log("  качаю звук для анализа громкости в фоне (можно отключить --no-audio)...")
-            audio_thread = threading.Thread(target=load_audio, daemon=True)
-            audio_thread.start()
+    # звук и картинка: качаем облегчённое видео кусками (по ходу) и считаем громкость + смены кадра.
+    # Так моменты находятся даже когда чат молчит, и для идущих стримов тоже.
+    media = MediaAnalysis(url, work, log) if cfg.audio else None
+    old_npy = os.path.join(work, "loudness.npy")  # совместимость: звук, посчитанный старой версией
+    if media and os.path.exists(old_npy):
+        media.put(0, np.load(old_npy), None)
 
     cache = os.path.join(work, "chat.json")
     step = 1800  # режем после каждых 30 минут стрима
@@ -300,9 +360,9 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
         covered = last = msgs[-1].t if msgs else 0
         if finished and not live:
             covered = max(covered, vod_duration)
-            if audio_thread:
-                audio_thread.join()  # последний проход — уже со звуком
         duration = max(covered, 1)
+        if media:
+            media.cover(max(start_at, boundary - 60), duration)
         if not lang and len(msgs) > 200 or (finished and not lang):
             lang = detect_language([m.text for m in msgs], title)
         skip = done + new
@@ -317,7 +377,8 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
         counted = [d for d in done + new if d.get("start", 0) >= start_at - 1]
         allowed = clip_budget(cfg.top, duration - start_at) - len(counted)
         if allowed > 0:
-            hl = _analyze(msgs, duration, audio["db"], cfg, skip, log, top=allowed)
+            hl = _analyze(msgs, duration, media.audio(duration) if media else None, cfg, skip, log, top=allowed,
+                          visual=media.visual(duration) if media else None)
             for i, h in enumerate(hl, 1):
                 if paths.stop_requested():
                     break
@@ -330,13 +391,15 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                         seg = twitch.download_section(url, h.start, h.end, os.path.join(work, name + "_raw"),
                                                       cfg.max_height)
                         tmp = os.path.join(work, name + ".mp4")
-                        d["caption"] = _make_short(seg, tmp, cfg, log, {"streamer": channel, "title": title,
-                                                                        "top_messages": h.top_messages,
-                                                                        "lang": lang or "en"})
+                        meta = {"streamer": channel, "title": title, "top_messages": h.top_messages,
+                                "lang": lang or "en"}
+                        d["caption"] = _make_short(seg, tmp, cfg, log, meta)
+                        d["transcript"], d["lang"] = meta.get("transcript", ""), lang or "en"
                         if not cfg.keep_raw:
                             os.remove(seg)
                         d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, channel)
                         log(f"    готово -> {d['file']}")
+                        log(f"✅ {channel}: клип {_clip_no(d['file'])} готов — «{d.get('caption') or ''}»")
                     except Exception as e:
                         log(f"    ошибка: {e}")
                         daily.log_event(cfg.out_dir, f"{channel}: не удалось сделать клип {_fmt(h.start)} — {e}")
@@ -353,6 +416,13 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
 
     _finish(cfg, new, work, done + new, title, link, log)
     return new
+
+
+def _clip_no(path: str) -> str:
+    """Номер клипа из имени файла «03_1ч12м05с.mp4» → «3»."""
+    base = os.path.basename(path or "")
+    num = base.split("_")[0]
+    return str(int(num)) if num.isdigit() else "?"
 
 
 def _last_t(cache: str) -> float | None:
@@ -375,8 +445,11 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
     if cfg.audio:
         log("Анализирую громкость...")
         audio_db = loudness_per_second(video)
+        from .audio import scene_per_second
+        visual_local = scene_per_second(video)
     duration = len(audio_db) if audio_db is not None else (msgs[-1].t if msgs else 0)
-    hl = _analyze(msgs, duration, audio_db, cfg, [], log, top=clip_budget(cfg.top, duration))
+    hl = _analyze(msgs, duration, audio_db, cfg, [], log, top=clip_budget(cfg.top, duration),
+                  visual=visual_local if cfg.audio else None)
     from .caption import detect_language
     lang = cfg.language or detect_language([m.text for m in msgs], name)
     clips = []
@@ -386,12 +459,14 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
             base = f"{name}_{_fmt(h.start)}"
             seg = render.cut_segment(video, h.start, h.end, os.path.join(work, base + "_raw.mp4"))
             tmp = os.path.join(work, base + ".mp4")
-            d["caption"] = _make_short(seg, tmp, cfg, log, {"streamer": name, "title": name,
-                                                            "top_messages": h.top_messages, "lang": lang})
+            meta = {"streamer": name, "title": name, "top_messages": h.top_messages, "lang": lang}
+            d["caption"] = _make_short(seg, tmp, cfg, log, meta)
+            d["transcript"], d["lang"] = meta.get("transcript", ""), lang
             if not cfg.keep_raw:
                 os.remove(seg)
             d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, name)
             log(f"  [{i}/{len(hl)}] готово -> {d['file']}")
+            log(f"✅ {name}: клип {_clip_no(d['file'])} готов — «{d.get('caption') or ''}»")
         clips.append(d)
     _finish(cfg, clips, work, clips, name, None, log)
     return clips

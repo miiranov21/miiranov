@@ -83,7 +83,7 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
     sessions: dict = {}  # name -> LiveSession (запись эфира)
     rec_mode: dict = {}  # Twitch-стримеры без записей VOD — пишем их эфир сами
     vod_checked: dict = {}  # проверили ли, что у текущего эфира есть запись
-    log("Слежу за: " + ", ".join(f"{s.name} ({s.kind})" for s in sources) + ". Ctrl+C — выход.")
+    log("👀 Слежу за: " + ", ".join(f"{s.name} ({s.kind})" for s in sources))
     file_mtime = os.path.getmtime(reload_file) if reload_file and os.path.exists(reload_file) else None
 
     def reload_sources():
@@ -239,7 +239,7 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                 rec = uses_recorder(src)
                 if live:
                     if not was_live[src.name]:
-                        log(f"[{src.name}] В ЭФИРЕ!")
+                        log(f"🔴 {src.name} в эфире")
                         daily.log_event(cfg.out_dir, f"{src.name}: стрим начался"
                                         + (" (запущено посреди эфира)" if first_check[src.name] else ""))
                         last_run[src.name] = now
@@ -265,7 +265,7 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                         run_rec(src, final=False) if rec else run_vod(src, live=True)
                         last_run[src.name] = time.time()
                 elif was_live[src.name]:
-                    log(f"[{src.name}] стрим закончился — финальная нарезка")
+                    log(f"⏹ {src.name}: стрим закончился — дорезаю последнее")
                     daily.log_event(cfg.out_dir, f"{src.name}: стрим закончился")
                     if rec:
                         sess = sessions.get(src.name)

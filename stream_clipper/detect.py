@@ -101,6 +101,7 @@ def robust_z(x: np.ndarray, window: int = 600, step: int = 30, min_scale: float 
 
 
 def find_highlights(msgs: list[ChatMessage], duration: int, *, audio_db: np.ndarray | None = None,
+                    visual: np.ndarray | None = None, visual_weight: float = 0.5,
                     top: int = 10, clip_pre: float = 20, clip_post: float = 15, chat_lag: int = 5,
                     audio_weight: float = 0.6, min_score: float = 3.0, min_gap: float | None = None,
                     hype_words: list[str] | None = None, exclude: list[tuple[float, float]] | None = None,
@@ -120,7 +121,21 @@ def find_highlights(msgs: list[ChatMessage], duration: int, *, audio_db: np.ndar
         a[:m] = audio_db[:m]
         audio_z = robust_z(smooth(a, 3), min_scale=2.0)  # dB
 
-    score = np.clip(chat_z, 0, None) + audio_weight * np.clip(audio_z, 0, None)
+    # резкие скачки звука (крик, вскрик стримера) — важнее просто громкого фона
+    jump_z = np.zeros_like(chat_z)
+    if audio_db is not None and audio_db.size:
+        d = np.diff(smooth(a, 2), prepend=float(a[0]))
+        jump_z = robust_z(np.clip(d, 0, None), min_scale=1.5)
+    # картинка: резкие смены кадра (взрывы, аварии, внезапные события) — работает даже без чата
+    vis_z = np.zeros_like(chat_z)
+    if visual is not None and visual.size:
+        v = np.zeros(chat_z.size, dtype=np.float32)
+        m = min(v.size, visual.size)
+        v[:m] = visual[:m]
+        vis_z = robust_z(smooth(v, 3), min_scale=0.04)
+
+    score = (np.clip(chat_z, 0, None) + audio_weight * np.clip(audio_z, 0, None)
+             + 0.4 * np.clip(jump_z, 0, None) + visual_weight * np.clip(vis_z, 0, None))
     score = smooth(score, 5)
 
     gap = min_gap if min_gap is not None else (clip_pre + clip_post)

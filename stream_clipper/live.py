@@ -104,12 +104,13 @@ class LiveSession:
             self.done = list(state.get("done", []))
             self.cutoff = float(state.get("cutoff", 0.0))
             self._load_chat()
+            self.log(f"▶ {self.channel}: продолжаю запись эфира")
             self.log(f"[{self.channel}] продолжаю запись эфира «{self.title}»: уже готово клипов — {len(self.done)}, "
                      f"нарезанное раньше не повторится")
         else:
             self.work = os.path.join(self.cfg.work_dir,
                                      f"live_{self.vid}_{datetime.now().strftime('%Y%m%d-%H%M%S')}")
-            self.log(f"[{self.channel}] начинаю запись эфира «{self.title}»")
+            self.log(f"▶ {self.channel}: начинаю запись эфира «{self.title[:60]}»")
         self.chunks_dir = os.path.join(self.work, "chunks")
         os.makedirs(self.chunks_dir, exist_ok=True)
         self._save_state()
@@ -333,23 +334,25 @@ class LiveSession:
                 json.dump(data, f, ensure_ascii=False)
 
     # ---------- анализ и нарезка ----------
-    def _audio(self, chunks, duration: int, final: bool):
+    def _audio(self, chunks, duration: int, final: bool, kind: str = "audio"):
+        """Громкость (kind="audio") или смены картинки (kind="visual") по секундам записи — из готовых кусков."""
         if not self.cfg.audio or not chunks:
             return None
-        arr = None
+        from .audio import scene_per_second
         usable = chunks if final else chunks[:-1]  # последний кусок ещё пишется
         parts = []
         for f, st, _ in usable:
-            npy = f + ".npy"
+            npy = f + (".npy" if kind == "audio" else ".scene.npy")
             if os.path.exists(npy):
                 a = np.load(npy)
             else:
                 try:
-                    a = loudness_per_second(f)
+                    a = loudness_per_second(f) if kind == "audio" else scene_per_second(f)
                 except Exception:
                     continue
                 np.save(npy, a)
-            parts.append((int(max(0, st)), a))
+            if len(a):
+                parts.append((int(max(0, st)), a))
         if not parts:
             return None
         base = float(np.median(np.concatenate([a for _, a in parts])))
@@ -395,6 +398,7 @@ class LiveSession:
             msgs = sorted(self.msgs, key=lambda m: m.t)
         duration = int(now_t)
         audio_db = self._audio(chunks, duration, final)
+        visual = self._audio(chunks, duration, final, kind="visual")
 
         skip = list(self.done)
         skip.append({"start": 0.0, "end": max(self.cutoff, chunks[0][1] + cfg.clip_pre)})
@@ -408,7 +412,7 @@ class LiveSession:
             log(f"[{self.channel}] лимит клипов на это время эфира набран — жду дальше")
             self._save_chat()
             return []
-        hl = _analyze(msgs, duration, audio_db, cfg, skip, log, top=allowed)
+        hl = _analyze(msgs, duration, audio_db, cfg, skip, log, top=allowed, visual=visual)
         from .caption import detect_language
         lang = cfg.language or detect_language([m.text for m in msgs], self.title)
 
@@ -427,11 +431,14 @@ class LiveSession:
             try:
                 seg = self._cut(chunks, h.start, h.end, os.path.join(self.work, name + "_raw.mp4"))
                 tmp = os.path.join(self.work, name + ".mp4")
-                d["caption"] = _make_short(seg, tmp, cfg, log, {"streamer": self.channel, "title": self.title,
-                                                                "top_messages": h.top_messages, "lang": lang})
+                meta = {"streamer": self.channel, "title": self.title, "top_messages": h.top_messages, "lang": lang}
+                d["caption"] = _make_short(seg, tmp, cfg, log, meta)
+                d["transcript"], d["lang"] = meta.get("transcript", ""), lang
                 os.remove(seg)
                 d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, self.channel)
                 log(f"  [{i}/{len(hl)}] готово -> {d['file']}")
+                from .pipeline import _clip_no
+                log(f"✅ {self.channel}: клип {_clip_no(d['file'])} готов — «{d.get('caption') or ''}»")
                 new.append(d)
             except Exception as e:
                 log(f"  ошибка: {e}")
@@ -443,7 +450,7 @@ class LiveSession:
             self.cutoff = max(self.cutoff, now_t - tail - 600)
             for f, st, en in chunks[:-1]:
                 if en < self.cutoff - cfg.clip_pre - 30:
-                    for p in (f, f + ".npy"):
+                    for p in (f, f + ".npy", f + ".scene.npy"):
                         if os.path.exists(p):
                             os.remove(p)
         _finish(cfg, new, self.work, self.done, self.title, None, log)

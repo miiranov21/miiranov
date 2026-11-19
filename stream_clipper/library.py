@@ -119,3 +119,52 @@ def forget(path: str) -> None:
     if data.pop(path, None) is not None:
         with open(_posted_file(), "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=1)
+
+
+UPLOAD_PAGES = {"youtube": "https://www.youtube.com/upload",
+                "instagram": "https://www.instagram.com/",
+                "tiktok": "https://www.tiktok.com/tiktokstudio/upload"}
+
+
+def upload_dir() -> str:
+    """Рабочий стол\\YouTube\\К загрузке — тут всегда лежит только клип, который сейчас выкладываешь."""
+    return os.path.join(paths.default_out_dir(), "К загрузке")
+
+
+def _safe_name(text: str, limit: int = 90) -> str:
+    bad = '<>:"/\\|?*\n\r\t'
+    name = "".join("_" if ch in bad else ch for ch in text).strip(" .")
+    return name[:limit].rstrip(" .") or "clip"
+
+
+def stage_for_upload(clip: dict) -> str:
+    """Кладёт клип в папку «К загрузке» под понятным именем (= название ролика: YouTube берёт его из имени файла).
+    Используется жёсткая ссылка — места на диске не занимает; если не вышло — обычная копия.
+    Прежние файлы из папки убираются (кроме тех, что браузер ещё загружает и не даёт удалить)."""
+    d = upload_dir()
+    os.makedirs(d, exist_ok=True)
+    name = _safe_name(clip.get("caption") or f"{clip.get('channel', '')} {os.path.basename(clip['path'])[:-4]}") + ".mp4"
+    dest = os.path.join(d, name)
+    for f in os.listdir(d):
+        p = os.path.join(d, f)
+        if os.path.isfile(p) and p != dest:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+    if os.path.exists(dest):
+        try:
+            if os.path.samefile(dest, clip["path"]):
+                return dest
+            os.remove(dest)
+        except OSError:
+            base, n = dest[:-4], 2
+            while os.path.exists(f"{base} ({n}).mp4"):
+                n += 1
+            dest = f"{base} ({n}).mp4"
+    try:
+        os.link(clip["path"], dest)
+    except OSError:
+        import shutil
+        shutil.copy2(clip["path"], dest)
+    return dest

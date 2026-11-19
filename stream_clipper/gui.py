@@ -8,6 +8,7 @@ import queue
 import subprocess
 import sys
 import threading
+import webbrowser
 import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -31,6 +32,10 @@ DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
             "credit_on": True, "credit_pos": "внизу слева",
             "start_from": "с начала", "start_mode": "от начала стрима", "theme": "Фиолетовая (как Twitch)"}
 CREDIT_POS = {"внизу слева": "bottom-left", "вверху слева": "top-left", "вверху справа": "top-right"}
+SHOW_ALL = "все клипы"
+SHOW_FILTERS = {SHOW_ALL: "", "ещё не на YouTube": "youtube", "ещё не в Instagram": "instagram",
+                "ещё не в TikTok": "tiktok", "нигде не выложенные": "nowhere"}
+SHOW_FOR = {"youtube": "ещё не на YouTube", "instagram": "ещё не в Instagram", "tiktok": "ещё не в TikTok"}
 WM_POS = {"плавает по экрану": "moving", "по центру": "center", "в углу": "corner"}
 
 # цветовые темы окна: bg — фон, panel — блоки, field — поля ввода, accent — главные кнопки и акценты
@@ -346,6 +351,9 @@ class App:
         style.map("Big.TButton", background=[("active", sel), ("disabled", panel)],
                   foreground=[("disabled", muted)])
         style.configure("TMenubutton", background=panel, foreground=fg, bordercolor=border, padding=6)
+        style.configure("Big.TMenubutton", background=acc, foreground=acc_fg, bordercolor=acc,
+                        font=("Segoe UI", 11, "bold"), padding=8, arrowcolor=acc_fg)
+        style.map("Big.TMenubutton", background=[("active", sel)])
         style.configure("TCheckbutton", background=bg, foreground=fg, indicatorbackground=field,
                         indicatorforeground=acc)
         style.map("TCheckbutton", background=[("active", bg)], indicatorbackground=[("selected", acc)])
@@ -688,6 +696,8 @@ class App:
             self.tree.selection_set(iid)
         m = tk.Menu(self.root, tearoff=0)
         m.add_command(label="▶  Смотреть", command=self.play_clip)
+        for key, label in library.PLATFORM_NAMES.items():
+            m.add_command(label=f"🚀  Выложить в {label}", command=lambda k=key: self.publish(k))
         m.add_command(label="📋  Копировать надпись   Ctrl+C", command=self.copy_caption)
         m.add_command(label="✍  Описание и хэштеги", command=self.post_texts)
         for key, label in library.PLATFORM_NAMES.items():
@@ -1404,9 +1414,12 @@ class App:
         self.streamer_box = ttk.Combobox(bar, textvariable=self.streamer_var, width=16, state="readonly")
         self.streamer_box.pack(side="left", padx=(4, 12))
         self.streamer_box.bind("<<ComboboxSelected>>", lambda e: self.refresh_clips())
-        self.hide_posted = tk.BooleanVar(value=False)
-        ttk.Checkbutton(bar, text="Скрыть выложенные везде", variable=self.hide_posted,
-                        command=self.refresh_clips).pack(side="left")
+        ttk.Label(bar, text="Показать:").pack(side="left")
+        self.show_var = tk.StringVar(value=SHOW_ALL)
+        show_box = ttk.Combobox(bar, textvariable=self.show_var, values=list(SHOW_FILTERS), width=20,
+                                state="readonly")
+        show_box.pack(side="left", padx=4)
+        show_box.bind("<<ComboboxSelected>>", lambda e: self.refresh_clips())
         ttk.Button(bar, text="⟳ Обновить", command=self.refresh_clips).pack(side="right")
         self.sort_var = tk.StringVar(value="лучшие сверху")
         sort_box = ttk.Combobox(bar, textvariable=self.sort_var, values=["лучшие сверху", "новые сверху"],
@@ -1423,9 +1436,15 @@ class App:
         self.clips_info.pack(side="bottom", fill="x", pady=(6, 0))
         btns = ttk.Frame(parent)
         btns.pack(side="bottom", fill="x")
+        pub_mb = ttk.Menubutton(btns, text="🚀  Выложить", style="Big.TMenubutton")
+        pub = tk.Menu(pub_mb, tearoff=0)
+        for key, label in library.PLATFORM_NAMES.items():
+            pub.add_command(label=f"в {label}", command=lambda k=key: self.publish(k))
+        pub_mb["menu"] = pub
+        pub_mb.pack(side="left", padx=(0, 6))
         ttk.Button(btns, text="☑  Выбрать все", command=self.select_all_clips).pack(side="left", padx=(0, 6))
 
-        ttk.Button(btns, text="✍  Описание и хэштеги", style="Big.TButton",
+        ttk.Button(btns, text="✍  Описание и хэштеги",
                    command=self.post_texts).pack(side="left", padx=(0, 6))
         posted_mb = ttk.Menubutton(btns, text="✔  Отметить: выложено в…")
         pm = tk.Menu(posted_mb, tearoff=0)
@@ -1506,7 +1525,10 @@ class App:
         for c in clips:
             if self.streamer_var.get() != "Все" and c.get("channel") != self.streamer_var.get():
                 continue
-            if self.hide_posted.get() and all(c["posted"].get(p) for p in library.PLATFORMS):
+            need = SHOW_FILTERS.get(self.show_var.get())
+            if need == "nowhere" and any(c["posted"].get(p) for p in library.PLATFORMS):
+                continue
+            if need in library.PLATFORMS and c["posted"].get(need):
                 continue
             img = self._thumb(c["path"])
             if img is None:
@@ -1585,20 +1607,88 @@ class App:
         if kids:
             self.tree.selection_set(kids)
 
-    def post_texts(self):
+    def _next_unposted(self, platform: str, skip: set) -> tuple[str, dict] | tuple[None, None]:
+        """Первый клип в списке (в его текущем порядке — лучшие сверху), ещё не выложенный на площадку."""
+        for iid in self.tree.get_children():
+            c = self.clip_by_iid.get(iid)
+            if c and not c["posted"].get(platform) and c["path"] not in skip:
+                return iid, c
+        return None, None
+
+    def publish(self, platform: str, clip: dict | None = None):
+        """Выкладка в пару кликов: файл сам кладётся в папку «К загрузке» (там больше ничего нет),
+        открывается страница загрузки, рядом — готовые название, описание и хэштеги."""
+        name = library.PLATFORM_NAMES[platform]
+        if clip is None:
+            sel = [self.clip_by_iid[i] for i in self.tree.selection() if i in self.clip_by_iid]
+            if sel:
+                clip = sel[0]
+            else:
+                self.show_var.set(SHOW_FOR[platform])
+                self.refresh_clips()
+                iid, clip = self._next_unposted(platform, set())
+                if clip is None:
+                    messagebox.showinfo("Выложить", f"Все клипы уже выложены в {name} 🎉")
+                    return
+                self.tree.selection_set(iid)
+                self.tree.see(iid)
+        try:
+            staged = library.stage_for_upload(clip)
+        except OSError as e:
+            messagebox.showerror("Выложить", f"Не получилось подготовить файл: {e}")
+            return
+        opened = getattr(self, "_publish_opened", set())
+        self._publish_opened = opened
+        if "folder" not in opened:  # окно папки открываем один раз — дальше файл в нём просто меняется
+            opened.add("folder")
+            self._open(library.upload_dir())
+        if platform not in opened:
+            opened.add(platform)
+            webbrowser.open(library.UPLOAD_PAGES[platform])
+        self.post_texts(clip, platform, staged)
+
+    def post_texts(self, clip: dict | None = None, platform: str | None = None, staged: str = ""):
         """Окно с описанием и хэштегами для выбранного клипа (YouTube / Instagram / TikTok)."""
         from . import caption as cap
-        sel = self._selected()
-        if not sel:
-            return
-        c = sel[0]
+        if clip is None:
+            sel = self._selected()
+            if not sel:
+                return
+            clip = sel[0]
+        c = clip
+        old = getattr(self, "post_window", None)
+        if old is not None:
+            try:
+                old.destroy()
+            except tk.TclError:
+                pass
         lang = c.get("lang") or ("ru" if any("а" <= ch.lower() <= "я" for ch in (c.get("caption") or "")) else "en")
         win = tk.Toplevel(self.root)
-        win.title(f"Описание и хэштеги — {c.get('channel', '')}")
+        pname = library.PLATFORM_NAMES.get(platform or "", "")
+        win.title(f"Выложить в {pname} — {c.get('channel', '')}" if platform
+                  else f"Описание и хэштеги — {c.get('channel', '')}")
         win.transient(self.root)
-        win.geometry("620x470")
+        win.geometry("660x650" if platform else "620x470")
         frm = ttk.Frame(win, padding=10)
         frm.pack(fill="both", expand=True)
+        if platform:
+            sec = int(c.get("moment", c.get("start", 0)))
+            ttk.Label(frm, text=f"{c.get('channel', '')}  ·  интерес {c.get('score10', '?')}/10  ·  "
+                                f"момент {sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}",
+                      font=("Segoe UI", 12, "bold")).pack(anchor="w")
+            ttk.Label(frm, wraplength=620, justify="left", text=(
+                f"Файл уже лежит в папке «К загрузке» (Рабочий стол → YouTube → К загрузке), кроме него там ничего нет.\n"
+                f"На сайте {pname} нажми «Выбрать файл» и открой эту папку — или перетащи файл из открытого окна папки.\n"
+                + ("Имя файла = название ролика, YouTube подставит его сам." if platform == "youtube" else "")
+            )).pack(anchor="w", pady=(4, 4))
+            tools = ttk.Frame(frm)
+            tools.pack(fill="x")
+            ttk.Button(tools, text=f"🌐  Страница загрузки {pname}",
+                       command=lambda: webbrowser.open(library.UPLOAD_PAGES[platform])).pack(side="left")
+            ttk.Button(tools, text="📂  Папка «К загрузке»",
+                       command=lambda: self._open(library.upload_dir())).pack(side="left", padx=6)
+            ttk.Button(tools, text="📋  Путь к файлу",
+                       command=lambda: self._copy_text(staged, win)).pack(side="left")
         fields = {}
         for key, label, h in (("title", "Название (надпись на клипе)", 2), ("description", "Описание", 5),
                               ("hashtags", "Хэштеги", 3)):
@@ -1617,6 +1707,8 @@ class App:
         bar.pack(fill="x", pady=(6, 0))
 
         def fill(post):
+            if not win.winfo_exists():
+                return
             for k in ("description", "hashtags"):
                 fields[k].delete("1.0", "end")
                 fields[k].insert("1.0", post[k])
@@ -1637,9 +1729,33 @@ class App:
         def copy_all():
             text = "\n\n".join(fields[k].get("1.0", "end-1c").strip() for k in ("title", "description", "hashtags"))
             self._copy_text(text, win)
-        ttk.Button(bar, text="✨  Придумать описание и хэштеги", style="Big.TButton", command=generate).pack(side="left")
+        ttk.Button(bar, text="✨  Придумать заново", command=generate).pack(side="left")
         ttk.Button(bar, text="📋  Копировать всё", command=copy_all).pack(side="left", padx=6)
         ttk.Button(bar, text="Закрыть", command=win.destroy).pack(side="right")
+        if platform:
+            skip = getattr(self, "_publish_skip", set())
+            self._publish_skip = skip
+
+            def go_next(mark: bool):
+                if mark:
+                    library.set_posted(c["path"], True, platform)
+                else:
+                    skip.add(c["path"])
+                win.destroy()
+                self.post_window = None
+                self.refresh_clips()
+                iid, nxt = self._next_unposted(platform, skip | {c["path"]})
+                if nxt is None:
+                    self.clips_info.config(text=f"Готово — невыложенных в {pname} клипов больше нет 🎉")
+                    return
+                self.tree.selection_set(iid)
+                self.tree.see(iid)
+                self.publish(platform, nxt)
+            nb = ttk.Frame(frm)
+            nb.pack(fill="x", pady=(12, 0))
+            ttk.Button(nb, text=f"✔  Выложил — следующий", style="Big.TButton",
+                       command=lambda: go_next(True)).pack(side="left")
+            ttk.Button(nb, text="Пропустить этот", command=lambda: go_next(False)).pack(side="left", padx=6)
         if not hasattr(self, "post_cache"):
             self.post_cache = {}
         if c["path"] in self.post_cache:

@@ -7,6 +7,7 @@ import os
 import subprocess
 
 from . import paths
+from .i18n import T
 
 
 def _state() -> str:
@@ -128,7 +129,7 @@ UPLOAD_PAGES = {"youtube": "https://www.youtube.com/upload",
 
 def upload_dir() -> str:
     """Рабочий стол\\YouTube\\К загрузке — тут всегда лежит только клип, который сейчас выкладываешь."""
-    return os.path.join(paths.default_out_dir(), "К загрузке")
+    return os.path.join(paths.default_out_dir(), T("К загрузке"))
 
 
 def _safe_name(text: str, limit: int = 90) -> str:

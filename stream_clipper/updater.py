@@ -12,6 +12,7 @@ import zipfile
 from datetime import datetime
 
 from . import paths
+from .i18n import T
 
 REPO = "miiranov21/miiranov"
 BRANCH = "claude/tender-cerf-agbshu"
@@ -43,7 +44,7 @@ def _sha_via_git() -> str:
         parts = line.split(" ")
         if len(parts) >= 2 and parts[1].split("\x00")[0] == ref:
             return parts[0][-40:]
-    raise RuntimeError("ветка с обновлениями не найдена")
+    raise RuntimeError(T("ветка с обновлениями не найдена"))
 
 
 def _sha_via_api() -> tuple[str, str]:
@@ -73,7 +74,7 @@ def apply(sha: str, root: str | None = None, log=print) -> list[str]:
     """Скачивает версию и раскладывает файлы поверх программы. Возвращает список изменившихся файлов."""
     root = root or paths.program_dir()
     url = f"https://codeload.github.com/{REPO}/zip/{sha}"
-    log("Скачиваю обновление...")
+    log(T("Скачиваю обновление..."))
     with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": UA["User-Agent"]}),
                                 timeout=120) as r:
         data = r.read()
@@ -105,11 +106,11 @@ def apply(sha: str, root: str | None = None, log=print) -> list[str]:
     with open(_version_file(root), "w", encoding="utf-8") as f:
         f.write(sha)
     if _read(os.path.join(root, "requirements.txt")) != old_req:
-        log("Ставлю новые библиотеки...")
+        log(T("Ставлю новые библиотеки..."))
         flags = 0x08000000 if os.name == "nt" else 0
         subprocess.run([python_exe(), "-m", "pip", "install", "-q", "-r", os.path.join(root, "requirements.txt")],
                        cwd=root, creationflags=flags)
-    log("Обновление установлено.")
+    log(T("Обновление установлено."))
     return changed
 
 
@@ -139,9 +140,9 @@ def python_exe() -> str:
 def main() -> None:
     info = check()
     if not info:
-        print("У тебя последняя версия.")
+        print(T("У тебя последняя версия."))
         return
-    print(f"Есть новая версия от {info['date']}.")
+    print(T('Есть новая версия от {0}.').format(info['date']))
     apply(info["sha"])
 
 

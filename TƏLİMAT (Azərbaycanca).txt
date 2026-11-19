@@ -1,0 +1,41 @@
+STREAM CLIPPER — necə quraşdırmaq (komandada ikinci şəxs üçün)
+
+Hər kəsin öz kompüterində proqramın öz nüsxəsi olur: öz strimerləri, öz klipləri,
+öz ayarları, öz Telegram-ı. Heç nə qarışmır və bir-birinə görünmür.
+Yeniləmələr özü gəlir — onları proqramın sahibi buraxır.
+
+0. DİL
+   Proqramı açandan sonra «Настройки» bölməsinə (sağdan birinci, yuxarıdakı vərəqlər) keç.
+   «🌐 Язык / Dil» siyahısından «Azərbaycanca» seç → «Да» bas. Pəncərə Azərbaycan dilində yenidən açılacaq.
+
+1. PYTHON
+   Python-u https://www.python.org/downloads/ saytından yüklə və quraşdır.
+   Quraşdırıcı «App execution aliases» barədə soruşsa — y cavab ver və Python bəndlərini yandır.
+   Yoxlama: Win+R → cmd → python --version (versiya görünməlidir).
+
+2. PROQRAM
+   Göndərilən StreamClipper.zip arxivini götür (və ya buradan yüklə:
+   https://github.com/miiranov21/miiranov/archive/refs/heads/claude/tender-cerf-agbshu.zip).
+   Arxivə sağ düymə ilə bas → «Hamısını çıxar…» (Extract all) → yer seç (məsələn, İş masası).
+   install.bat olan StreamClipper qovluğuna gir.
+
+3. QURAŞDIRMA
+   install.bat-a iki dəfə klik et — o, lazım olan hər şeyi quraşdıracaq, ffmpeg-i yükləyəcək
+   və iş masasında «Stream Clipper» nişanını yaradacaq.
+   Altyazılar üçün əlavə olaraq install_subs.bat-ı işə sal.
+
+4. İŞƏ SALMA
+   İş masasındakı «Stream Clipper» nişanını aç.
+   - «İdarəetmə» bölməsi: strimerləri yaz (Twitch / YouTube), «Strimerləri izlə» düyməsini bas.
+   - «Kliplər» bölməsi: hazır kliplər, yazılar, «Paylaş» düyməsi və «paylaşıldı» qeydi.
+   - «Strimlər» bölməsi: hansı strimə nə qədər baxılıb və haradan davam etmək lazımdır.
+   - «Ayarlar» bölməsi: dil, öz Telegram botun (kliplər telefona), su nişanı, YouTube-a brauzer vasitəsilə giriş.
+   Kliplər İş masası\YouTube\tarix\strimer qovluğuna yığılır.
+
+VPN
+   Əgər Rusiyada deyilsənsə və Twitch ilə YouTube birbaşa açılırsa — VPN LAZIM DEYİL, onu söndürmək yaxşıdır:
+   ev internetindən YouTube proqramı daha az bot hesab edir.
+   (Jurnalda VPN barədə ipuclarına fikir verməyə bilərsən.)
+
+MƏSLƏHƏT: kim hansı strimerləri aparır — razılaşın ki, eyni şeyi kəsməyəsiniz
+və kanala eyni klipləri yükləməyəsiniz.

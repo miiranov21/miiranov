@@ -6,6 +6,7 @@ import subprocess
 import sys
 
 from . import paths
+from .i18n import T
 
 
 def make_desktop_shortcut() -> str:
@@ -28,4 +29,4 @@ def make_desktop_shortcut() -> str:
 
 
 if __name__ == "__main__":
-    print("Ярлык создан:", make_desktop_shortcut())
+    print(T("Ярлык создан:"), make_desktop_shortcut())

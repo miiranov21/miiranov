@@ -5,6 +5,7 @@ import json
 import os
 
 from . import paths
+from .i18n import T
 
 API = os.environ.get("STREAM_CLIPPER_TG_API", "https://api.telegram.org")
 LIMIT = 49 * 1024 * 1024  # бот может отправить файл до 50 МБ
@@ -61,9 +62,9 @@ def _call(token: str, method: str, timeout: float = 30, data: dict | None = None
         except Exception:
             raise RuntimeError(f"HTTP {e.code}")
     if not res.get("ok"):
-        desc = res.get("description") or "ошибка"
+        desc = res.get("description") or T("ошибка")
         if "Unauthorized" in desc or "Not Found" in desc:
-            desc = "неверный ключ бота — скопируй его из @BotFather целиком"
+            desc = T("неверный ключ бота — скопируй его из @BotFather целиком")
         raise RuntimeError(desc)
     return res["result"]
 
@@ -80,8 +81,7 @@ def find_chat(token: str) -> tuple[int, str, bool]:
         if chat.get("id") and chat["id"] not in [c["id"] for c in chats]:
             chats.append(chat)
     if not chats:
-        raise RuntimeError(f"Бот @{me.get('username')} пока не получил сообщений. Открой его в Telegram, "
-                           f"нажми «Старт» (или напиши что-нибудь в группе с ботом) и попробуй ещё раз")
+        raise RuntimeError(T('Бот @{0} пока не получил сообщений. Открой его в Telegram, нажми «Старт» (или напиши что-нибудь в группе с ботом) и попробуй ещё раз').format(me.get('username')))
     for chat in chats:  # группа с темами важнее личного чата
         if chat.get("type") == "supergroup":
             try:
@@ -89,9 +89,9 @@ def find_chat(token: str) -> tuple[int, str, bool]:
             except Exception:
                 info = chat
             if info.get("is_forum"):
-                return chat["id"], chat.get("title") or "группа", True
+                return chat["id"], chat.get("title") or T("группа"), True
     chat = chats[0]
-    name = chat.get("first_name") or chat.get("title") or chat.get("username") or "чат"
+    name = chat.get("first_name") or chat.get("title") or chat.get("username") or T("чат")
     return chat["id"], name, False
 
 
@@ -111,11 +111,10 @@ def _day_target(c: dict) -> dict:
                 topics[date] = t["message_thread_id"]
                 save(c)
             except Exception as e:
-                raise RuntimeError(f"не смог создать тему-папку «{date}» — дай боту в группе права администратора "
-                                   f"с пунктом «Управление темами» ({e})")
+                raise RuntimeError(T('не смог создать тему-папку «{0}» — дай боту в группе права администратора с пунктом «Управление темами» ({1})').format(date, e))
         return {"message_thread_id": topics[date]}
     if c.get("last_day") != date:  # личный чат: отделяем дни заголовком
-        _call(c["token"], "sendMessage", data={"chat_id": c["chat_id"], "text": f"📁 Клипы за {date}"})
+        _call(c["token"], "sendMessage", data={"chat_id": c["chat_id"], "text": T('📁 Клипы за {0}').format(date)})
         c["last_day"] = date
         save(c)
     return {}
@@ -130,24 +129,24 @@ def send_clip(path: str, clip: dict, channel: str) -> str:
     """Отправляет клип ФАЙЛОМ (без пережатия Telegram — качество как на компьютере) в папку-тему дня."""
     c = load()
     if not (c.get("token") and c.get("chat_id")):
-        return "Telegram не подключён"
+        return T("Telegram не подключён")
     sec = int(clip.get("moment", clip.get("start", 0)))
-    lines = [f"🎬 {channel} — {sec // 3600}ч{sec % 3600 // 60:02d}м{sec % 60:02d}с"]
+    lines = [T('🎬 {0} — {1}ч{2:02d}м{3:02d}с').format(channel, sec // 3600, sec % 3600 // 60, sec % 60)]
     if clip.get("caption"):
-        lines.append(f"Надпись: {clip['caption']}")
+        lines.append(T('Надпись: {0}').format(clip['caption']))
     if clip.get("link"):
         lines.append(clip["link"])
     caption = "\n".join(lines)[:1000]
     target = _day_target(c)
-    send_path, note = path, "отправлен в Telegram файлом"
+    send_path, note = path, T("отправлен в Telegram файлом")
     if os.path.getsize(path) > LIMIT:
         send_path = _light_copy(path)  # боты не могут отправлять файлы больше 50 МБ
-        note = "в Telegram — облегчённая копия 720p (клип больше 50 МБ; оригинал в папке на компьютере)"
-        caption += "\n(облегчённая копия: оригинал больше 50 МБ и лежит в папке на компьютере)"
+        note = T("в Telegram — облегчённая копия 720p (клип больше 50 МБ; оригинал в папке на компьютере)")
+        caption += T("\n(облегчённая копия: оригинал больше 50 МБ и лежит в папке на компьютере)")
         if not send_path or os.path.getsize(send_path) > LIMIT:
             _call(c["token"], "sendMessage",
-                  data={"chat_id": c["chat_id"], "text": caption + "\n\n(клип слишком большой для Telegram)", **target})
-            return "клип больше 50 МБ — отправил только описание"
+                  data={"chat_id": c["chat_id"], "text": caption + T("\n\n(клип слишком большой для Telegram)"), **target})
+            return T("клип больше 50 МБ — отправил только описание")
     safe = "".join(ch if ch.isascii() and (ch.isalnum() or ch in "-_") else "_" for ch in channel) or "clip"
     name = f"{safe}_{sec // 3600}h{sec % 3600 // 60:02d}m{sec % 60:02d}s.mp4"  # латиницей — везде читается
     try:

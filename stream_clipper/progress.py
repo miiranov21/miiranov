@@ -10,6 +10,7 @@ import threading
 import time
 
 from . import paths
+from .i18n import T
 
 _lock = threading.Lock()
 GAP = 120  # дырки короче 2 минут не считаем «непросмотренным»
@@ -122,9 +123,9 @@ def summary(e: dict) -> dict:
     if finished:
         resume = None
     left = max(0.0, dur - seen) if dur else None
-    gaps_txt = ", ".join(f"{fmt(a)}–{fmt(b)}" if b else f"с {fmt(a)}" for a, b in gaps)
+    gaps_txt = ", ".join(f"{fmt(a)}–{fmt(b)}" if b else T('с {0}').format(fmt(a)) for a, b in gaps)
     if e.get("live") and ranges:
-        gaps_txt = ", ".join([t for t in [gaps_txt] if t] + ["эфир идёт"])
+        gaps_txt = ", ".join([t for t in [gaps_txt] if t] + [T("эфир идёт")])
     return {"done": done_txt, "left": left, "resume": resume, "finished": finished, "seen": seen,
             "gaps": gaps, "gaps_txt": gaps_txt or "—"}
 

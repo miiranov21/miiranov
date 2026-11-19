@@ -15,6 +15,7 @@ import sys
 import time
 
 from . import paths
+from .i18n import T
 
 PORT = 9333
 UPLOAD_URL = "https://www.youtube.com/upload"
@@ -66,14 +67,14 @@ def have_playwright() -> bool:
 
 def install_playwright(log=print) -> bool:
     """Ставим пакет управления браузером (сам браузер не качается — берётся Edge/Chrome с компьютера)."""
-    log("Ставлю модуль управления браузером (один раз, ~40 МБ)...")
+    log(T("Ставлю модуль управления браузером (один раз, ~40 МБ)..."))
     exe = sys.executable
     if exe.lower().endswith("pythonw.exe"):
         exe = exe[:-5] + ".exe"
     r = subprocess.run([exe, "-m", "pip", "install", "-q", "playwright"], capture_output=True, text=True,
                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     if r.returncode != 0:
-        log("Не удалось поставить playwright: " + (r.stderr or r.stdout)[-400:])
+        log(T("Не удалось поставить playwright: ") + (r.stderr or r.stdout)[-400:])
         return False
     import importlib
     importlib.invalidate_caches()
@@ -94,7 +95,7 @@ def ensure_browser(log=print) -> bool:
         return True
     exe = find_browser()
     if not exe:
-        log("Не нашёл Edge или Chrome на компьютере.")
+        log(T("Не нашёл Edge или Chrome на компьютере."))
         return False
     os.makedirs(profile_dir(), exist_ok=True)
     args = [exe, f"--remote-debugging-port={PORT}", f"--user-data-dir={profile_dir()}",
@@ -107,7 +108,7 @@ def ensure_browser(log=print) -> bool:
         if _port_open():
             return True
         time.sleep(0.5)
-    log("Браузер не ответил. Закрой все окна этого браузера и попробуй ещё раз.")
+    log(T("Браузер не ответил. Закрой все окна этого браузера и попробуй ещё раз."))
     return False
 
 
@@ -129,7 +130,7 @@ def _try(step: str, fn, log) -> bool:
         fn()
         return True
     except Exception as e:
-        log(f"Шаг «{step}» не получился ({type(e).__name__}) — сделай его вручную.")
+        log(T('Шаг «{0}» не получился ({1}) — сделай его вручную.').format(step, type(e).__name__))
         return False
 
 
@@ -148,7 +149,7 @@ def youtube_upload(file: str, title: str, description: str, log=print, url: str 
         blank = [p for p in ctx.pages if p.url in ("about:blank", "chrome://newtab/", "edge://newtab/")]
         page = blank[0] if blank else ctx.new_page()  # пустую стартовую вкладку используем, а не плодим новые
         page.bring_to_front()
-        log("Открываю страницу загрузки YouTube...")
+        log(T("Открываю страницу загрузки YouTube..."))
         page.goto(url, wait_until="domcontentloaded")
         deadline = time.time() + LOGIN_WAIT
         asked = False
@@ -156,27 +157,27 @@ def youtube_upload(file: str, title: str, description: str, log=print, url: str 
             if page.locator(SEL_FILE).count():
                 break
             if not asked and "accounts.google" in page.url:
-                log("Войди в свой Google-аккаунт в открывшемся окне — это нужно только один раз.")
+                log(T("Войди в свой Google-аккаунт в открывшемся окне — это нужно только один раз."))
                 asked = True
             if time.time() > deadline:
-                log("Не дождался страницы загрузки (не вошёл в аккаунт?). Попробуй ещё раз.")
+                log(T("Не дождался страницы загрузки (не вошёл в аккаунт?). Попробуй ещё раз."))
                 return False
             page.wait_for_timeout(1000)
             if asked and "accounts.google" not in page.url and "upload" not in page.url \
                     and "studio.youtube" not in page.url:
                 page.goto(url, wait_until="domcontentloaded")  # после входа Google может увести на главную
         page.locator(SEL_FILE).first.set_input_files(file)
-        log("Файл вставлен, YouTube начал загрузку.")
-        _try("название", lambda: _set_text(page, SEL_TITLE, title[:100]), log)
-        _try("описание", lambda: _set_text(page, SEL_DESC, description[:5000]), log)
-        if _try("«не для детей»", lambda: page.locator(SEL_NOT_KIDS).first.click(timeout=20000), log):
+        log(T("Файл вставлен, YouTube начал загрузку."))
+        _try(T("название"), lambda: _set_text(page, SEL_TITLE, title[:100]), log)
+        _try(T("описание"), lambda: _set_text(page, SEL_DESC, description[:5000]), log)
+        if _try(T("«не для детей»"), lambda: page.locator(SEL_NOT_KIDS).first.click(timeout=20000), log):
             ok = True
             for _ in range(3):  # «Далее»: Детали → Элементы → Проверки → Доступ
-                ok = _try("Далее", lambda: (page.locator(SEL_NEXT).first.click(timeout=20000),
+                ok = _try(T("Далее"), lambda: (page.locator(SEL_NEXT).first.click(timeout=20000),
                                             page.wait_for_timeout(1200)), log)
                 if not ok:
                     break
             if ok:
-                _try("«Открытый доступ»", lambda: page.locator(SEL_PUBLIC).first.click(timeout=20000), log)
-        log("Готово: проверь и нажми «Опубликовать» в окне YouTube.")
+                _try(T("«Открытый доступ»"), lambda: page.locator(SEL_PUBLIC).first.click(timeout=20000), log)
+        log(T("Готово: проверь и нажми «Опубликовать» в окне YouTube."))
         return True

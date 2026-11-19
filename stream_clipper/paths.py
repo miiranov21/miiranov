@@ -95,7 +95,8 @@ def parse_start(text) -> float | str | None:
         return None
     if isinstance(text, (int, float)):
         return float(text) if text > 0 else None
-    t = str(text).strip().lower().split("(")[0].strip()
+    from .i18n import untranslate
+    t = untranslate(str(text).strip()).lower().split("(")[0].strip()
     if not t or t in ("0", "0:00", "с начала", "начало"):
         return None
     if t in ("сейчас", "now", "с текущего момента"):

@@ -102,7 +102,14 @@ input[type="text"] { font-family: var(--f-body); }
 .fix li { max-width: 72ch; }
 
 .history { margin-top: 28px; }
-.history table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.history table, #accTable { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+#accTable th { text-align: left; font: 500 11px var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+#accTable td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+#accTable td.n { font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#accTable td.cap { max-width: 280px; overflow-wrap: anywhere; }
+.finding { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.finding:first-child { border-top: 0; }
+.confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 12px; border-radius: 8px; background: var(--warn-soft); }
 .history th { text-align: left; font: 500 11px var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .history td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .history td.n { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
@@ -215,6 +222,25 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
 
   <!-- ============ DIAGNOSIS ============ -->
   <section id="tab-diag" role="tabpanel">
+    <div class="panel" id="accPanel" style="margin-bottom:22px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <h2>Мои видео из аккаунтов</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <div class="seg" id="accPlat" style="min-width:240px">
+            <button type="button" data-p="tt" aria-pressed="true">TikTok</button>
+            <button type="button" data-p="ig" aria-pressed="false">Reels</button>
+            <button type="button" data-p="yt" aria-pressed="false">Shorts</button>
+          </div>
+          <button class="btn" type="button" id="accLoad">Загрузить видео за 30 дней</button>
+        </div>
+      </div>
+      <p class="note" id="accNote" style="margin:0">Данные берутся через Windsor.ai. При первом запросе Claude спросит разрешение на доступ к коннектору.</p>
+      <div id="accFindings"></div>
+      <div class="scroll" id="accTableWrap" hidden><table class="history" id="accTable" style="margin:0">
+        <thead><tr><th>Дата</th><th>Видео</th><th>Просм.</th><th>Ср. %</th><th>Досм.</th><th>Главная проблема</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
     <div class="grid2">
       <form class="panel form" id="f" autocomplete="off">
         <p class="example-note" id="exampleNote">Сейчас заполнен пример. Замените цифры своими: берите их через 48–72 часа после публикации.</p>
@@ -867,6 +893,7 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
     out.append(card("Instagram Reels", [["Подпись + хэштеги", [ig.caption, tags(ig.hashtags)].filter(Boolean).join("\n\n"), true]]));
     out.append(card("YouTube Shorts", [["Название", yt.title, true], ["Описание", [yt.description, tags(yt.hashtags)].filter(Boolean).join("\n\n"), true]]));
     if (r.pinned_comment) out.append(card("Закреплённый комментарий", [["Для всех платформ", r.pinned_comment, true]]));
+    out.append(publishCard([ig.caption, tags(ig.hashtags)].filter(Boolean).join("\n\n")));
   }
 
   $("stopBtn").addEventListener("click", () => ctl?.abort());
@@ -918,6 +945,194 @@ ${imgs.length ? `Прикреплены кадры из видео по поря
       $("genBtn").disabled = false; $("stopBtn").hidden = true;
     }
   });
+
+  /* ---------- Windsor.ai: real account data + Reels publishing ---------- */
+  const WS = "Windsor.ai for Social Media";
+  const CONN = { tt: "tiktok_organic", ig: "instagram", yt: "youtube" };
+  const FIELDS_BY = {
+    tt: ["video_id", "video_create_datetime", "video_caption", "video_duration", "video_views_count", "video_average_time_watched", "video_full_watched_rate", "video_likes", "video_comments", "video_shares", "video_favorites", "video_new_followers", "video_share_url"],
+    ig: ["media_id", "timestamp", "media_type", "media_caption", "media_views", "media_reach", "media_reel_avg_watch_time", "media_reel_skip_rate", "media_like_count", "media_comments_count", "media_shares", "media_saved", "media_permalink"],
+    yt: ["video", "video_title", "published_at", "video_length", "views", "average_view_duration", "average_view_percentage", "likes", "comments", "shares", "subscribers_gained"]
+  };
+  const MCP_ERR = {
+    server_not_connected: "Коннектор Windsor.ai не подключён. Добавьте его на claude.ai в разделе «Коннекторы».",
+    needs_reauth: "Подключение Windsor.ai истекло. Переподключите его на claude.ai в разделе «Коннекторы».",
+    not_in_manifest: "Доступ к Windsor.ai для этой страницы не разрешён. Включите его в меню артефакта «Разрешения».",
+    approval_required: "Нужно ваше разрешение на запрос к Windsor.ai. Нажмите кнопку ещё раз и подтвердите.",
+    selection_required: "У вас несколько коннекторов Windsor.ai. Выберите один в окне claude.ai.",
+    blocked_by_policy: "Ваша организация запретила этот коннектор.",
+    server_unavailable: "Windsor.ai сейчас не отвечает. Попробуйте через минуту.",
+    not_granted: "Страница не может обращаться к коннекторам в этом окне. Откройте её на claude.ai.",
+    capability_disabled: "Страница не может обращаться к коннекторам в этом окне. Откройте её на claude.ai."
+  };
+  const mcpMsg = (e) => {
+    if (e && e.code === "tool_error") {
+      const m = String(e.message || "");
+      if (/trial|30 days/i.test(m)) return "Пробный тариф Windsor.ai отдаёт только последние 30 дней.";
+      return "Windsor.ai вернул ошибку: " + m.slice(0, 200);
+    }
+    return MCP_ERR[e && e.code] || "Не удалось получить данные из Windsor.ai. Попробуйте ещё раз.";
+  };
+  const unwrap = (p) => (p && typeof p === "object" && "result" in p && !("data" in p)) ? p.result : p;
+  const pctVal = (v) => v == null || v === "" ? null : (Number(v) <= 1 ? Number(v) * 100 : Number(v));
+  function parseLen(v) {
+    if (v == null || v === "") return null;
+    if (typeof v === "number") return v;
+    const m = String(v).match(/^P(?:T)?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/);
+    if (m) return (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0);
+    const parts = String(v).split(":").map(Number);
+    if (parts.every(n => !isNaN(n))) return parts.reduce((a, n) => a * 60 + n, 0);
+    return Number(v) || null;
+  }
+
+  function mapRow(p, r) {
+    if (p === "tt") return {
+      date: r.video_create_datetime, title: r.video_caption, link: r.video_share_url,
+      f: { views: r.video_views_count, len: r.video_duration && Math.round(r.video_duration), avg: r.video_average_time_watched,
+           comp: pctVal(r.video_full_watched_rate), likes: r.video_likes, comments: r.video_comments, shares: r.video_shares,
+           saves: r.video_favorites, follows: r.video_new_followers }
+    };
+    if (p === "ig") return {
+      date: r.timestamp, title: r.media_caption, link: r.media_permalink,
+      f: { views: r.media_views, avg: r.media_reel_avg_watch_time != null ? Math.round(r.media_reel_avg_watch_time / 100) / 10 : null,
+           hook: pctVal(r.media_reel_skip_rate), likes: r.media_like_count, comments: r.media_comments_count, shares: r.media_shares, saves: r.media_saved }
+    };
+    let len = parseLen(r.video_length);
+    const avp = pctVal(r.average_view_percentage);
+    if (!len && r.average_view_duration && avp) len = Math.round(r.average_view_duration / (avp / 100));
+    return {
+      date: r.published_at, title: r.video_title, link: r.video ? "https://youtube.com/shorts/" + r.video : "",
+      f: { views: r.views, len, avg: r.average_view_duration, likes: r.likes, comments: r.comments, shares: r.shares, follows: r.subscribers_gained }
+    };
+  }
+
+  const FORM_KEYS = ["views", "len", "avg", "comp", "hook", "fyp", "likes", "comments", "shares", "saves", "follows"];
+  function fillForm(v) {
+    $("title").value = (v.title || "").slice(0, 80);
+    FORM_KEYS.forEach(k => $(k).value = v.f[k] == null || isNaN(v.f[k]) ? "" : Math.round(v.f[k] * 10) / 10);
+  }
+
+  function accountFindings(p, vids) {
+    const out = [];
+    const caps = vids.map(v => v.title || "");
+    const spam = /#(fyp+|foryou\w*|viral+|virall*|рек\w*|recommend\w*|xyzbca|trending)\b/i;
+    const cross = p === "tt" ? /#(shorts|reels)\b/i : p === "ig" ? /#(shorts|tiktok|fyp)\b/i : /#(reels|tiktok|fyp)\b/i;
+    const nSpam = caps.filter(c => spam.test(c)).length;
+    const nCross = caps.filter(c => cross.test(c)).length;
+    const nMany = caps.filter(c => (c.match(/#\S+/g) || []).length > 5).length;
+    if (nSpam) out.push(["warn", `${nSpam} из ${vids.length} видео с хэштегами вроде #fyp и #viral. Они не помогают попасть в рекомендации, а только размывают тему. Ставьте 3–5 хэштегов по сути видео.`]);
+    if (nCross) out.push(["warn", `${nCross} из ${vids.length} видео с хэштегами чужой платформы (${p === "tt" ? "#shorts, #reels в TikTok" : "#tiktok, #shorts и подобные"}). Это выдаёт перезалив, уберите их.`]);
+    if (nMany) out.push(["warn", `${nMany} из ${vids.length} видео с больше чем 5 хэштегами.`]);
+    const times = vids.map(v => Date.parse(v.date)).filter(t => !isNaN(t)).sort((a, b) => a - b);
+    let burst = 0;
+    for (let i = 1; i < times.length; i++) if (times[i] - times[i - 1] < 30 * 60 * 1000) burst++;
+    if (burst) out.push(["bad", `Видео выходят пачками: ${burst + 1} публикаций с интервалом меньше 30 минут. Платформа делит тестовый показ между ними, и каждое получает меньше. Публикуйте не чаще раза в 3–4 часа.`]);
+    const reupload = caps.filter(c => /stream|twitch|kick|clip|нарезк|стрим/i.test(c)).length;
+    if (reupload) out.push(["warn", `${reupload} из ${vids.length} видео похожи на нарезки чужих стримов. Платформы режут неоригинальный контент. Добавьте своё: голос, реакцию, текст с мнением, монтаж, который меняет смысл.`]);
+    const zero = vids.filter(v => !v.f.views).length;
+    const fresh = vids.filter(v => !v.f.views && Date.now() - Date.parse(v.date) < 48 * 3600 * 1000).length;
+    if (fresh) out.push(["na", `${fresh} видео моложе 48 часов с нулём просмотров: ${p === "tt" ? "TikTok передаёт статистику с задержкой до 1–2 суток" : "статистика могла ещё не дойти"}. Проверьте число просмотров в самом приложении.`]);
+    else if (zero) out.push(["bad", `${zero} видео без просмотров спустя 2 суток. Проверьте статус аккаунта и видео (вкладка «Почему нет просмотров», первый пункт).`]);
+    if (!out.length) out.push(["good", "Явных ошибок в публикациях не видно. Смотрите узкие места по каждому видео в таблице."]);
+    return out;
+  }
+
+  let accP = "tt", accVids = [];
+  document.querySelectorAll("#accPlat button").forEach(b => b.addEventListener("click", () => {
+    accP = b.dataset.p;
+    document.querySelectorAll("#accPlat button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  }));
+
+  async function getData(mcp, p) {
+    const input = { connector: CONN[p], fields: FIELDS_BY[p], date_preset: "last_30dT", reasoning: "diagnose recent short videos" };
+    for (let i = 0; i < 4; i++) {
+      const res = await mcp.callTool(WS, "get_data", input, { cache: { staleTime: 10 * 60 * 1000, gcTime: 60 * 60 * 1000, refresh: i > 0 } });
+      const pl = unwrap(res.payload);
+      if (pl && pl.error) throw { code: "tool_error", message: pl.error };
+      if (pl && pl.status === "pending") { $("accNote").textContent = "Windsor.ai готовит отчёт, это может занять минуту…"; continue; }
+      return (pl && pl.data) || [];
+    }
+    throw { code: "tool_error", message: "отчёт ещё готовится, нажмите кнопку через пару минут" };
+  }
+
+  $("accLoad").addEventListener("click", async () => {
+    const btn = $("accLoad"); btn.disabled = true;
+    $("accNote").textContent = "Загружаю видео…";
+    try {
+      const mcp = await claude.use("mcp");
+      if (!mcp) throw { code: "not_granted" };
+      let rows = await getData(mcp, accP);
+      if (accP === "ig") rows = rows.filter(r => !r.media_type || /VIDEO|REEL/i.test(r.media_type));
+      accVids = rows.map(r => mapRow(accP, r)).sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+      if (!accVids.length) {
+        $("accTableWrap").hidden = true; $("accFindings").innerHTML = "";
+        $("accNote").textContent = `За последние 30 дней видео в ${P[accP].name} не найдено. Если они есть, проверьте, что в Windsor.ai подключён нужный аккаунт.`;
+        return;
+      }
+      // diagnose each video through the same engine
+      const prevPlat = plat, saved = {}; FIELDS.forEach(f => saved[f] = $(f).value);
+      plat = accP;
+      accVids.forEach(v => { fillForm(v); const r = compute(); v.problem = r.main === "ok" ? "Нет явных проблем" : r.headline.h; v.cls = r.headline.cls; v.avgPct = r.avgPct; });
+      FIELDS.forEach(f => $(f).value = saved[f]); plat = prevPlat;
+      const tb = $("accTable").querySelector("tbody");
+      tb.innerHTML = accVids.map((v, i) => `<tr>
+        <td class="n">${esc((v.date || "").slice(0, 10))}</td>
+        <td class="cap">${v.link ? `<a href="${esc(v.link)}" target="_blank" rel="noopener" style="color:var(--ink)">${esc((v.title || "Без названия").slice(0, 90))}</a>` : esc((v.title || "Без названия").slice(0, 90))}</td>
+        <td class="n">${fmt(v.f.views, 0)}</td><td class="n">${fmt(v.avgPct, 0)}%</td><td class="n">${v.f.comp == null ? "—" : fmt(v.f.comp, 0) + "%"}</td>
+        <td><span class="pill ${v.cls}">${LBL[v.cls] || ""}</span> ${esc(v.problem)}</td>
+        <td><button class="linkbtn" data-acc="${i}">Разобрать</button></td></tr>`).join("");
+      tb.querySelectorAll("[data-acc]").forEach(b => b.addEventListener("click", () => {
+        const v = accVids[+b.dataset.acc]; fillForm(v); $("exampleNote").hidden = true; setPlatform(accP);
+        $("headline").scrollIntoView({ behavior: "smooth", block: "start" });
+      }));
+      $("accTableWrap").hidden = false;
+      $("accFindings").innerHTML = `<h3 style="margin-bottom:6px">Проверка публикаций</h3>` +
+        accountFindings(accP, accVids).map(([st, t]) => `<div class="finding"><span class="pill ${st}">${st === "na" ? "инфо" : LBL[st]}</span><span>${esc(t)}</span></div>`).join("");
+      $("accNote").textContent = `Загружено видео: ${accVids.length}. Нажмите «Разобрать», чтобы увидеть воронку и советы по конкретному ролику.`;
+    } catch (e) {
+      $("accNote").textContent = mcpMsg(e);
+    } finally { btn.disabled = false; }
+  });
+
+  function publishCard(caption) {
+    const c = document.createElement("div"); c.className = "out-card";
+    c.innerHTML = `<h3>Опубликовать в Reels</h3>
+      <p class="note" style="margin:0">Instagram забирает видео только по прямой публичной ссылке на файл MP4 или MOV (не на страницу Google Drive). Подпись подставится из блока Reels выше. TikTok и Shorts через Windsor.ai публиковать нельзя: туда загружайте вручную и вставляйте тексты выше.</p>
+      <div class="field"><label for="pubUrl">Прямая ссылка на видео</label><input type="text" id="pubUrl" placeholder="https://…/video.mp4"></div>
+      <label class="check" for="pubTrial" style="border:0;padding:0"><input type="checkbox" id="pubTrial"><span>Пробный Reels<em>Сначала покажут только не подписчикам; если зайдёт, Instagram сам покажет подписчикам</em></span></label>
+      <div class="btns"><button class="btn" type="button" id="pubBtn">Опубликовать…</button></div>
+      <div id="pubConfirm"></div><p class="note" id="pubNote" style="margin:0"></p>`;
+    const note = () => c.querySelector("#pubNote");
+    c.querySelector("#pubBtn").addEventListener("click", () => {
+      const url = c.querySelector("#pubUrl").value.trim();
+      if (!/^https:\/\/\S+$/i.test(url)) { note().textContent = "Вставьте ссылку, которая начинается с https://"; return; }
+      const box = c.querySelector("#pubConfirm");
+      box.innerHTML = `<div class="confirm"><span>Видео сразу появится в Instagram${c.querySelector("#pubTrial").checked ? " как пробный Reels" : ""}. Публикуем?</span>
+        <button class="btn" type="button" id="pubYes">Да, опубликовать</button><button class="btn ghost" type="button" id="pubNo">Отмена</button></div>`;
+      box.querySelector("#pubNo").addEventListener("click", () => box.innerHTML = "");
+      box.querySelector("#pubYes").addEventListener("click", async () => {
+        box.innerHTML = ""; c.querySelector("#pubBtn").disabled = true; note().textContent = "Отправляю в Instagram…";
+        try {
+          const mcp = await claude.use("mcp"); if (!mcp) throw { code: "not_granted" };
+          const conns = unwrap((await mcp.callTool(WS, "get_connectors", { include_options: false, include_actions: false }, { cache: false })).payload);
+          const ig = (Array.isArray(conns) ? conns : []).find(x => x.id === "instagram");
+          const account = ig && ig.accounts && ig.accounts[0] && ig.accounts[0].id;
+          if (!account) throw { code: "tool_error", message: "в Windsor.ai не найден аккаунт Instagram" };
+          const params = { video_url: url, caption: caption || null };
+          if (c.querySelector("#pubTrial").checked) params.trial_params = { graduation_strategy: "SS_PERFORMANCE" };
+          const res = await mcp.callTool(WS, "execute_action", { connector: "instagram", action: "create_video_post", account, params }, { cache: false });
+          const pl = unwrap(res.payload);
+          if (pl && pl.error) throw { code: "tool_error", message: String(pl.error) };
+          note().textContent = "Отправлено. Instagram обрабатывает видео пару минут, затем Reels появится в профиле.";
+        } catch (e) {
+          note().textContent = (e && (e.code === "server_unavailable" || e.code === "upstream_error"))
+            ? "Ответ не пришёл, но видео могло уйти. Проверьте профиль Instagram, прежде чем отправлять снова."
+            : mcpMsg(e);
+        } finally { c.querySelector("#pubBtn").disabled = false; }
+      });
+    });
+    return c;
+  }
 
   renderChecks();
   renderHistory();

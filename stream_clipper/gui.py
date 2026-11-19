@@ -105,11 +105,11 @@ def _load_json(path, default):
 
 class VideoPreview(ttk.Frame):
     """Просмотр клипа прямо в окне: картинка через OpenCV, звук (Windows) — через встроенный winsound."""
-    W, H = 288, 512
-
-    def __init__(self, parent, app):
+    def __init__(self, parent, app, big: bool = False):
         super().__init__(parent)
         self.app = app
+        self.W, self.H = (288, 512)
+        self.big = big
         self.cap = None
         self.path = None
         self.playing = False
@@ -119,9 +119,11 @@ class VideoPreview(ttk.Frame):
         self.pos = 0
         self.job = None
         self.wav = os.path.join(paths.default_work_dir(), "preview.wav")
-        self.screen = tk.Label(self, width=self.W, height=self.H, bg="#000000", fg="#888888",
-                               text="Выбери клип\nв списке —\nон покажется здесь", justify="center")
-        self.screen.pack()
+        self.screen = tk.Label(self, bg="#000000", fg="#888888",
+                               text="Нажми на клип\nв списке слева —\nон покажется здесь", justify="center")
+        self.screen.pack(fill="both", expand=True)
+        self.screen.bind("<Configure>", self._on_resize)
+        self.screen.bind("<Button-1>", lambda e: self.toggle())
         bar = ttk.Frame(self)
         bar.pack(fill="x", pady=(4, 0))
         self.b_play = ttk.Button(bar, text="▶", width=3, command=self.toggle)
@@ -129,7 +131,39 @@ class VideoPreview(ttk.Frame):
         ttk.Checkbutton(bar, text="звук", variable=self.sound, command=self._sound_changed).pack(side="left", padx=4)
         self.time_lbl = ttk.Label(bar, text="0:00", foreground=app.muted)
         self.time_lbl.pack(side="right")
+        if not big:
+            ttk.Button(bar, text="⛶ Крупно", command=self.open_big).pack(side="left", padx=4)
         self.img = None
+        self._last_frame = None
+
+    def _on_resize(self, e):
+        # видео вертикальное 9:16 — вписываем в доступное место
+        w, h = max(90, e.width - 4), max(160, e.height - 4)
+        if w * 16 / 9 > h:
+            w = int(h * 9 / 16)
+        else:
+            h = int(w * 16 / 9)
+        if abs(w - self.W) > 4 or abs(h - self.H) > 4:
+            self.W, self.H = w, h
+            if self._last_frame is not None and not self.playing:
+                self._draw(self._last_frame)
+
+    def open_big(self):
+        """Клип в большом окне — почти на всю высоту экрана."""
+        if not self.path:
+            messagebox.showinfo("Просмотр", "Сначала нажми на клип в списке.")
+            return
+        self.stop()
+        win = tk.Toplevel(self.app.root)
+        win.title("Просмотр клипа")
+        sh = self.app.root.winfo_screenheight()
+        h = max(480, sh - 140)
+        win.geometry(f"{int(h * 9 / 16) + 20}x{h + 50}")
+        big = VideoPreview(win, self.app, big=True)
+        big.pack(fill="both", expand=True, padx=6, pady=6)
+        win.protocol("WM_DELETE_WINDOW", lambda: (big.release(), win.destroy()))
+        win.after(200, lambda: (big.load(self.path), big.toggle()))
+        self.app.big_window = win  # для проверок
 
     # --- выбор клипа ---
     def show_selected(self):
@@ -170,7 +204,8 @@ class VideoPreview(ttk.Frame):
         self.cap = None
         self.path = None
         self.img = None
-        self.screen.config(image="", text="Выбери клип\nв списке —\nон покажется здесь")
+        self._last_frame = None
+        self.screen.config(image="", text="Нажми на клип\nв списке слева —\nон покажется здесь")
 
     # --- воспроизведение ---
     def toggle(self):
@@ -218,17 +253,23 @@ class VideoPreview(ttk.Frame):
         if not ok:
             return False
         self.pos += 1
-        h, w = frame.shape[:2]
-        scale = min(self.W / w, self.H / h)
-        frame = cv2.resize(frame, (max(2, int(w * scale)), max(2, int(h * scale))), interpolation=cv2.INTER_AREA)
-        ok, buf = cv2.imencode(".ppm", frame)
-        if ok:
-            self.img = tk.PhotoImage(data=buf.tobytes(), format="PPM")
-            self.screen.config(image=self.img, text="", width=self.W, height=self.H)
+        self._last_frame = frame
+        self._draw(frame)
         sec = int(self.pos / self.fps)
         total = int(self.frames_total / self.fps) if self.frames_total else 0
         self.time_lbl.config(text=f"{sec // 60}:{sec % 60:02d} / {total // 60}:{total % 60:02d}")
         return True
+
+    def _draw(self, frame):
+        import cv2
+        h, w = frame.shape[:2]
+        scale = min(self.W / w, self.H / h)
+        small = cv2.resize(frame, (max(2, int(w * scale)), max(2, int(h * scale))),
+                           interpolation=cv2.INTER_AREA if scale < 1 else cv2.INTER_LINEAR)
+        ok, buf = cv2.imencode(".ppm", small)
+        if ok:
+            self.img = tk.PhotoImage(data=buf.tobytes(), format="PPM")
+            self.screen.config(image=self.img, text="")
 
     # --- звук (Windows) ---
     def _sound_changed(self):
@@ -1379,10 +1420,12 @@ class App:
         mm.add_command(label="🎥  Указать вебку этого стримера", command=self.pick_facecam)
         more["menu"] = mm
         more.pack(side="left")
-        frame = ttk.Frame(parent)
-        frame.pack(fill="both", expand=True, pady=6)
-        self.preview = VideoPreview(frame, self)  # просмотр клипа прямо в программе
-        self.preview.pack(side="right", fill="y", padx=(8, 0))
+        panes = ttk.Panedwindow(parent, orient="horizontal")  # разделитель можно тянуть мышкой
+        panes.pack(fill="both", expand=True, pady=6)
+        frame = ttk.Frame(panes)
+        self.preview = VideoPreview(panes, self)  # просмотр клипа прямо в программе
+        panes.add(frame, weight=3)
+        panes.add(self.preview, weight=2)
         cols = ("rating", "streamer", "moment", "caption", "youtube", "instagram", "tiktok")
         self.tree = ttk.Treeview(frame, columns=cols, show="tree headings", style="Clips.Treeview",
                                  selectmode="extended", height=3)
@@ -1412,11 +1455,14 @@ class App:
 
     def refresh_clips(self):
         dates = library.list_dates()
-        self.date_box.config(values=dates)
-        if dates and self.date_var.get() not in dates:
-            self.date_var.set(dates[0])
+        self.date_box.config(values=["Все дни", *dates])
+        if self.date_var.get() not in ["Все дни", *dates]:
+            self.date_var.set("Все дни")
         date = self.date_var.get()
-        clips = library.list_clips(date) if date else []
+        if date == "Все дни":
+            clips = [c for d in dates for c in library.list_clips(d)]
+        else:
+            clips = library.list_clips(date) if date else []
         names = sorted({c.get("channel", "") for c in clips})
         self.streamer_box.config(values=["Все", *names])
         if self.streamer_var.get() not in ["Все", *names]:
@@ -1452,7 +1498,8 @@ class App:
                 self.tree.selection_add(iid)
             shown += 1
         fresh = sum(1 for c in clips if not any(c["posted"].values()))
-        self.clips_info.config(text=f"Клипов за {date or '—'}: {len(clips)}, нигде не выложено: {fresh}.  "
+        where = "всего" if date == "Все дни" else f"за {date}"
+        self.clips_info.config(text=f"Клипов {where}: {len(clips)}, нигде не выложено: {fresh}.  "
                                     f"Интерес 1–10: чем выше, тем ярче момент.  Клик — посмотреть справа.")
         self.nb.tab(1, text=f"  Клипы ({fresh} новых)  " if clips else "  Клипы  ")
         if missing:

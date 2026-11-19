@@ -41,7 +41,16 @@ def list_dates() -> list[str]:
     d = os.path.join(_state(), "days")
     if not os.path.isdir(d):
         return []
-    dates = [f[:-5] for f in os.listdir(d) if f.endswith(".json")]
+    dates = []
+    for f in os.listdir(d):
+        if not f.endswith(".json"):
+            continue
+        try:  # только дни, где есть клипы (а не одни события вроде «стрим начался»)
+            with open(os.path.join(d, f), encoding="utf-8") as fh:
+                if json.load(fh).get("clips"):
+                    dates.append(f[:-5])
+        except Exception:
+            continue
 
     def key(s):
         try:

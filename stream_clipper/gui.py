@@ -3384,7 +3384,9 @@ class App:
         dates = library.list_dates()
         clips = [c for d in dates for c in library.list_clips(d)]
         skip = skip or set()
-        items = [t for t in exchange.plan(clips) if (t[0]["path"], t[1]) not in skip and t[0]["path"] not in skip]
+        from . import policy
+        items = [t for t in exchange.plan(clips) if (t[0]["path"], t[1]) not in skip and t[0]["path"] not in skip
+                 and not policy.publish_block(t[0]["path"], t[2].get("edits"))]
         now = datetime.now().isoformat(timespec="seconds")
         ready = [t for t in items if (t[2].get("when") or "") <= now]
         if not ready:
@@ -3418,8 +3420,14 @@ class App:
                     return
                 self.tree.selection_set(iid)
                 self.tree.see(iid)
-        from . import exchange
+        from . import exchange, policy
         advice = ((exchange.decision_for(clip) or {}).get("platforms") or {}).get(platform) or {}
+        block = policy.publish_block(clip["path"], advice.get("edits"))
+        if block:  # жёсткое правило: с неисправленной наготой / языком вражды не публикуем
+            self._plan_mode = False
+            messagebox.showwarning(T("Выложить"), "⛔ " + tr_line(block))
+            self.activity.event("⛔", f"{clip.get('channel', '')}: {tr_line(block)}", clip["path"], "error")
+            return
         if advice.get("edits") and not getattr(self, "_variant_ready", None) == (clip["path"], platform):
             # «Доктор» посоветовал монтаж под эту площадку — собираем отдельную копию (сам клип не меняется)
             self.clips_info.config(text=T("Готовлю версию клипа для {0} по совету аналитика...").format(name))

@@ -65,7 +65,7 @@ TEMPLATES = {
                     "Вот за это смотрят {s}", "{s} в своём репертуаре{g}"],
     },
     "en": {
-        "laugh": ["{s} couldn't stop laughing{g}", "{s}'s funniest moment yet{g}", "{s} lost it{g}",
+        "laugh": ["{s} couldn't stop laughing{g}", "{s}'s funniest moment yet{g}", "{s} can't believe it{g}",
                   "{s} was crying laughing{g}"],
         "shock": ["{s} can't believe this{g}", "{s} was NOT ready for this{g}", "{s}'s reaction says it all{g}",
                   "{s} was speechless{g}"],
@@ -180,8 +180,12 @@ def make_caption(streamer: str, title: str, top_messages: list[str], transcript:
             text = _claude_caption(key, streamer, title, top_messages, transcript, lang, frames or [])
         except Exception as e:
             log(f"    подпись от Claude не получилась ({e}) — ставлю шаблонную")
+    from .policy import censor_text, word_kind
+    if quote and any(word_kind(w) for w in quote.split()):
+        quote = None  # цитата с матом в надписи на экране — нельзя
     if not text:
         text = template_caption(streamer, title, top_messages, lang, quote)
+    text = censor_text(text)
     try:
         remember_caption(streamer, text)
     except Exception:

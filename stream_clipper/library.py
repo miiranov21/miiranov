@@ -74,8 +74,12 @@ def list_clips(date: str, out_dir: str | None = None, include_missing: bool = Fa
     root = os.path.join(out_dir or paths.default_out_dir(), date)
     posted = load_posted()
     res = []
+    seen = set()
     for c in data.get("clips", []):
         path = os.path.normpath(os.path.join(root, c.get("file", "")))
+        if path in seen:  # одна и та же запись дважды (например, после продолжения работы) — показываем один раз
+            continue
+        seen.add(path)
         if not os.path.exists(path):
             if include_missing:
                 res.append(dict(c, path=path, posted=posted.get(path, {}), missing=True, date=date))

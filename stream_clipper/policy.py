@@ -534,3 +534,26 @@ def fix_clip(src: str, out: str, issues: list, subs_burned: bool = True, words: 
 
 def originals_dir() -> str:
     return os.path.join(paths.default_work_dir(), "originals")
+
+
+FIXES_FOR = {"nudity": ("blur",), "gore": ("blur",), "personal_info": ("blur", "crop_out"), "hate_symbol": ("blur", "crop_out"),
+             "slur": ("bleep", "bleep_profanity", "mute"), "drugs": ("blur",), "manual": ("blur",)}
+
+
+def publish_block(clip_path: str, applied: list | None = None) -> str | None:
+    """Жёсткое правило: клип с серьёзным (high) неисправленным нарушением НЕ публикуется никаким способом.
+    applied — приёмы, применённые в версии под площадку (размытие/запикивание в ней тоже считается исправлением).
+    Возвращает причину запрета или None."""
+    res = load_results().get(os.path.normpath(clip_path)) or {}
+    done = {a.get("type") if isinstance(a, dict) else a for a in (applied or [])}
+    left = []
+    for i in res.get("issues") or []:
+        if i.get("severity") != "high":
+            continue
+        if done & set(FIXES_FOR.get(i.get("kind"), ())):
+            continue
+        left.append(i)
+    if not left:
+        return None
+    kinds = sorted({RULES.get(i.get("kind"), RULES["other"])[0] for i in left})
+    return "неисправленное серьёзное нарушение: " + ", ".join(kinds) + " — сначала «Исправить нарушение»"

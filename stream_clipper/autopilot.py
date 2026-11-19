@@ -485,6 +485,13 @@ def _publish_due(st: dict, by_path: dict, strat: dict, say, event) -> int:
             if c is None or c["posted"].get(pl):
                 q["status"] = "skipped"
                 continue
+            from . import policy
+            block = policy.publish_block(path, (rec.get("renders") or {}).get(pl, {}).get("applied"))
+            if block:  # жёсткое правило — никакой выкладки с неисправленным серьёзным нарушением
+                q["status"] = "blocked"
+                event("⛔", f"{c.get('channel', '')}: {pl} — не публикую: {block}", path, "error")
+                journal({"clip": exchange.clip_id(path), "action": "blocked", "platform": pl, "why": block})
+                continue
             if not conn.get(pl):
                 if not q.get("warned"):
                     q["warned"] = True

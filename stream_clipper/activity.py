@@ -237,6 +237,10 @@ class ActivityPanel(ttk.Frame):
         if m:
             self.last_path = m.group(1).strip()
             return False
+        m = re.match(r"^📐 длина (\d+) с, кадр: (.+)$", line)
+        if m:  # форма клипа — допишем к строке «клип готов»
+            self.last_shape = T("длина {0} с, кадр: {1}").format(m.group(1), T(m.group(2)))
+            return False
         m = re.match(r"^✅ (.+?): клип (\S+) готов — «(.*)»$", line)
         if m:
             c = self.card(m.group(1))
@@ -247,8 +251,11 @@ class ActivityPanel(ttk.Frame):
                 if img:
                     c["thumb"].config(image=img)
             self._set(c)
-            self.event("✅", T("{0}: клип {1} готов — «{2}»").format(c["name"], m.group(2), m.group(3)), path, "clip")
+            shape = getattr(self, "last_shape", "")
+            self.event("✅", T("{0}: клип {1} готов — «{2}»").format(c["name"], m.group(2), m.group(3))
+                       + (f" · {shape}" if shape else ""), path, "clip")
             self.last_path = None
+            self.last_shape = ""
             return True
         m = re.match(r"^\[(.+?)\] промежуточная нарезка во время эфира$", line)
         if m:

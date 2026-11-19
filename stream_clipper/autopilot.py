@@ -239,6 +239,16 @@ def ensure_mandatory(ops: list, c: dict, strat: dict, platform: str, duration: f
     swear = any(i.get("kind") in ("profanity", "slur") for i in (c.get("policy") or {}).get("issues", []))
     if swear and platform in ("youtube", "instagram") and not have & {"bleep", "bleep_profanity", "mute"}:
         add.append({"type": "bleep_profanity", "all": True})
+    from . import shape
+    tgt = shape.target_for(platform)
+    if tgt and duration > tgt[1] + 0.5 and "trim" not in have:
+        # момент длиннее, чем любит площадка — версия короче: режем начало (но не ближе 3 с к пику), остальное — с конца
+        excess = duration - tgt[1]
+        peak_off = float(c.get("peak", 0) or 0) - float(c.get("start", 0) or 0)
+        cut_a = min(excess, max(0.0, peak_off - 3.0)) if peak_off > 0 else excess * 0.5
+        add.append({"type": "trim", "cut_start": round(cut_a, 2), "cut_end": round(excess - cut_a, 2)})
+    if shape.length_rules().get("cut") and "cut_silence" not in have:
+        add.append({"type": "cut_silence", "min_gap": 0.7})
     if duration > 30 and "progress_bar" not in have:
         add.append({"type": "progress_bar", "on": True})
     return list(ops) + add

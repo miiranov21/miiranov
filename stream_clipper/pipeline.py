@@ -34,7 +34,7 @@ class Settings:
     keep_raw: bool = False
     preset: str = "medium"
     caption: bool = True      # плашка с подписью к моменту
-    game_view: str = "full"   # игра в кадре: full — целиком, wide — крупнее, center — только центр
+    game_view: str = "full"   # игра в кадре: full — целиком, wide — крупнее, center — только центр, auto — по кадрам
     start_from: str | None = None  # с какого места стрима начать анализ: «1:30», «сейчас» или пусто — с начала
     auto_length: bool = False  # длина под момент (12–45 с): клип идёт, пока длится реакция
     credit: bool = False      # сразу вшивать подпись автора «Twitch | KaiCenat» (иначе — галочкой на нужных клипах)
@@ -83,6 +83,22 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
     """Собирает вертикальный клип. Возвращает подпись (или '')."""
     meta = meta or {}
     cfg = _for_streamer(cfg, meta.get("streamer", ""), log)
+    peak = float(cfg.clip_pre) + float((meta.get("pad") or (0, 0))[0])  # где пик момента внутри куска
+    trimmed = None
+    if cfg.auto_length and meta.get("pad"):
+        # длина под момент: начало и конец — в паузы речи (не с середины фразы и не на середине слова)
+        from . import shape
+        try:
+            pa, pb = meta["pad"]
+            a, b = shape.snap_bounds(segment, pa, pb)
+            if a > 0.05 or b < shape._duration(segment) - 0.05:
+                trimmed = shape.trim(segment, a, b, os.path.splitext(segment)[0] + "_trim.mp4")
+                segment = trimmed
+                meta["trim"] = (a, b)
+                peak -= a
+        except Exception as e:
+            log(f"    границы по паузам не поставились ({e}) — оставляю как есть")
+    meta["peak_off"] = peak
     layout, facecam = cfg.layout, cfg.facecam
     if layout == "auto":
         from .facecam import resolve
@@ -101,6 +117,23 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
             if ch:
                 log("    без вебки — по совету «Доктора»: " + ", ".join(ch))
     base = os.path.splitext(out)[0]
+    if cfg.game_view not in ("full", "wide", "center"):  # auto — выбираем по кадрам этого момента
+        import copy
+        from . import shape
+        from .caption import _api_key
+        key = _api_key()
+        fr = _moment_frames(segment, peak, base + ".gv") if key else []
+        try:
+            gv, why = shape.choose_view(segment, peak, key, fr, facecam if layout == "facecam" else None, log)
+        finally:
+            for p_ in fr:
+                try:
+                    os.remove(p_)
+                except OSError:
+                    pass
+        cfg = copy.copy(cfg)
+        cfg.game_view = gv
+        log(f"    кадр: {shape.VIEW_NAMES.get(gv, gv)} — {why}")
     ass_files, transcript = [], ""
     use_subs = cfg.subs
     if use_subs is None:
@@ -122,7 +155,7 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
     text = ""
     if cfg.caption:
         from .caption import _api_key, make_caption, streamer_quote
-        center = float(cfg.clip_pre)  # пик момента — примерно через clip_pre секунд от начала клипа
+        center = peak  # пик момента внутри клипа
         quote = None
         if transcript:
             from . import subtitles
@@ -163,12 +196,25 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
                            logo=cfg.watermark_image or None, logo_pos=cfg.watermark_pos,
                            logo_opacity=cfg.watermark_opacity, logo_with_text=bool(cfg.watermark_text.strip()),
                            game_view=cfg.game_view)
-    for p in ass_files:
+    for p in ass_files + ([trimmed] if trimmed else []):
         try:
             os.remove(p)
         except OSError:
             pass
+    try:
+        from . import shape
+        log(f"📐 длина {round(shape._duration(out))} с, кадр: {shape.VIEW_NAMES.get(cfg.game_view, cfg.game_view)}")
+    except Exception:
+        pass
     return text
+
+
+def _apply_trim(d: dict, meta: dict) -> None:
+    """Границы клипа сдвинулись в паузы речи — поправляем время клипа в записи стрима (для перерезки и ссылок)."""
+    tr = meta.get("trim")
+    if tr:
+        s0 = float(d.get("start", 0))
+        d["start"], d["end"] = round(s0 + tr[0], 2), round(s0 + tr[1], 2)
 
 
 def _moment_frames(segment: str, center: float, base: str) -> list[str]:
@@ -243,7 +289,7 @@ def apply_settings(cfg: Settings, live: dict) -> list[str]:
         cfg.auto_length = al
         changed.append(f"длина под момент: {'вкл' if al else 'выкл'}")
     gv = live.get("game_view")
-    if gv in ("full", "wide", "center") and gv != cfg.game_view:
+    if gv in ("full", "wide", "center", "auto") and gv != cfg.game_view:
         cfg.game_view = gv
         changed.append(f"игра в кадре: {gv}")
     q = live.get("quality")
@@ -281,7 +327,7 @@ def refresh_live(cfg: Settings, log=print) -> None:
         if ps:
             changed.append("свои настройки для: " + ", ".join(ps))
     fb = live.get("no_facecam_fallback")
-    fb = fb if isinstance(fb, dict) else ({"game_view": fb} if fb in ("full", "wide", "center") else {})
+    fb = fb if isinstance(fb, dict) else ({"game_view": fb} if fb in ("full", "wide", "center", "auto") else {})
     if fb != cfg.no_facecam_fallback:
         cfg.no_facecam_fallback = fb
     if changed:
@@ -394,8 +440,13 @@ def _analyze(msgs: list[ChatMessage], duration: float, audio_db, cfg: Settings, 
     return hl
 
 
-def _auto_length(hl, msgs, audio_db, duration: float, lo: float = 12.0, hi: float = 45.0) -> None:
-    """Длина под момент: продлеваем клип, пока чат ещё реагирует или стример громко говорит/кричит (но 12–45 с)."""
+def _auto_length(hl, msgs, audio_db, duration: float, lo: float | None = None, hi: float | None = None) -> None:
+    """Длина под момент: продлеваем клип, пока чат ещё реагирует или стример громко говорит/кричит
+    (границы — из правил «Доктора», по умолчанию 10–60 с), +1 с после конца реакции.
+    Кусок берём с запасом по 2 с с каждой стороны — точные границы потом ставятся в паузы речи."""
+    from . import shape
+    lo_, hi_ = shape.min_max()
+    lo, hi = lo or lo_, hi or hi_
     n = int(duration) + 6
     counts = np.zeros(n, dtype=np.float32)
     for m in msgs:
@@ -421,9 +472,14 @@ def _auto_length(hl, msgs, audio_db, duration: float, lo: float = 12.0, hi: floa
             if not busy:
                 break
             end += 1.0
+        end = min(duration, end + 1.0, h.start + hi)
         if end - h.start < lo:
             end = min(duration, h.start + lo)
-        h.end = round(end, 1)
+        pa = min(shape.PAD, max(0.0, float(h.start)))
+        pb = min(shape.PAD, max(0.0, duration - end))
+        h.start = round(float(h.start) - pa, 1)
+        h.end = round(end + pb, 1)
+        h.pad = (round(pa, 1), round(pb, 1))
 
 
 def _finish(cfg: Settings, new: list[dict], work: str, all_clips: list[dict], title: str, link_fn, log) -> None:
@@ -548,8 +604,9 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                         tmp = os.path.join(work, name + ".mp4")
                         meta = {"streamer": channel, "title": title, "top_messages": h.top_messages,
                                 "lang": lang or "en", "platform": "YouTube" if yt else "Twitch",
-                                "credit_name": (info.get("uploader") or channel)}
+                                "credit_name": (info.get("uploader") or channel), "pad": getattr(h, "pad", None)}
                         d["caption"] = _make_short(seg, tmp, cfg, log, meta)
+                        _apply_trim(d, meta)
                         d["transcript"], d["lang"] = meta.get("transcript", ""), lang or "en"
                         d["rating"] = _final_rating(d, meta)
                         if not cfg.keep_raw:
@@ -689,8 +746,10 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
             base = f"{name}_{_fmt(h.start)}"
             seg = render.cut_segment(video, h.start, h.end, os.path.join(work, base + "_raw.mp4"))
             tmp = os.path.join(work, base + ".mp4")
-            meta = {"streamer": name, "title": name, "top_messages": h.top_messages, "lang": lang}
+            meta = {"streamer": name, "title": name, "top_messages": h.top_messages, "lang": lang,
+                    "pad": getattr(h, "pad", None)}
             d["caption"] = _make_short(seg, tmp, cfg, log, meta)
+            _apply_trim(d, meta)
             d["transcript"], d["lang"] = meta.get("transcript", ""), lang
             d["rating"] = _final_rating(d, meta)
             if not cfg.keep_raw:

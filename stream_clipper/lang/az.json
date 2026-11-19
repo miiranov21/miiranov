@@ -840,5 +840,8 @@
 "текст знака": "nişanın mətni",
 "где знак": "nişan harada",
 "заметность знака": "nişanın görünməsi",
-"где подпись автора": "müəllif imzası harada"
+"где подпись автора": "müəllif imzası harada",
+"авто (по кадрам)": "avto (kadrlara görə)",
+"длина {0} с, кадр: {1}": "uzunluq {0} san, kadr: {1}",
+"центр": "mərkəz"
 }

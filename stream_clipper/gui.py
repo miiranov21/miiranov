@@ -54,7 +54,7 @@ THEMES = {
                            accent="#10a37f", accent_fg="#ffffff", border="#d5e2df", select="#bfe9dc"),
     T("Классическая (серая)"): None,
 }
-GAME_VIEW = {T("целиком"): "full", T("крупнее"): "wide", T("только центр"): "center"}
+GAME_VIEW = {T("целиком"): "full", T("крупнее"): "wide", T("только центр"): "center", T("авто (по кадрам)"): "auto"}
 YT_BROWSERS = {T("не брать"): "", "Firefox": "firefox", "Chrome": "chrome", "Edge": "edge", "Opera": "opera",
                "Brave": "brave", "Vivaldi": "vivaldi"}
 WM_OP = {T("слабо"): 0.25, T("средне"): 0.4, T("сильно"): 0.6}
@@ -1195,8 +1195,8 @@ class App:
 
     def _clip_numbers(self) -> tuple[int, int, int]:
         top = self._num("top", 1, 500)
-        if self.v["length"].get() == T("авто"):  # длина под момент: старт 20 с, дальше программа продлевает до 45
-            return top, 12, 8
+        if self.v["length"].get() == T("авто"):  # длина под момент: от ~5 с до пика, дальше — пока длится реакция (до 60 с)
+            return top, 5, 5
         length = self._num("length", 5, 180)
         pre = max(2, round(length * 0.57))
         return top, pre, max(2, length - pre)

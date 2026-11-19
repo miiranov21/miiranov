@@ -35,7 +35,7 @@ def _common(p: argparse.ArgumentParser) -> None:
     g.add_argument("--watermark-opacity", type=float, default=0.4, help="непрозрачность знака 0.1–1 (по умолч. 0.4)")
     g.add_argument("--facecam", help="где вебка на исходнике, доли кадра: x,y,w,h (например 0.75,0.70,0.25,0.30)")
     g.add_argument("--zoom", type=float, default=1.0, help="(устарело, см. --game-view) увеличение игры")
-    g.add_argument("--game-view", choices=["full", "wide", "center"], default="full",
+    g.add_argument("--game-view", choices=["full", "wide", "center", "auto"], default="full",
                    help="сколько игры видно: full — целиком, wide — крупнее (≈75%% ширины), center — только центр")
     g.add_argument("--subs", action="store_true", default=None,
                    help="авто-субтитры (по умолчанию включаются сами, если установлен faster-whisper)")

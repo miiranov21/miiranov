@@ -137,6 +137,20 @@ table.cmp tbody th { font-weight: 600; width: 170px; color: var(--muted); font-s
 .routine .when { font: 500 12px var(--f-mono); color: var(--accent); }
 .routine ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
 @media (prefers-reduced-motion: no-preference) { .bar i { transition: width .4s ease; } }
+textarea { font: 400 14px var(--f-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; width: 100%; resize: vertical; }
+textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.frames { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+.frames figure { margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.frames img { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 5px; border: 1px solid var(--line); background: var(--bg); }
+.frames figcaption { font: 500 10.5px var(--f-mono); color: var(--muted); text-align: center; }
+.vchecks { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.vchecks div { display: flex; gap: 8px; align-items: baseline; }
+.out-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.out-card h3 { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
+.out-text { white-space: pre-wrap; background: var(--bg); border-radius: 7px; padding: 10px 12px; font-size: 14px; overflow-wrap: anywhere; }
+.out-label { font: 500 11px var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.copy { font: 600 12px var(--f-body); padding: 5px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--accent); cursor: pointer; }
+.out-card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
 </style>
 
 <div class="wrap">
@@ -146,11 +160,58 @@ table.cmp tbody th { font-weight: 600; width: 170px; color: var(--muted); font-s
   </header>
 
   <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="new" aria-selected="false">Новое видео</button>
     <button class="tab" role="tab" data-tab="diag" aria-selected="true">Разбор видео</button>
     <button class="tab" role="tab" data-tab="check" aria-selected="false">Перед публикацией</button>
     <button class="tab" role="tab" data-tab="noviews" aria-selected="false">Почему нет просмотров</button>
     <button class="tab" role="tab" data-tab="platforms" aria-selected="false">Платформы и режим</button>
   </nav>
+
+  <!-- ============ NEW VIDEO ============ -->
+  <section id="tab-new" role="tabpanel" hidden>
+    <div class="grid2">
+      <form class="panel form" id="nf" autocomplete="off">
+        <div class="field">
+          <label for="vfile">Видео (файл остаётся у вас: Claude получает только несколько кадров)</label>
+          <input id="vfile" type="file" accept="video/*">
+        </div>
+        <div class="field">
+          <label for="ifiles">Или скриншоты кадров (если видео не открывается)</label>
+          <input id="ifiles" type="file" accept="image/*" multiple>
+        </div>
+        <video id="vprev" muted playsinline preload="auto" hidden style="max-height:220px;border-radius:8px;background:#000"></video>
+        <div class="frames" id="frames"></div>
+        <div id="vchecks" class="vchecks"></div>
+        <div class="field">
+          <label for="about">О чём видео и что в нём говорится</label>
+          <textarea id="about" rows="4" placeholder="Например: показываю 3 ошибки в монтаже Reels, третья самая частая. В конце — как их исправить"></textarea>
+          <small>Claude не слышит звук, поэтому коротко перескажите текст или вставьте субтитры.</small>
+        </div>
+        <div class="field">
+          <label for="niche">Тема аккаунта и аудитория</label>
+          <input type="text" id="niche" placeholder="Например: монтаж видео для начинающих блогеров, 18–30 лет">
+          <small>Запоминается в этом браузере.</small>
+        </div>
+        <div class="field">
+          <label for="lang">Язык описаний</label>
+          <select id="lang"><option value="русском">Русский</option><option value="английском">Английский</option><option value="украинском">Украинский</option><option value="казахском">Казахский</option></select>
+        </div>
+        <div class="btns">
+          <button class="btn" type="button" id="genBtn">Подготовить к публикации</button>
+          <button class="btn ghost" type="button" id="stopBtn" hidden>Остановить</button>
+        </div>
+        <p class="note" id="genNote" style="margin:0"></p>
+      </form>
+
+      <div class="verdict" id="genOut">
+        <div class="headline warn" id="genEmpty">
+          <div class="tag">Как это работает</div>
+          <h2>Загрузите видео и нажмите «Подготовить к публикации»</h2>
+          <p>Страница вырежет кадры из начала, середины и конца. Claude проверит хук и кадры, предложит текст на экран и напишет описание, хэштеги и заголовок отдельно для TikTok, Reels и Shorts. При первом запуске Claude спросит разрешение.</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- ============ DIAGNOSIS ============ -->
   <section id="tab-diag" role="tabpanel">
@@ -288,7 +349,7 @@ table.cmp tbody th { font-weight: 600; width: 170px; color: var(--muted); font-s
     store.set("sd_tab", name);
   }
   tabs.forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
-  showTab(store.get("sd_tab", "diag"));
+  showTab(store.get("sd_tab", "new"));
 
   /* ---------- platform ---------- */
   const P = {
@@ -665,6 +726,198 @@ table.cmp tbody th { font-weight: 600; width: 170px; color: var(--muted); font-s
   $("symptoms").innerHTML = SYM.map((s, i) => `<details class="sym" ${i === 0 ? "open" : ""}><summary>${s[0]}</summary><div class="body">
     <div><h4>Частые причины</h4><ul>${s[1].map(x => `<li>${x}</li>`).join("")}</ul></div>
     <div><h4>Что проверить и сделать</h4><ul>${s[2].map(x => `<li>${x}</li>`).join("")}</ul></div></div></details>`).join("");
+
+  /* ---------- new video: frames + Claude ---------- */
+  let frames = [];          // [{blob, url, label}]
+  let videoMeta = null;     // {dur, w, h}
+  $("niche").value = store.get("sd_niche", "");
+  $("niche").addEventListener("change", () => store.set("sd_niche", $("niche").value));
+
+  function renderFrames() {
+    $("frames").innerHTML = frames.map(f => `<figure><img src="${f.url}" alt="Кадр ${esc(f.label)}"><figcaption>${esc(f.label)}</figcaption></figure>`).join("");
+  }
+  function renderVideoChecks() {
+    const out = [];
+    const add = (st, t) => out.push(`<div><span class="pill ${st}">${LBL[st]}</span><span>${t}</span></div>`);
+    if (videoMeta) {
+      const { dur, w, h } = videoMeta;
+      const r = w && h ? h / w : 0;
+      if (r && Math.abs(r - 16 / 9) < 0.05) add("good", `Вертикаль 9:16 (${w}×${h})`);
+      else if (r) add("bad", `Формат ${w}×${h}: нужно 9:16, иначе будут полосы или обрезка`);
+      if (h && h < 1280) add("warn", "Разрешение ниже 720p: картинка будет мыльной, лучше 1080×1920");
+      if (dur > 180) add("bad", `Длина ${fmt(dur, 0)} сек: больше 3 минут, Shorts не примет, Reels не попадёт в рекомендации`);
+      else if (dur > 60) add("warn", `Длина ${fmt(dur, 0)} сек: держать внимание больше минуты сложно, проверьте темп`);
+      else add("good", `Длина ${fmt(dur, 0)} сек`);
+    }
+    $("vchecks").innerHTML = out.join("");
+  }
+  function seek(v, t) {
+    return new Promise((res, rej) => {
+      const done = () => { v.removeEventListener("seeked", done); res(); };
+      v.addEventListener("seeked", done);
+      setTimeout(() => { v.removeEventListener("seeked", done); rej(new Error("seek timeout")); }, 5000);
+      v.currentTime = t;
+    });
+  }
+  function grab(v) {
+    const c = document.createElement("canvas");
+    const scale = Math.min(1, 720 / Math.max(v.videoWidth, v.videoHeight));
+    c.width = Math.round(v.videoWidth * scale); c.height = Math.round(v.videoHeight * scale);
+    c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+    return new Promise(res => c.toBlob(b => res(b), "image/jpeg", 0.85));
+  }
+  $("vfile").addEventListener("change", async () => {
+    const file = $("vfile").files[0]; if (!file) return;
+    frames.forEach(f => URL.revokeObjectURL(f.url)); frames = []; renderFrames();
+    $("genNote").textContent = "Вырезаю кадры…";
+    const v = $("vprev");
+    v.src = URL.createObjectURL(file); v.hidden = false; v.controls = true;
+    try {
+      await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error("load")); setTimeout(() => rej(new Error("timeout")), 15000); });
+      const dur = v.duration;
+      videoMeta = { dur, w: v.videoWidth, h: v.videoHeight };
+      $("len").value = Math.round(dur);
+      const pts = [[0.1, "0:00"], [1.5, "1,5 с"], [3, "3 с"], [dur * 0.35, "35%"], [dur * 0.6, "60%"], [dur * 0.85, "85%"], [Math.max(0, dur - 0.3), "конец"]]
+        .filter(p => p[0] < dur);
+      for (const [t, label] of pts) {
+        await seek(v, t);
+        const blob = await grab(v);
+        if (blob) frames.push({ blob, url: URL.createObjectURL(blob), label });
+        renderFrames();
+      }
+      v.currentTime = 0;
+      renderVideoChecks();
+      $("genNote").textContent = `Готово: ${frames.length} кадров. Заполните описание и нажмите «Подготовить к публикации».`;
+    } catch (e) {
+      v.hidden = true;
+      $("genNote").textContent = "Не получилось открыть это видео в браузере. Загрузите 3–6 скриншотов кадров в поле выше: первый кадр, 3-ю секунду, середину и конец.";
+    }
+  });
+  $("ifiles").addEventListener("change", () => {
+    frames.forEach(f => URL.revokeObjectURL(f.url));
+    frames = Array.from($("ifiles").files).slice(0, 8).map((f, i) => ({ blob: f, url: URL.createObjectURL(f), label: "кадр " + (i + 1) }));
+    videoMeta = null; renderFrames(); renderVideoChecks();
+    $("genNote").textContent = `Загружено кадров: ${frames.length}.`;
+  });
+
+  let ctl = null;
+  const ERR = {
+    not_granted: "Вы не разрешили странице обращаться к Claude. Разрешение можно включить в меню артефакта «Разрешения».",
+    sampling_disabled: "Claude недоступен для этого аккаунта.",
+    rate_limited: "Слишком много запросов или исчерпан лимит. Попробуйте через несколько минут.",
+    image_rejected: "Один из кадров не подошёл. Загрузите другие скриншоты (JPEG или PNG).",
+    refused: "Claude отказался обрабатывать этот запрос. Измените описание видео.",
+    invalid_json: "Ответ пришёл в неправильном формате. Нажмите кнопку ещё раз.",
+    session_expired: "Сессия истекла: войдите в Claude заново.",
+    images_unavailable: "В этом окне нельзя отправлять картинки. Описания будут только по тексту."
+  };
+
+  function copyBtn(text) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "copy"; b.textContent = "Копировать";
+    b.addEventListener("click", () => {
+      const ok = () => { b.textContent = "Скопировано"; setTimeout(() => b.textContent = "Копировать", 1500); };
+      try {
+        navigator.clipboard.writeText(text).then(ok, () => { selectNext(b); b.textContent = "Выделено: Ctrl+C"; });
+      } catch (e) { selectNext(b); b.textContent = "Выделено: Ctrl+C"; }
+    });
+    return b;
+  }
+  function selectNext(b) {
+    const t = b.closest(".out-card")?.querySelector(".out-text"); if (!t) return;
+    const r = document.createRange(); r.selectNodeContents(t); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+  function card(title, blocks) {
+    const c = document.createElement("div"); c.className = "out-card";
+    const h = document.createElement("h3"); h.textContent = title; c.append(h);
+    blocks.forEach(([label, text, copyable]) => {
+      if (!text) return;
+      const l = document.createElement("div"); l.className = "out-label"; l.textContent = label;
+      const t = document.createElement("div"); t.className = "out-text"; t.textContent = text;
+      const row = document.createElement("div"); row.style.cssText = "display:flex;justify-content:space-between;align-items:center;gap:8px";
+      row.append(l); if (copyable) row.append(copyBtn(text));
+      c.append(row, t);
+    });
+    return c;
+  }
+  function listCard(title, items, st) {
+    const c = document.createElement("div"); c.className = "out-card";
+    const h = document.createElement("h3"); h.textContent = title;
+    if (st) { const p = document.createElement("span"); p.className = "pill " + st; p.textContent = LBL[st]; h.append(p); }
+    const ul = document.createElement("ul");
+    items.forEach(x => { const li = document.createElement("li"); li.textContent = x; ul.append(li); });
+    c.append(h, ul); return c;
+  }
+  const tags = (a) => Array.isArray(a) ? a.map(t => "#" + String(t).replace(/^#/, "").replace(/\s+/g, "")).join(" ") : "";
+
+  function renderResult(r) {
+    const out = $("genOut"); out.innerHTML = "";
+    const hk = r.hook || {};
+    const head = document.createElement("div");
+    head.className = "headline " + (hk.verdict === "ok" ? "good" : "warn");
+    head.innerHTML = `<div class="tag">Хук: ${hk.verdict === "ok" ? "работает" : "можно сильнее"}</div><h2></h2><p></p>`;
+    head.querySelector("h2").textContent = r.summary || "";
+    head.querySelector("p").textContent = hk.why || "";
+    out.append(head);
+    if (Array.isArray(hk.better) && hk.better.length) out.append(listCard("Варианты хука для первых секунд", hk.better));
+    if (Array.isArray(r.issues) && r.issues.length) out.append(listCard("Что поправить в кадре до публикации", r.issues.map(i => typeof i === "string" ? i : `${i.problem} → ${i.fix}`), "warn"));
+    if (r.on_screen_text || r.cover_text) out.append(card("Текст на экран и обложка", [["Текст в первом кадре", r.on_screen_text, true], ["Надпись на обложке", r.cover_text, true]]));
+    const tt = r.tiktok || {}, ig = r.reels || {}, yt = r.shorts || {};
+    out.append(card("TikTok", [["Описание + хэштеги", [tt.description, tags(tt.hashtags)].filter(Boolean).join("\n\n"), true]]));
+    out.append(card("Instagram Reels", [["Подпись + хэштеги", [ig.caption, tags(ig.hashtags)].filter(Boolean).join("\n\n"), true]]));
+    out.append(card("YouTube Shorts", [["Название", yt.title, true], ["Описание", [yt.description, tags(yt.hashtags)].filter(Boolean).join("\n\n"), true]]));
+    if (r.pinned_comment) out.append(card("Закреплённый комментарий", [["Для всех платформ", r.pinned_comment, true]]));
+  }
+
+  $("stopBtn").addEventListener("click", () => ctl?.abort());
+  $("genBtn").addEventListener("click", async () => {
+    const about = $("about").value.trim();
+    if (!about && !frames.length) { $("genNote").textContent = "Загрузите видео или опишите, о чём оно."; return; }
+    store.set("sd_niche", $("niche").value);
+    const sample = await claude.use("sample");
+    if (!sample) { $("genNote").textContent = "Claude недоступен в этом окне. Откройте страницу на claude.ai, войдя в аккаунт."; return; }
+    let imgs = [];
+    try { const lim = await sample.limits(); if (lim?.images && frames.length) imgs = frames.slice(0, lim.images.maxCount).map(f => f.blob); } catch (e) {}
+    const labels = frames.slice(0, imgs.length).map((f, i) => `${i + 1}: ${f.label}`).join(", ");
+    const meta = videoMeta ? `Длина ${Math.round(videoMeta.dur)} сек, ${videoMeta.w}×${videoMeta.h}.` : "Длина неизвестна.";
+    const prompt = `Ты продюсер коротких вертикальных видео для TikTok, Instagram Reels и YouTube Shorts. Подготовь видео к публикации.
+
+Тема аккаунта и аудитория: ${$("niche").value.trim() || "не указана"}
+О чём видео и что в нём говорится: ${about || "не описано, суди по кадрам"}
+${meta}
+${imgs.length ? `Прикреплены кадры из видео по порядку (${labels}). Первые три кадра — это хук, по ним зритель решает, листать или смотреть.` : "Кадров нет, работай по описанию."}
+
+Задачи:
+1. Оцени хук (первые 3 секунды): есть ли сразу движение, лицо, результат или интрига, понятно ли без звука, о чём видео. Предложи 3 более сильных варианта первой фразы или текста на экране.
+2. Найди в кадрах проблемы: вотермарки других приложений, текст в нижних 20% или справа (его закроют кнопки интерфейса), мелкий или нечитаемый текст, тёмная или мыльная картинка, горизонтальный кадр, статичная картинка. Если проблем нет, верни пустой список. Не придумывай проблем, которых не видно.
+3. Напиши тексты на ${$("lang").value} языке, разные под каждую платформу:
+   - TikTok: описание 1–2 предложения с ключевыми словами, по которым ищут эту тему, плюс вопрос к зрителю; 3–5 хэштегов по теме (без #fyp, #рек и подобных).
+   - Reels: подпись: первая строка цепляет, дальше 1–3 коротких строки пользы и призыв переслать или сохранить; не больше 5 хэштегов.
+   - Shorts: название до 60 символов с главным ключевым словом в начале; описание 1–2 предложения; 2–3 хэштега.
+   Пиши живым языком, без канцелярита и без эмодзи в каждом слове (максимум 1–2).
+4. Текст для первого кадра (до 7 слов) и надпись на обложку (до 5 слов).
+5. Закреплённый комментарий, который провоцирует ответы.
+
+Ответь только JSON такого вида:
+{"summary":"одна фраза: о чём видео и главный совет","hook":{"verdict":"ok" или "weak","why":"1–2 предложения","better":["...","...","..."]},"issues":[{"problem":"...","fix":"..."}],"on_screen_text":"...","cover_text":"...","tiktok":{"description":"...","hashtags":["..."]},"reels":{"caption":"...","hashtags":["..."]},"shorts":{"title":"...","description":"...","hashtags":["..."]},"pinned_comment":"..."}`;
+
+    ctl = new AbortController();
+    $("genBtn").disabled = true; $("stopBtn").hidden = false;
+    $("genNote").textContent = "Claude смотрит кадры и пишет тексты. Обычно это занимает 20–60 секунд…";
+    try {
+      const opts = { signal: ctl.signal, cache: false };
+      if (imgs.length) opts.images = imgs;
+      const r = await sample.json(prompt, opts);
+      if (!r || typeof r !== "object") throw { code: "invalid_json" };
+      renderResult(r);
+      $("genNote").textContent = "Готово. Скопируйте тексты в каждое приложение. Длина видео перенесена во вкладку «Разбор видео».";
+    } catch (e) {
+      if (e && e.code === "cancelled") $("genNote").textContent = "Остановлено.";
+      else $("genNote").textContent = ERR[e && e.code] || "Не удалось получить ответ. Попробуйте ещё раз.";
+    } finally {
+      $("genBtn").disabled = false; $("stopBtn").hidden = true;
+    }
+  });
 
   renderChecks();
   renderHistory();

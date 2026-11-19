@@ -557,3 +557,21 @@ def publish_block(clip_path: str, applied: list | None = None) -> str | None:
         return None
     kinds = sorted({RULES.get(i.get("kind"), RULES["other"])[0] for i in left})
     return "неисправленное серьёзное нарушение: " + ", ".join(kinds) + " — сначала «Исправить нарушение»"
+
+
+def flagged_posted() -> list[dict]:
+    """Уже выложенные клипы, в которых есть неисправленное серьёзное нарушение: их надо снять с публикации."""
+    from . import library
+    pub = library.load_published()
+    out = []
+    for d in library.list_dates():
+        for c in library.list_clips(d):
+            reason = publish_block(c["path"])
+            if not reason:
+                continue
+            for pl, on in (c.get("posted") or {}).items():
+                if on:
+                    info = (pub.get(os.path.normpath(c["path"])) or {}).get(pl) or {}
+                    out.append({"clip": c, "platform": pl, "reason": reason, "id": info.get("id", ""),
+                                "url": info.get("url", "")})
+    return out

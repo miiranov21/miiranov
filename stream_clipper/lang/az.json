@@ -770,5 +770,17 @@
 "🤖 Проход автопилота: опубликовано {0}, в очередь {1}, проверено {2}, в архив {3}": "🤖 Avtopilot keçidi: paylaşıldı {0}, növbəyə {1}, yoxlanıldı {2}, arxivə {3}",
 "🤖 Автопилот: новых клипов для отбора нет, жду": "🤖 Avtopilot: seçmək üçün yeni klip yoxdur, gözləyirəm",
 "Тренд «{0}» — достаю из архива клипов: {1}": "«{0}» trendi — arxivdən klip çıxarıram: {1}",
-"Тренд «{0}»: в архиве есть подходящие клипы ({1}) — вкладка «Архив»": "«{0}» trendi: arxivdə uyğun kliplər var ({1}) — «Arxiv» bölməsi"
+"Тренд «{0}»: в архиве есть подходящие клипы ({1}) — вкладка «Архив»": "«{0}» trendi: arxivdə uyğun kliplər var ({1}) — «Arxiv» bölməsi",
+"Снять с публикации": "Paylaşımdan çıxar",
+"⛔  Снять с публикации (выложенные с нарушениями)…": "⛔  Paylaşımdan çıxar (pozuntulu paylaşılanlar)…",
+"Эти клипы уже выложены, но в них нашлось серьёзное нарушение. YouTube программа снимает сама (делает приватным или удаляет), если видео выкладывал автопилот и YouTube подключён. Instagram и TikTok через API удалять не дают — открой видео и удали или заархивируй вручную, потом нажми «Снято».": "Bu kliplər artıq paylaşılıb, amma onlarda ciddi pozuntu tapılıb. Video avtopilotla paylaşılıbsa və YouTube qoşulubsa, proqram YouTube-dan özü çıxarır (gizli edir və ya silir). Instagram və TikTok API ilə silməyə icazə vermir — videonu aç, əllə sil və ya arxivləşdir, sonra «Çıxarıldı» düyməsini bas.",
+"Клип": "Klip",
+"✔ Выложенных клипов с нарушениями нет.": "✔ Pozuntulu paylaşılmış klip yoxdur.",
+"Выбери строку с YouTube.": "YouTube sətrini seç.",
+"ID видео неизвестен или YouTube не подключён — сделай это в YouTube Studio вручную.": "Videonun ID-si bilinmir və ya YouTube qoşulmayıb — bunu YouTube Studio-da əllə et.",
+"Готово: видео снято с YouTube.": "Hazırdır: video YouTube-dan çıxarıldı.",
+"🔒 YouTube: сделать приватным": "🔒 YouTube: gizli et",
+"🗑 YouTube: удалить": "🗑 YouTube: sil",
+"🔗 Открыть видео": "🔗 Videonu aç",
+"✔ Снято (убрать галочку «выложено»)": "✔ Çıxarıldı («paylaşılıb» işarəsini götür)"
 }

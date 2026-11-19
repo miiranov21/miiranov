@@ -2802,6 +2802,83 @@ class App:
             return
         self._pub_bg("tiktok", lambda: publisher.tiktok_connect(key, sec))
 
+    def unpublish_window(self):
+        """Выложенные клипы с неисправленным серьёзным нарушением: снять с YouTube (через API) или удалить вручную."""
+        from . import policy, publisher
+        win = tk.Toplevel(self.root)
+        win.title(T("Снять с публикации"))
+        win.transient(self.root)
+        win.geometry("980x460")
+        frm = ttk.Frame(win, padding=10)
+        frm.pack(fill="both", expand=True)
+        ttk.Label(frm, wraplength=940, justify="left", text=T(
+            "Эти клипы уже выложены, но в них нашлось серьёзное нарушение. YouTube программа снимает сама (делает "
+            "приватным или удаляет), если видео выкладывал автопилот и YouTube подключён. Instagram и TikTok через API "
+            "удалять не дают — открой видео и удали или заархивируй вручную, потом нажми «Снято».")).pack(anchor="w")
+        cols = ("streamer", "clip", "platform", "reason")
+        tree = ttk.Treeview(frm, columns=cols, show="headings", height=10)
+        for c, t_, w in (("streamer", T("Стример"), 110), ("clip", T("Клип"), 150), ("platform", T("Где"), 90),
+                         ("reason", T("Нарушение"), 520)):
+            tree.heading(c, text=t_)
+            tree.column(c, width=w, stretch=c == "reason", anchor="w")
+        tree.pack(fill="both", expand=True, pady=6)
+        rows: dict = {}
+        status = ttk.Label(frm, text="", foreground=self.muted)
+        status.pack(anchor="w")
+
+        def fill():
+            tree.delete(*tree.get_children())
+            rows.clear()
+            for f in policy.flagged_posted():
+                iid = tree.insert("", "end", values=(f["clip"].get("channel", ""), os.path.basename(f["clip"]["path"])[:-4],
+                                                     library.PLATFORM_NAMES.get(f["platform"], f["platform"]), tr_line(f["reason"])))
+                rows[iid] = f
+            if not rows:
+                status.config(text=T("✔ Выложенных клипов с нарушениями нет."))
+
+        def sel():
+            s_ = tree.selection()
+            return rows.get(s_[0]) if s_ else None
+
+        def yt(action):
+            f = sel()
+            if not f or f["platform"] != "youtube":
+                status.config(text=T("Выбери строку с YouTube."))
+                return
+            if not f["id"] or not publisher.connected().get("youtube"):
+                status.config(text=T("ID видео неизвестен или YouTube не подключён — сделай это в YouTube Studio вручную."))
+                webbrowser.open("https://studio.youtube.com")
+                return
+            try:
+                publisher.youtube_set_privacy(f["id"], "private") if action == "private" else publisher.youtube_delete(f["id"])
+                library.set_posted(f["clip"]["path"], False, "youtube")
+                status.config(text=T("Готово: видео снято с YouTube."))
+            except Exception as e:
+                status.config(text=tr_line(str(e)))
+            fill()
+
+        def open_post():
+            f = sel()
+            if f:
+                webbrowser.open(f["url"] or {"tiktok": "https://www.tiktok.com/tiktokstudio/content",
+                                             "instagram": "https://www.instagram.com/",
+                                             "youtube": "https://studio.youtube.com"}[f["platform"]])
+
+        def mark_removed():
+            f = sel()
+            if f:
+                library.set_posted(f["clip"]["path"], False, f["platform"])
+                fill()
+                self.refresh_clips()
+        bar = ttk.Frame(frm)
+        bar.pack(fill="x", pady=(6, 0))
+        ttk.Button(bar, text=T("🔒 YouTube: сделать приватным"), command=lambda: yt("private")).pack(side="left")
+        ttk.Button(bar, text=T("🗑 YouTube: удалить"), command=lambda: yt("delete")).pack(side="left", padx=6)
+        ttk.Button(bar, text=T("🔗 Открыть видео"), command=open_post).pack(side="left")
+        ttk.Button(bar, text=T("✔ Снято (убрать галочку «выложено»)"), command=mark_removed).pack(side="left", padx=6)
+        ttk.Button(bar, text=T("Закрыть"), command=win.destroy).pack(side="right")
+        fill()
+
     def _stream_rows(self) -> dict:
         """Все известные стримы по каналам: из памяти программы + загруженные с сайта."""
         from . import progress
@@ -3066,6 +3143,7 @@ class App:
                        command=lambda: (self._export_catalog(), self._open(exchange_dir())))
         mm.add_command(label=T("📥  Загрузить решения аналитика из файла…"), command=self.import_decisions_file)
         mm.add_command(label=T("🗑  Удалить, что советует аналитик…"), command=self.delete_advised)
+        mm.add_command(label=T("⛔  Снять с публикации (выложенные с нарушениями)…"), command=self.unpublish_window)
         mm.add_separator()
         mm.add_command(label=T("☑  Выбрать все"), command=self.select_all_clips)
         mm.add_command(label=T("✍  Описание и хэштеги"), command=self.post_texts)

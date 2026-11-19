@@ -367,6 +367,9 @@ def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEW
         c["_score"] = score(c, strat)
     by_path = {c["path"]: c for c in clips}
 
+    # 0) уже выложенное с серьёзным нарушением — снять: YouTube сами (приватно), TikTok/Instagram — сказать, что удалить вручную
+    unpublish_flagged(st, event)
+
     # 1) публикация того, чему пора (в режиме «через Telegram» выкладку ведёт tg_assist — бот присылает пост в слот)
     from . import tg_assist
     if not paused and ap.get("auto_publish", True) and tg_assist.mode() != "telegram_assist":
@@ -404,6 +407,35 @@ def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEW
         save_state(st)
     save_state(st)
     return stats
+
+
+def unpublish_flagged(st: dict, event) -> None:
+    from . import policy, publisher
+    warned = st.setdefault("unpublish_warned", [])
+    yt_ok = publisher.connected().get("youtube")
+    for f in policy.flagged_posted():
+        c, pl = f["clip"], f["platform"]
+        key = f"{c['path']}|{pl}"
+        name = f"{c.get('channel', '')} {os.path.basename(c['path'])[:-4]}"
+        if pl == "youtube" and f["id"] and yt_ok:
+            try:
+                publisher.youtube_set_privacy(f["id"], "private")
+                library.set_posted(c["path"], False, pl)
+                event("⛔", f"{name}: снял с YouTube (сделал приватным) — {f['reason']}", c["path"], "warn")
+                journal({"clip": exchange.clip_id(c["path"]), "action": "unpublish", "platform": pl, "why": f["reason"],
+                         "how": "private"})
+                continue
+            except Exception as e:
+                event("❌", f"{name}: не смог снять с YouTube — {e}"[:220], None, "error")
+        if key not in warned:
+            warned.append(key)
+            how = {"instagram": "удаление через API Instagram недоступно — заархивируй вручную в приложении",
+                   "tiktok": "удаления через API TikTok нет — удали вручную в приложении"}.get(
+                pl, "удали или сделай приватным в YouTube Studio")
+            event("⛔", f"{name}: выложен в {pl}, но в нём нарушение ({f['reason']}) — {how}. Список: «Клипы → Ещё → "
+                       f"⛔ Снять с публикации»", c["path"], "error")
+            journal({"clip": exchange.clip_id(c["path"]), "action": "unpublish_manual", "platform": pl, "why": f["reason"],
+                     "how": how})
 
 
 def _to_archive(c: dict, reason: str, st: dict, event):
@@ -515,7 +547,8 @@ def _publish_due(st: dict, by_path: dict, strat: dict, say, event) -> int:
             q["status"] = "published"
             q["result"] = res
             library.set_posted(path, True, pl)
-            library.record_published(path, pl, q.get("title", ""), q.get("description", ""))
+            library.record_published(path, pl, q.get("title", ""), q.get("description", ""), res.get("id", ""),
+                                     res.get("url", ""))
             n += 1
             what = "черновик TikTok — открой его в телефоне и нажми «Опубликовать»" if res.get("draft") else (res.get("url") or "")
             event("✅", f"{c.get('channel', '')}: опубликовано в {pl} — {what} {res.get('note', '')}".strip(), path, "clip")

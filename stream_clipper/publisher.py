@@ -143,7 +143,8 @@ def youtube_connect(client_secret_path: str, log=print) -> str:
     verifier, challenge = _pkce()
     url = GOOGLE_AUTH + "?" + urllib.parse.urlencode({
         "client_id": client_id, "redirect_uri": redirect, "response_type": "code",
-        "scope": "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly",
+        # youtube — загрузка, а также «сделать приватным», удалить и менять описание канала (по просьбе пользователя)
+        "scope": "https://www.googleapis.com/auth/youtube",
         "access_type": "offline", "prompt": "consent", "code_challenge": challenge, "code_challenge_method": "S256"})
     log("Открываю вход в Google в браузере...")
     webbrowser.open(url)
@@ -189,6 +190,42 @@ def youtube_upload(file: str, title: str, description: str, tags: list, log=prin
     privacy = (body.get("status") or {}).get("privacyStatus", "public")
     return {"id": body["id"], "url": f"https://youtube.com/shorts/{body['id']}", "privacy": privacy,
             "note": "YouTube сделал видео приватным: приложение Google ещё не проверено" if privacy == "private" else ""}
+
+
+YT_API = os.environ.get("SC_YT_API", "https://www.googleapis.com/youtube/v3")
+
+
+def youtube_set_privacy(video_id: str, privacy: str = "private") -> None:
+    token = _yt_token()
+    st, _, body = _json(f"{YT_API}/videos?part=status", {"id": video_id, "status": {"privacyStatus": privacy,
+                                                                                     "selfDeclaredMadeForKids": False}},
+                        token, method="PUT")
+    if st != 200:
+        raise RuntimeError(f"YouTube: не удалось сменить доступ ({st}: {body})")
+
+
+def youtube_delete(video_id: str) -> None:
+    token = _yt_token()
+    st, _, body = _http(f"{YT_API}/videos?id={urllib.parse.quote(video_id)}", None,
+                        {"Authorization": f"Bearer {token}"}, "DELETE")
+    if st not in (200, 204):
+        raise RuntimeError(f"YouTube: не удалось удалить ({st}: {body})")
+
+
+def youtube_channel_description(text: str) -> None:
+    """Описание канала (channels.update → brandingSettings)."""
+    token = _yt_token()
+    st, _, body = _http(f"{YT_API}/channels?part=brandingSettings&mine=true", None, {"Authorization": f"Bearer {token}"})
+    items = (body or {}).get("items") if isinstance(body, dict) else None
+    if st != 200 or not items:
+        raise RuntimeError(f"YouTube: не нашёл канал ({st}: {body})")
+    ch = items[0]
+    branding = ch.get("brandingSettings") or {}
+    branding.setdefault("channel", {})["description"] = text[:1000]
+    st, _, body = _json(f"{YT_API}/channels?part=brandingSettings", {"id": ch["id"], "brandingSettings": branding},
+                        token, method="PUT")
+    if st != 200:
+        raise RuntimeError(f"YouTube: описание канала не обновилось ({st}: {body})")
 
 
 # ---------- Instagram ----------

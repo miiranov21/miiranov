@@ -246,7 +246,8 @@ def _claude_caption(key: str, streamer: str, title: str, top_messages: list[str]
 POST_PROMPT = """You write the publishing text for a short vertical clip from a livestream (YouTube Shorts, Instagram Reels, TikTok).
 Return exactly two parts in this format:
 DESCRIPTION: 1-3 short sentences that hook the viewer and say what the streamer does in the clip; may end with a call to action (subscribe/follow). No chat mentions.
-HASHTAGS: 10-15 hashtags separated by spaces: the streamer (nickname variants), the game, the genre/moment, plus platform tags like #shorts #reels #fyp; mix popular and specific tags; lowercase is fine.
+HASHTAGS: 3-5 topical hashtags separated by spaces: the streamer's nickname, the game, what happened in the moment. NO generic reach tags (#fyp #foryou #viral #рек #рекомендации) and NO platform names (#shorts #reels #tiktok); lowercase is fine.
+The description must contain the words people search for: the streamer's name and what exactly happened (not vague teasers like "wait what just happened").
 Write the description in the language you are told to use (hashtags may mix that language and English)."""
 
 
@@ -262,17 +263,17 @@ def template_post(streamer: str, caption: str, title: str, lang: str, link: str 
     tag = "#" + "".join(ch for ch in s.lower() if ch.isalnum())
     if lang == "ru":
         desc = f"{caption or s + ' на стриме'} 🔥 Лучшие моменты со стримов {s} — каждый день. Подписывайся!"
-        tags = [tag, "#стрим", "#нарезки", "#моментысостримов", "#twitch", "#shorts", "#reels", "#рекомендации"]
+        tags = [tag, "#стрим", "#нарезки"]
     else:
         desc = f"{caption or s + ' on stream'} 🔥 Daily best moments from {s}'s streams. Follow for more!"
-        tags = [tag, "#streamer", "#streamclips", "#twitch", "#shorts", "#reels", "#fyp", "#viral"]
+        tags = [tag, "#streamer", "#streamclips"]
     tags[1:1] = _game_tags(title, lang)
     seen, uniq = set(), []
     for t in tags:
         if t not in seen:
             seen.add(t)
             uniq.append(t)
-    return {"description": desc, "hashtags": " ".join(uniq[:15])}
+    return {"description": desc, "hashtags": " ".join(uniq[:5])}
 
 
 def make_post(streamer: str, caption: str, title: str, transcript: str, lang: str, link: str = "",

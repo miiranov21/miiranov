@@ -116,6 +116,8 @@ def label(op: dict) -> str:
         return T("Подпись автора")
     if t == "trim":
         return T("Обрезка: начало −{0:.1f} с, конец −{1:.1f} с").format(op.get("cut_start", 0), op.get("cut_end", 0))
+    if t == "hook":
+        return T("Хук-надпись: «{0}»").format(op.get("text", ""))
     if t == "recut":
         r = op.get("range") or [0, 0]
         return T("Удлинение (новые границы {0:.0f}–{1:.0f} с стрима)").format(r[0], r[1])
@@ -181,6 +183,18 @@ def build(clip: dict, rec: dict, out: str, log=print) -> dict:
             os.remove(t)
         except OSError:
             pass
+    hook = next((o for o in reversed(rec["ops"]) if o["type"] == "hook" and (o.get("text") or "").strip()), None)
+    if hook:  # хук-надпись вверху кадра в первые секунды — поверх уже готового клипа
+        log(T_("Добавляю хук-надпись..."))
+        ass = f"{stamp}_hook.ass"
+        render.write_caption_ass(os.path.join(work, ass), hook["text"].strip(), 330,
+                                 duration=float(hook.get("seconds") or 3))
+        tmp = os.path.join(work, f"{stamp}_hook.mp4")
+        _ffmpeg(["ffmpeg", "-y", "-v", "error", "-i", os.path.abspath(out), "-vf", f"ass={ass}", "-c:v", "libx264",
+                 "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "copy", os.path.abspath(tmp)],
+                cwd=work)
+        os.remove(os.path.join(work, ass))
+        os.replace(tmp, out)
     new_len = max(0.0, dur - a - b)
     rng = (recut or {}).get("range") or rec.get("range") or [None, None]
     fields = {"words": clipedit.shift_words(words, a, new_len), "credit_burned": False}
@@ -254,3 +268,18 @@ def forget(path: str) -> None:
                 except OSError:
                     pass
         _save(data)
+
+
+def build_variant(clip: dict, extra_ops: list, out: str, log=print) -> str:
+    """Копия клипа под конкретную площадку: правки клипа + монтаж, который посоветовал «Доктор».
+    Сам клип в папке не меняется."""
+    import copy
+    rec = copy.deepcopy(ensure(clip))
+    for e in extra_ops:
+        op = {k: v for k, v in e.items() if k in ("type", "cut_start", "cut_end", "text", "seconds", "pos")}
+        if op.get("type") == "trim":
+            op["cut_start"], op["cut_end"] = float(op.get("cut_start") or 0), float(op.get("cut_end") or 0)
+        if op.get("type") in ("trim", "credit", "hook"):
+            add_op(rec, op)
+    build(clip, rec, out, log)
+    return out

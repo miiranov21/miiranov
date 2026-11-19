@@ -16,6 +16,7 @@ from tkinter.scrolledtext import ScrolledText
 
 from . import library, paths, updater
 from . import i18n
+from .exchange import exchange_dir
 from .i18n import T, tr_line, untranslate
 
 PROG = paths.program_dir()
@@ -36,7 +37,8 @@ DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
 CREDIT_POS = {T("внизу слева"): "bottom-left", T("вверху слева"): "top-left", T("вверху справа"): "top-right"}
 SHOW_ALL = T("все клипы")
 SHOW_FILTERS = {SHOW_ALL: "", T("ещё не на YouTube"): "youtube", T("ещё не в Instagram"): "instagram",
-                T("ещё не в TikTok"): "tiktok", T("нигде не выложенные"): "nowhere", T("с нарушениями"): "violations"}
+                T("ещё не в TikTok"): "tiktok", T("нигде не выложенные"): "nowhere", T("с нарушениями"): "violations",
+                T("советует аналитик"): "advice"}
 SHOW_FOR = {"youtube": T("ещё не на YouTube"), "instagram": T("ещё не в Instagram"), "tiktok": T("ещё не в TikTok")}
 WM_POS = {T("плавает по экрану"): "moving", T("по центру"): "center", T("в углу"): "corner"}
 
@@ -1693,6 +1695,23 @@ class App:
                                              if turn_on else T("Готово: подпись убрана ({0} шт.).")).format(len(todo)))
         threading.Thread(target=work, daemon=True).start()
 
+    _SHORT = {"youtube": "YT", "tiktok": "TT", "instagram": "IG"}
+
+    def _advice_cell(self, c: dict, adv: dict | None) -> str:
+        """Колонка «Совет»: куда «Доктор» советует выложить (ещё не выложенное) или «🗑», если советует удалить."""
+        if not adv:
+            return "—"
+        if adv.get("delete"):
+            return "🗑"
+        parts = []
+        for pl, p in adv.get("platforms", {}).items():
+            if p.get("post") and not c["posted"].get(pl):
+                when = p.get("when") or ""
+                today = time.strftime("%Y-%m-%d")
+                w = when[11:16] if when[:10] == today else (f"{when[8:10]}.{when[5:7]}" if len(when) >= 10 else "")
+                parts.append(self._SHORT.get(pl, pl) + (f" {w}" if w else ""))
+        return " · ".join(parts) or "✔"
+
     def _policy_cell(self, c: dict) -> str:
         res = c.get("policy")
         if not res:
@@ -2780,8 +2799,11 @@ class App:
         btns.pack(side="bottom", fill="x")
         pub_mb = ttk.Menubutton(btns, text=T("🚀  Выложить"), style="Big.TMenubutton")
         pub = tk.Menu(pub_mb, tearoff=0)
+        pub.add_command(label=T("📋 По плану аналитика (что пора выкладывать)"), command=self.publish_plan)
+        pub.add_separator()
         for key, label in library.PLATFORM_NAMES.items():
-            pub.add_command(label=T('в {0}').format(label), command=lambda k=key: self.publish(k))
+            pub.add_command(label=T('в {0}').format(label),
+                            command=lambda k=key: (setattr(self, "_plan_mode", False), self.publish(k)))
         pub_mb["menu"] = pub
         pub_mb.pack(side="left", padx=(0, 6))
         ttk.Button(btns, text=T("✂  Длина"), command=self.edit_clip).pack(side="left", padx=(0, 6))
@@ -2798,6 +2820,11 @@ class App:
         self.b_trash.pack(side="left", padx=(0, 6))
         more = ttk.Menubutton(btns, text=T("Ещё ▾"))
         mm = tk.Menu(more, tearoff=0)
+        mm.add_command(label=T("🩺  Обмен с «Доктором шортсов»: открыть папку"),
+                       command=lambda: (self._export_catalog(), self._open(exchange_dir())))
+        mm.add_command(label=T("📥  Загрузить решения аналитика из файла…"), command=self.import_decisions_file)
+        mm.add_command(label=T("🗑  Удалить, что советует аналитик…"), command=self.delete_advised)
+        mm.add_separator()
         mm.add_command(label=T("☑  Выбрать все"), command=self.select_all_clips)
         mm.add_command(label=T("✍  Описание и хэштеги"), command=self.post_texts)
         mm.add_command(label=T("▶  Открыть в отдельном плеере"), command=self.play_clip)
@@ -2812,12 +2839,12 @@ class App:
         self.preview = VideoPreview(panes, self)  # просмотр клипа прямо в программе
         panes.add(frame, weight=3)
         panes.add(self.preview, weight=2)
-        cols = ("rating", "rules", "author", "streamer", "moment", "caption", "youtube", "instagram", "tiktok")
+        cols = ("rating", "rules", "author", "advice", "streamer", "moment", "caption", "youtube", "instagram", "tiktok")
         self.tree = ttk.Treeview(frame, columns=cols, show="tree headings", style="Clips.Treeview",
                                  selectmode="extended", height=3)
         self.tree.heading("#0", text=T("Превью"))
         self.tree.column("#0", width=66, stretch=False)
-        for c, title, w in (("rating", T("Интерес"), 70), ("rules", T("Правила"), 64), ("author", T("Автор"), 56), ("streamer", T("Стример"), 96), ("moment", T("Момент"), 64),
+        for c, title, w in (("rating", T("Интерес"), 70), ("rules", T("Правила"), 64), ("author", T("Автор"), 56), ("advice", T("Совет"), 92), ("streamer", T("Стример"), 96), ("moment", T("Момент"), 64),
                             ("caption", T("Надпись"), 220), ("youtube", "YT", 40), ("instagram", "Inst", 44),
                             ("tiktok", "TikTok", 50)):
             self.tree.heading(c, text=title)
@@ -2834,6 +2861,78 @@ class App:
         self.tree.bind("<Button-1>", self._clips_click, add="+")
         self.clip_by_iid: dict = {}
         self.root.after(1000, self._auto_refresh)
+        self.root.after(4000, self._exchange_tick)
+
+    # ---------- обмен с «Доктором шортсов» ----------
+    def _export_catalog(self):
+        from . import exchange
+        try:
+            exchange.export_catalog()
+        except Exception as e:
+            self._append(T("Не удалось обновить каталог для аналитика: {0}").format(e) + "\n", important=False)
+
+    def _exchange_tick(self):
+        """Раз в 30 секунд: свежий каталог клипов для «Доктора» и проверка, не прислал ли он решения."""
+        from . import exchange
+        try:
+            path = os.path.join(exchange.exchange_dir(), "decisions.json")
+            mt = os.path.getmtime(path) if os.path.exists(path) else None
+            if mt and mt != getattr(self, "_decisions_mtime", None):
+                first = getattr(self, "_decisions_mtime", None) is None and \
+                    os.path.exists(exchange._store()) and os.path.getmtime(exchange._store()) >= mt
+                self._decisions_mtime = mt
+                if not first:
+                    self._apply_decisions(path)
+            n = len(library.list_dates())
+            if n and time.time() - getattr(self, "_catalog_time", 0) > 60:
+                self._catalog_time = time.time()
+                threading.Thread(target=self._export_catalog, daemon=True).start()
+        except Exception as e:
+            self._append(T("Обмен с аналитиком: {0}").format(e) + "\n", important=False)
+        self.root.after(30000, self._exchange_tick)
+
+    def _apply_decisions(self, path: str):
+        from . import exchange
+        try:
+            sm = exchange.import_decisions(path)
+        except Exception as e:
+            self.activity.event("❌", T("Не получилось прочитать решения аналитика: {0}").format(e), kind="error")
+            return
+        self.activity.event("🩺", T("«Доктор шортсов» прислал решения: выложить — {0}, удалить — {1}, отмечено "
+                                   "выложенным — {2}. Смотри колонку «Совет» во вкладке «Клипы».").format(
+            sm["post"], sm["delete"], sm["posted"]))
+        self.refresh_clips()
+
+    def import_decisions_file(self):
+        path = filedialog.askopenfilename(title=T("Файл решений аналитика"),
+                                          filetypes=[("JSON", "*.json"), (T("Все файлы"), "*.*")])
+        if path:
+            self._apply_decisions(path)
+
+    def delete_advised(self):
+        """Удалить (в корзину) клипы, которые «Доктор» советует удалить — после подтверждения."""
+        from . import exchange
+        dec = exchange.load_decisions()
+        clips = [c for d in library.list_dates() for c in library.list_clips(d)]
+        todo = [c for c in clips if (dec.get(exchange.clip_id(c["path"])) or {}).get("delete")]
+        if not todo:
+            messagebox.showinfo(T("Удалить"), T("Аналитик ничего не советует удалять."))
+            return
+        lines = "\n".join(f"• {c.get('channel', '')}: «{(c.get('caption') or '')[:40]}» — "
+                          f"{(dec[exchange.clip_id(c['path'])].get('reason') or '')[:60]}" for c in todo[:15])
+        if not messagebox.askyesno(T("Удалить"), T("Аналитик советует удалить клипов: {0}.\n\n{1}\n\nПереложить их в "
+                                                  "корзину? Вернуть можно в любой момент.").format(len(todo), lines)):
+            return
+        if self.preview.path in {c["path"] for c in todo}:
+            self.preview.release()
+        for c in todo:
+            try:
+                library.move_to_trash(c, None)
+                self.activity.event("🗑", T("{0}: в корзину по совету аналитика — {1}").format(
+                    c.get("channel", ""), dec[exchange.clip_id(c["path"])].get("reason") or "—"))
+            except OSError:
+                pass
+        self.refresh_clips()
 
     def _auto_refresh(self):
         if self.nb.index(self.nb.select()) == 1:
@@ -2864,8 +2963,9 @@ class App:
         scores = library.frozen_ratings(pool + [c for c in clips if c["path"] not in {p["path"] for p in pool}])
         from . import policy
         pol_results = policy.load_results()
-        from . import credit
+        from . import credit, exchange
         credit_data = credit.load()
+        decisions = exchange.load_decisions()
         for c in clips:
             c["score10"] = scores.get(c["path"], 1)
             c["policy"] = pol_results.get(os.path.normpath(c["path"]))
@@ -2882,12 +2982,16 @@ class App:
                 continue
             if need == "violations" and not (c.get("policy") or {}).get("issues"):
                 continue
+            if need == "advice" and self._advice_cell(c, decisions.get(exchange.clip_id(c["path"]))) in ("", "—"):
+                continue
             img = self._thumb(c["path"])
             if img is None:
                 missing.append(c["path"])
             sec = int(c.get("moment", c.get("start", 0)))
             cst = credit.state(c, credit_data)
+            adv = decisions.get(exchange.clip_id(c["path"]))
             values = (f"{c['score10']}/10", self._policy_cell(c), {"on": "☑", "burned": "☑", "off": "☐", "unknown": "?"}[cst],
+                      self._advice_cell(c, adv),
                       c.get("channel", ""),
                       f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}", c.get("caption", "") or "—",
                       *("✔" if c["posted"].get(p) else "—" for p in library.PLATFORMS))
@@ -2968,6 +3072,30 @@ class App:
                 return iid, c
         return None, None
 
+    def publish_plan(self, skip: set | None = None):
+        """«Выложить → по плану аналитика»: следующий клип и площадка, которым уже пора (по советам «Доктора»)."""
+        from datetime import datetime
+        from . import exchange
+        dates = library.list_dates()
+        clips = [c for d in dates for c in library.list_clips(d)]
+        skip = skip or set()
+        items = [t for t in exchange.plan(clips) if (t[0]["path"], t[1]) not in skip and t[0]["path"] not in skip]
+        now = datetime.now().isoformat(timespec="seconds")
+        ready = [t for t in items if (t[2].get("when") or "") <= now]
+        if not ready:
+            self._plan_mode = False
+            if items:
+                w = items[0][2].get("when", "")
+                messagebox.showinfo(T("Выложить"), T("Сейчас выкладывать нечего. Следующая публикация по плану: {0} — "
+                                                    "{1} в {2}.").format(w.replace("T", " ")[:16], items[0][0].get("channel", ""),
+                                                                         library.PLATFORM_NAMES[items[0][1]]))
+            else:
+                messagebox.showinfo(T("Выложить"), T("Плана от аналитика пока нет (или всё уже выложено)."))
+            return
+        clip, platform, _ = ready[0]
+        self._plan_mode = True
+        self.publish(platform, clip)
+
     def publish(self, platform: str, clip: dict | None = None):
         """Выкладка в пару кликов: файл сам кладётся в папку «К загрузке» (там больше ничего нет),
         открывается страница загрузки, рядом — готовые название, описание и хэштеги."""
@@ -2985,8 +3113,45 @@ class App:
                     return
                 self.tree.selection_set(iid)
                 self.tree.see(iid)
+        from . import exchange
+        advice = ((exchange.decision_for(clip) or {}).get("platforms") or {}).get(platform) or {}
+        if advice.get("edits") and not getattr(self, "_variant_ready", None) == (clip["path"], platform):
+            # «Доктор» посоветовал монтаж под эту площадку — собираем отдельную копию (сам клип не меняется)
+            self.clips_info.config(text=T("Готовлю версию клипа для {0} по совету аналитика...").format(name))
+
+            def work():
+                try:
+                    from . import edits
+                    d = library.upload_dir()
+                    os.makedirs(d, exist_ok=True)
+                    for f in os.listdir(d):
+                        try:
+                            os.remove(os.path.join(d, f))
+                        except OSError:
+                            pass
+                    title = advice.get("title") or clip.get("caption") or os.path.basename(clip["path"])[:-4]
+                    out = os.path.join(d, library._safe_name(title) + ".mp4")
+                    edits.build_variant(clip, advice["edits"], out, log=lambda m: None)
+                    err = None
+                except Exception as e:
+                    out, err = None, e
+                self.root.after(0, lambda: done(out, err))
+
+            def done(out, err):
+                if err:
+                    messagebox.showerror(T("Выложить"), T('Не получилось подготовить файл: {0}').format(err))
+                    return
+                self._variant_ready = (clip["path"], platform)
+                self._variant_file = out
+                self.publish(platform, clip)
+            threading.Thread(target=work, daemon=True).start()
+            return
         try:
-            staged = library.stage_for_upload(clip)
+            if getattr(self, "_variant_ready", None) == (clip["path"], platform):
+                staged = self._variant_file
+                self._variant_ready = None
+            else:
+                staged = library.stage_for_upload(clip)
         except OSError as e:
             messagebox.showerror(T("Выложить"), T('Не получилось подготовить файл: {0}').format(e))
             return
@@ -3109,6 +3274,9 @@ class App:
                 win.destroy()
                 self.post_window = None
                 self.refresh_clips()
+                if getattr(self, "_plan_mode", False):
+                    self.publish_plan(skip=skip | {(c["path"], platform)})
+                    return
                 iid, nxt = self._next_unposted(platform, skip | {c["path"]})
                 if nxt is None:
                     self.clips_info.config(text=T('Готово — невыложенных в {0} клипов больше нет 🎉').format(pname))
@@ -3163,7 +3331,16 @@ class App:
                 orig_fill(post)
                 if not started and win.winfo_exists():
                     start_upload()
-        if c["path"] in self.post_cache:
+        from . import exchange
+        advice = ((exchange.decision_for(c) or {}).get("platforms") or {}).get(platform or "") or {}
+        if advice.get("description") or advice.get("hashtags"):
+            # тексты и хэштеги под эту площадку прислал «Доктор» — берём их
+            if advice.get("title"):
+                fields["title"].delete("1.0", "end")
+                fields["title"].insert("1.0", advice["title"])
+            fill({"description": advice.get("description", ""), "hashtags": " ".join(advice.get("hashtags") or [])})
+            status.config(text=T("Тексты и хэштеги для {0} — от аналитика («Доктор шортсов»).").format(pname or ""))
+        elif c["path"] in self.post_cache:
             fill(self.post_cache[c["path"]])
         else:
             generate()

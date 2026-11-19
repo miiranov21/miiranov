@@ -22,8 +22,42 @@ def desktop_dir() -> str:
     return home
 
 
+_SETTINGS_CACHE: dict = {"mtime": None, "data": {}}
+
+
+def _settings() -> dict:
+    """settings.json окна (общая папка, имя) — с кэшем по времени изменения файла."""
+    import json
+    p = os.path.join(program_dir(), "settings.json")
+    try:
+        mt = os.path.getmtime(p)
+    except OSError:
+        return {}
+    if mt != _SETTINGS_CACHE["mtime"]:
+        try:
+            with open(p, encoding="utf-8") as f:
+                _SETTINGS_CACHE["data"] = json.load(f)
+        except Exception:
+            _SETTINGS_CACHE["data"] = {}
+        _SETTINGS_CACHE["mtime"] = mt
+    return _SETTINGS_CACHE["data"]
+
+
+def team_dir() -> str | None:
+    """Общая папка с другом (в облаке), если включена в «Настройках»."""
+    d = (os.environ.get("STREAM_CLIPPER_TEAM_DIR") or _settings().get("team_dir") or "").strip()
+    return d if d and os.path.isdir(d) else None
+
+
+def user_name() -> str:
+    return (_settings().get("user_name") or os.environ.get("USERNAME") or os.environ.get("USER") or "user").strip()
+
+
 def default_out_dir() -> str:
-    """Рабочий стол\\YouTube — сюда складываются папки по датам."""
+    """Куда складываются папки по датам: общая папка с другом (если включена) или Рабочий стол\\YouTube."""
+    td = team_dir()
+    if td:
+        return os.path.join(td, "Клипы")
     return os.path.join(desktop_dir(), "YouTube")
 
 

@@ -344,6 +344,27 @@ class App:
         root.protocol("WM_DELETE_WINDOW", self.on_close)
         root.after(150, self._drain)
 
+    def _scrollable(self, parent):
+        """Рамка с прокруткой (колесо мыши и полоса справа): (внешняя рамка для вкладки, внутренняя — для содержимого)."""
+        outer = ttk.Frame(parent)
+        bg = (self.pal or {}).get("bg") if getattr(self, "pal", None) else None
+        canvas = tk.Canvas(outer, highlightthickness=0, **({"bg": bg} if bg else {}))
+        sb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        inner = ttk.Frame(canvas, padding=8)
+        win = canvas.create_window(0, 0, window=inner, anchor="nw")
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(win, width=e.width))
+
+        def wheel(e):
+            if canvas.winfo_height() < inner.winfo_reqheight():
+                canvas.yview_scroll(-1 if (e.delta > 0 or getattr(e, "num", 0) == 4) else 1, "units")
+        for seq in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            outer.bind_all(seq, lambda e: wheel(e) if str(e.widget).startswith(str(outer)) else None, add="+")
+        return outer, inner
+
     # ---------- оформление ----------
     def _apply_theme(self, name):
         pal = THEMES.get(name) if name in THEMES else THEMES[T("Фиолетовая (как Twitch)")]
@@ -430,7 +451,7 @@ class App:
         self.nb.pack(fill="both", expand=True)
         main = ttk.Frame(self.nb, padding=8)
         clips = ttk.Frame(self.nb, padding=8)
-        sett = ttk.Frame(self.nb, padding=8)
+        sett_outer, sett = self._scrollable(self.nb)  # настроек стало много — вкладка прокручивается
         themef = ttk.LabelFrame(sett, text=T(" 🎨 Оформление "), padding=6)
         themef.pack(fill="x", pady=(0, 6))
         ttk.Label(themef, text=T("Тема окна:")).pack(side="left")
@@ -452,7 +473,7 @@ class App:
         self.nb.add(streams, text=T("  Стримы  "))
         arch = ttk.Frame(self.nb, padding=8)
         self.nb.add(arch, text=T("  Архив  "))
-        self.nb.add(sett, text=T("  Настройки  "))
+        self.nb.add(sett_outer, text=T("  Настройки  "))
         self.sett = sett
         self._build_clips(clips)
         self._build_streams(streams)
@@ -593,6 +614,7 @@ class App:
         ttk.Label(cr, text=T("  иначе — галочкой в колонке «Автор» на нужных клипах (вкладка «Клипы»)"),
                   foreground=self.muted).pack(side="left")
 
+        self._build_team_settings(sett)
         self._build_telegram(sett)
         self._build_publish_settings(sett)
 
@@ -1719,6 +1741,15 @@ class App:
         threading.Thread(target=work, daemon=True).start()
 
     _SHORT = {"youtube": "YT", "tiktok": "TT", "instagram": "IG"}
+
+    def _posted_cell(self, c: dict, platform: str, by_map: dict) -> str:
+        """«✔» — выложено; в общей папке — «✔ Д», если выложил друг (первая буква имени)."""
+        if not c["posted"].get(platform):
+            return "—"
+        who = (by_map.get(os.path.normpath(c["path"])) or {}).get(platform, "")
+        if who and who != paths.user_name():
+            return "✔ " + who[:1].upper()
+        return "✔"
 
     def _advice_cell(self, c: dict, adv: dict | None) -> str:
         """Колонка «Совет»: куда «Доктор» советует выложить (ещё не выложенное) или «🗑», если советует удалить."""
@@ -2884,6 +2915,95 @@ class App:
         ttk.Button(bar, text=T("Закрыть"), command=win.destroy).pack(side="right")
         fill()
 
+    # ---------- настройки: общая папка с другом ----------
+    def _build_team_settings(self, parent):
+        box = ttk.LabelFrame(parent, text=T(" 👥 Общая папка с другом — общие клипы и галочки «выложено» "), padding=6)
+        box.pack(fill="x", pady=(0, 6))
+        ttk.Label(box, foreground=self.muted, wraplength=1050, justify="left", text=T(
+            "Сделайте папку в облаке с приложением на компьютере (Google Диск, Яндекс Диск, Dropbox), расшарьте её только "
+            "друг другу и укажите здесь у обоих. Клипы будут нарезаться в неё, вы оба увидите все клипы и кто что выложил. "
+            "Инструкция — файл «ОБЩАЯ ПАПКА — настройка.txt».")).pack(anchor="w")
+        r1 = ttk.Frame(box)
+        r1.pack(fill="x", pady=(4, 0))
+        ttk.Label(r1, text=T("Папка:")).pack(side="left")
+        self.v["team_dir"] = tk.StringVar(value=self.cfg.get("team_dir", ""))
+        ttk.Entry(r1, textvariable=self.v["team_dir"], width=55).pack(side="left", padx=4)
+        ttk.Button(r1, text=T("Выбрать…"), command=self._team_choose).pack(side="left")
+        ttk.Label(r1, text=T("  Моё имя:")).pack(side="left")
+        self.v["user_name"] = tk.StringVar(value=self.cfg.get("user_name", ""))
+        ttk.Entry(r1, textvariable=self.v["user_name"], width=12).pack(side="left", padx=4)
+        r2 = ttk.Frame(box)
+        r2.pack(fill="x", pady=(4, 0))
+        self.v["team_main"] = tk.BooleanVar(value=bool(self.cfg.get("team_main", True)))
+        ttk.Checkbutton(r2, text=T("Этот компьютер ведёт автопилот и публикации через Telegram (включите только у одного из вас)"),
+                        variable=self.v["team_main"], command=self._save_settings).pack(side="left")
+        r3 = ttk.Frame(box)
+        r3.pack(fill="x", pady=(4, 0))
+        ttk.Button(r3, text=T("✔ Включить общую папку"), command=self._team_apply).pack(side="left")
+        ttk.Button(r3, text=T("📦 Перенести мои клипы в общую папку"), command=self._team_migrate).pack(side="left", padx=6)
+        ttk.Button(r3, text=T("Выключить"), command=self._team_off).pack(side="left")
+        self.team_status = ttk.Label(r3, text="", foreground=self.muted)
+        self.team_status.pack(side="left", padx=8)
+        self._team_show()
+
+    def _team_show(self):
+        td = paths.team_dir()
+        if td:
+            from . import team
+            users = sorted({u for u, _ in team.files("posted")} | {os.path.basename(p)[11:-5]
+                                                                 for _, p in library._day_files()} | {team.me()})
+            self.team_status.config(text=T("✔ включена: {0} · участники: {1}").format(td, ", ".join(u for u in users if u)),
+                                    foreground="#3ddc84")
+        else:
+            self.team_status.config(text=T("выключена — клипы только на этом компьютере"), foreground=self.muted)
+
+    def _team_choose(self):
+        d = filedialog.askdirectory(title=T("Общая папка в облаке"))
+        if d:
+            self.v["team_dir"].set(d)
+
+    def _team_apply(self):
+        d, name = self.v["team_dir"].get().strip(), self.v["user_name"].get().strip()
+        if not d or not os.path.isdir(d):
+            messagebox.showinfo(T("Общая папка"), T("Выбери существующую папку (она должна синхронизироваться облаком)."))
+            return
+        if not name:
+            messagebox.showinfo(T("Общая папка"), T("Впиши своё имя — так будет видно, кто нарезал и кто выложил клип."))
+            return
+        self._save_settings()
+        self.refresh_clips()
+        self._team_show()
+        self.activity.event("👥", T("Общая папка включена: {0}. Новые клипы будут нарезаться туда.").format(d))
+        if self.proc:
+            self._append(T("Нажми «Стоп» и снова «Следить» — работа начнёт складывать клипы в общую папку.") + "\n")
+        if messagebox.askyesno(T("Общая папка"), T("Перенести в общую папку клипы, которые уже есть на этом компьютере? "
+                                                  "Тогда их увидит и друг.")):
+            self._team_migrate()
+
+    def _team_migrate(self):
+        from . import team
+        if not paths.team_dir():
+            messagebox.showinfo(T("Общая папка"), T("Сначала включи общую папку."))
+            return
+        old = os.path.join(paths.desktop_dir(), "YouTube")
+        self.preview.release()
+        self.team_status.config(text=T("переношу..."))
+
+        def work():
+            try:
+                n, err = team.migrate(old, log=lambda m: None), None
+            except Exception as e:
+                n, err = 0, e
+            self.root.after(0, lambda: (self.team_status.config(text=T("Перенесено клипов: {0}").format(n) if not err
+                                                                else tr_line(str(err))), self.refresh_clips()))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _team_off(self):
+        self.v["team_dir"].set("")
+        self._save_settings()
+        self.refresh_clips()
+        self._team_show()
+
     def _stream_rows(self) -> dict:
         """Все известные стримы по каналам: из памяти программы + загруженные с сайта."""
         from . import progress
@@ -3205,6 +3325,8 @@ class App:
             self.root.after(self.AUTOPILOT_EVERY, self._autopilot_tick)
         if not self.v["autopilot"].get() or getattr(self, "_autopilot_busy", False):
             return
+        if paths.team_dir() and not self.v["team_main"].get():
+            return  # общая папка: автопилот ведёт компьютер друга, чтобы не делать работу дважды
         from .caption import _api_key
         self._autopilot_busy = True
         paused = bool(self.v["pub_paused"].get())
@@ -3242,6 +3364,8 @@ class App:
         self.root.after(20000, self._assist_tick)
         from . import telegram, tg_assist
         if getattr(self, "_assist_busy", False) or not telegram.load().get("token") or tg_assist.mode() != "telegram_assist":
+            return
+        if paths.team_dir() and not self.v["team_main"].get():
             return
         self._assist_busy = True
         paused = bool(self.v["pub_paused"].get())
@@ -3378,6 +3502,9 @@ class App:
         from . import policy
         pol_results = policy.load_results()
         from . import credit, exchange
+        by_map = library.posted_by()
+        from . import team as _team
+        me_safe = _team._safe(paths.user_name()) if paths.team_dir() else ""
         credit_data = credit.load()
         decisions = exchange.load_decisions()
         for c in clips:
@@ -3406,9 +3533,9 @@ class App:
             adv = decisions.get(exchange.clip_id(c["path"]))
             values = (f"{c['score10']}/10", self._policy_cell(c), {"on": "☑", "burned": "☑", "off": "☐", "unknown": "?"}[cst],
                       self._advice_cell(c, adv),
-                      c.get("channel", ""),
+                      c.get("channel", "") + (f" · {c['by']}" if c.get("by") and c["by"] != me_safe else ""),
                       f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}", c.get("caption", "") or "—",
-                      *("✔" if c["posted"].get(p) else "—" for p in library.PLATFORMS))
+                      *(self._posted_cell(c, p, by_map) for p in library.PLATFORMS))
             iid = self.tree.insert("", "end", text="", image=img or "", values=values)
             self.clip_by_iid[iid] = c
             if c["path"] in sel_paths:

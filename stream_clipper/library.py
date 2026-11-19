@@ -37,8 +37,51 @@ def make_thumb(clip: str, height: int = 128) -> str | None:
     return out if os.path.exists(out) else None
 
 
+def _day_files(date: str | None = None) -> list[tuple[str, str]]:
+    """Файлы дневника: [(кто, путь)]. В общей папке — свои и друга, иначе — один файл на день."""
+    from . import team
+    if team.enabled():
+        import glob
+        d = os.path.join(team.shared_dir(), "days")
+        out = []
+        for p in glob.glob(os.path.join(d, (date or "??.??.????") + ".*.json")):
+            base = os.path.basename(p)
+            out.append((base[11:-5], p))
+        return out
+    d = os.path.join(_state(), "days")
+    if date:
+        p = os.path.join(d, date + ".json")
+        return [("", p)] if os.path.exists(p) else []
+    import glob
+    return [("", p) for p in glob.glob(os.path.join(d, "*.json"))]
+
+
+def day_entries(date: str) -> list[dict]:
+    """Все записи клипов за день (свои и друга), с полем «by» — кто нарезал."""
+    out = []
+    for user, p in _day_files(date):
+        try:
+            with open(p, encoding="utf-8") as f:
+                for c in json.load(f).get("clips", []):
+                    out.append(dict(c, by=user))
+        except Exception:
+            continue
+    return out
+
+
 def list_dates() -> list[str]:
     """Даты (ДД.ММ.ГГГГ), за которые есть клипы, — новые сверху."""
+    from . import team
+    if team.enabled():
+        dates = sorted({os.path.basename(p)[:10] for u, p in _day_files() if day_entries(os.path.basename(p)[:10])})
+
+        def key(s):
+            try:
+                dd, mm, yy = s.split(".")
+                return (int(yy), int(mm), int(dd))
+            except ValueError:
+                return (0, 0, 0)
+        return sorted(dates, key=key, reverse=True)
     d = os.path.join(_state(), "days")
     if not os.path.isdir(d):
         return []
@@ -65,11 +108,8 @@ def list_dates() -> list[str]:
 def list_clips(date: str, out_dir: str | None = None, include_missing: bool = False) -> list[dict]:
     """Клипы за день (только те, чьи файлы существуют), новые сверху.
     include_missing=True — и удалённые (у них c["missing"] = True): их можно вернуть из корзины или нарезать заново."""
-    p = os.path.join(_state(), "days", date + ".json")
-    try:
-        with open(p, encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception:
+    data = {"clips": day_entries(date)}
+    if not data["clips"]:
         return []
     root = os.path.join(out_dir or paths.default_out_dir(), date)
     posted = load_posted()
@@ -99,6 +139,9 @@ def _posted_file() -> str:
 
 def load_posted() -> dict:
     """{путь клипа: {"youtube": True, "instagram": False, ...}}. Старые отметки «выложен» считаем YouTube."""
+    from . import team
+    if team.enabled():
+        return team.load_posted()[0]
     try:
         with open(_posted_file(), encoding="utf-8") as f:
             data = json.load(f)
@@ -107,7 +150,17 @@ def load_posted() -> dict:
     return {k: (v if isinstance(v, dict) else {"youtube": bool(v)}) for k, v in data.items()}
 
 
+def posted_by() -> dict:
+    """Кто выложил: {путь: {площадка: имя}} (только в общей папке с другом)."""
+    from . import team
+    return team.load_posted()[1] if team.enabled() else {}
+
+
 def set_posted(path: str, value, platform: str = "youtube") -> None:
+    from . import team
+    if team.enabled():
+        team.set_posted(path, bool(value), platform)
+        return
     data = load_posted()
     entry = data.get(path, {})
     if value:
@@ -184,18 +237,18 @@ def update_clip(path: str, fields: dict, out_dir: str | None = None) -> bool:
     root = os.path.normpath(out_dir or paths.default_out_dir())
     rel = os.path.relpath(path, root)
     date = rel.split(os.sep)[0]
-    p = os.path.join(_state(), "days", date + ".json")
-    try:
-        with open(p, encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception:
-        return False
-    for c in data.get("clips", []):
-        if os.path.normpath(os.path.join(root, date, c.get("file", ""))) == path:
-            c.update(fields)
-            with open(p, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=1)
-            return True
+    for _, p in _day_files(date):  # в общей папке — в том файле дня, где записан клип (свой или друга)
+        try:
+            with open(p, encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        for c in data.get("clips", []):
+            if os.path.normpath(os.path.join(root, date, c.get("file", ""))) == path:
+                c.update(fields)
+                with open(p, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=1)
+                return True
     return False
 
 
@@ -207,19 +260,26 @@ def _ratings_file() -> str:
 def frozen_ratings(clips: list[dict]) -> dict:
     """Оценка каждого клипа «замораживается» при первом показе. Удаление слабых клипов не двигает остальные,
     поэтому хороший клип случайно не «съедет» вниз списка."""
-    try:
-        with open(_ratings_file(), encoding="utf-8") as f:
-            saved = json.load(f)
-    except Exception:
-        saved = {}
+    from . import team
+    if team.enabled():
+        saved = team.load_merged("ratings")
+    else:
+        try:
+            with open(_ratings_file(), encoding="utf-8") as f:
+                saved = json.load(f)
+        except Exception:
+            saved = {}
     new = [c for c in clips if c["path"] not in saved]
     if new:
         from .caption import display_ratings
         fresh = display_ratings(clips)  # новым клипам — место среди всех (и удалённых тоже)
         for c in new:
             saved[c["path"]] = fresh.get(c["path"], 1)
-        with open(_ratings_file(), "w", encoding="utf-8") as f:
-            json.dump(saved, f, ensure_ascii=False, indent=0)
+        if team.enabled():  # оценка ставится один раз — и она одинаковая у вас обоих
+            team.put_many("ratings", {c["path"]: saved[c["path"]] for c in new})
+        else:
+            with open(_ratings_file(), "w", encoding="utf-8") as f:
+                json.dump(saved, f, ensure_ascii=False, indent=0)
     return {c["path"]: saved.get(c["path"], 1) for c in clips}
 
 
@@ -304,6 +364,9 @@ def _published_file() -> str:
 
 
 def load_published() -> dict:
+    from . import team
+    if team.enabled():
+        return team.load_merged("published", "t")
     try:
         with open(_published_file(), encoding="utf-8") as f:
             return json.load(f)
@@ -319,6 +382,13 @@ def record_published(path: str, platform: str, title: str, description: str, pos
         rec["id"] = post_id
     if url:
         rec["url"] = url
+    from . import team
+    if team.enabled():
+        cur = team.load_merged("published", "t").get(os.path.normpath(path)) or {}
+        cur = dict(cur, t=time.time())
+        cur[platform] = dict(rec, by=team.me())
+        team.put("published", path, cur)
+        return
     data.setdefault(os.path.normpath(path), {})[platform] = rec
     with open(_published_file(), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=1)

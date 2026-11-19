@@ -280,6 +280,9 @@ def _store() -> str:
 
 
 def load_results() -> dict:
+    from . import team
+    if team.enabled():  # проверки правил общие — клип друга тоже нельзя выложить с наготой
+        return team.load_merged("policy", "checked")
     try:
         with open(_store(), encoding="utf-8") as f:
             return json.load(f)
@@ -288,6 +291,10 @@ def load_results() -> dict:
 
 
 def save_result(clip: str, result: dict) -> None:
+    from . import team
+    if team.enabled():
+        team.put("policy", clip, dict(result, checked=result.get("checked") or time.time()))
+        return
     data = load_results()
     data[os.path.normpath(clip)] = result
     os.makedirs(os.path.dirname(_store()), exist_ok=True)

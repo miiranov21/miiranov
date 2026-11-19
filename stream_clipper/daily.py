@@ -27,6 +27,11 @@ def set_state_dir(path: str) -> None:
 
 
 def _log_path(folder: str) -> str:
+    from . import team
+    if team.enabled():  # общая папка с другом: свой файл дня рядом с файлом друга
+        d = os.path.join(team.shared_dir(), "days")
+        os.makedirs(d, exist_ok=True)
+        return os.path.join(d, f"{os.path.basename(os.path.normpath(folder))}.{team._safe(team.me())}.json")
     if STATE_DIR:
         d = os.path.join(STATE_DIR, "days")
         os.makedirs(d, exist_ok=True)
@@ -165,12 +170,8 @@ def similar_moment(root: str, channel: str, center: float, tol: float = 25.0) ->
     """Этот момент стрима у стримера уже нарезан (сегодня или вчера) — например, сначала из эфира, потом из записи."""
     from datetime import datetime, timedelta
     for day in (datetime.now(), datetime.now() - timedelta(days=1)):
-        folder = os.path.join(root, day.strftime("%d.%m.%Y"))  # без создания папки
-        try:
-            data = _load(folder)
-        except Exception:
-            continue
-        for c in data.get("clips", []):
+        from . import library
+        for c in library.day_entries(day.strftime("%d.%m.%Y")):  # и свои, и друга (общая папка)
             if (c.get("channel") or "").lower() != (channel or "").lower():
                 continue
             try:

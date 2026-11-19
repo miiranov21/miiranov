@@ -1,0 +1,48 @@
+STREAM CLIPPER — ОБЩАЯ ПАПКА ДЛЯ ДВОИХ (общие клипы и галочки «выложено»)
+(ниже — то же самое на азербайджанском)
+
+Что это даёт
+• Вы оба видите все клипы: свои и друга. В списке клипов рядом со стримером написано, кто нарезал («KaiCenat · Друг»).
+• Галочки «выложено» общие. «✔ Д» значит, что выложил друг (первая буква имени). Одно видео дважды не выложите.
+• Проверка правил общая: клип с неисправленной наготой не выложит ни один из вас.
+• Доступ только у вас двоих: папка лежит в вашем облаке и расшарена только друг другу.
+
+Как настроить (один раз)
+1. Выберите облако с приложением для компьютера: Google Диск, Яндекс Диск или Dropbox.
+   Яндекс Диск и Google Диск работают и в России, и за границей. Бесплатно дают 10–15 ГБ, этого хватит
+   на сотни клипов; ненужные клипы программа уносит в «Архив» и освобождает место.
+2. Один из вас создаёт в облаке папку, например «StreamClipper общая», и делится ею со вторым
+   (доступ «редактирование»). Второй принимает приглашение.
+3. Оба ставят приложение облака на компьютер и включают синхронизацию этой папки.
+   В проводнике она должна появиться как обычная папка.
+4. В Stream Clipper: «Настройки» → «👥 Общая папка с другом» → «Выбрать…» (указать эту папку) → вписать своё имя
+   → «✔ Включить общую папку». Программа спросит, перенести ли уже нарезанные клипы: «Да», и их увидит друг.
+5. Галочку «Этот компьютер ведёт автопилот и публикации через Telegram» оставьте только у ОДНОГО из вас,
+   иначе бот будет присылать посты дважды. Если хотите, чтобы оба получали посты, добавьте обоих в одну группу
+   Telegram с ботом: нажать «✅ Выложил» сможет любой.
+6. Договоритесь, кто за какими стримерами следит, чтобы не нарезать одно и то же дважды
+   (повтор одного момента программа и так пропускает).
+
+Если что-то не видно: подождите минуту, пока облако синхронизируется, и нажмите «⟳ Обновить» во вкладке «Клипы».
+
+────────────────────────────────────────────
+
+STREAM CLIPPER — İKİ NƏFƏR ÜÇÜN ÜMUMİ QOVLUQ (ümumi kliplər və «paylaşılıb» işarələri)
+
+Bu nə verir
+• Hər ikiniz bütün klipləri görürsünüz: özünüzünkünü və dostunuzunkunu. Siyahıda strimerin yanında kimin kəsdiyi yazılır.
+• «Paylaşılıb» işarələri ümumidir: «✔ R» — Ruslan paylaşıb (adın ilk hərfi). Eyni videonu iki dəfə paylaşmazsınız.
+• Qaydaların yoxlanması ümumidir: düzəldilməmiş çılpaqlıq olan klipi heç biriniz paylaşa bilməz.
+• Giriş yalnız ikinizdədir: qovluq sizin buludunuzdadır və yalnız bir-birinizlə paylaşılıb.
+
+Necə qurmaq (bir dəfə)
+1. Kompüter tətbiqi olan bulud seçin: Google Disk, Yandex Disk və ya Dropbox.
+2. Biriniz buludda qovluq yaradır (məsələn, «StreamClipper ümumi») və onu digəri ilə paylaşır («redaktə» icazəsi).
+3. Hər ikiniz bulud tətbiqini kompüterə quraşdırır və bu qovluğun sinxronizasiyasını yandırır.
+4. Stream Clipper-də: «Ayarlar» → «👥 Dostla ümumi qovluq» → «Seç…» (bu qovluğu göstərin) → adınızı yazın →
+   «✔ Ümumi qovluğu yandır». Proqram artıq kəsilmiş klipləri köçürməyi soruşacaq — «Bəli».
+5. «Bu kompüter avtopilotu və Telegram paylaşımlarını aparır» işarəsini yalnız BİRİNİZDƏ saxlayın,
+   yoxsa bot postları iki dəfə göndərəcək.
+6. Kim hansı strimerləri izləyir — razılaşın.
+
+Bir şey görünmürsə: buludun sinxronizasiyası üçün bir dəqiqə gözləyin və «Kliplər» bölməsində «⟳ Yenilə» düyməsini basın.

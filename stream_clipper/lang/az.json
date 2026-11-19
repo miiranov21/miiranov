@@ -749,5 +749,16 @@
 "{0}: запись стрима недоступна — достал сжатую копию": "{0}: strim qeydi əlçatmazdır — sıxılmış nüsxə çıxarıldı",
 "{0}: достал из архива в полном качестве — «{1}»": "{0}: arxivdən tam keyfiyyətdə çıxarıldı — «{1}»",
 "Удалить из архива навсегда: {0}? Достать их будет нельзя (разве что заново из записи стрима вручную).": "Arxivdən həmişəlik silinsin: {0}? Onları çıxarmaq olmayacaq (yalnız strim qeydindən əllə yenidən).",
-"Монтаж для {0}: пропущено — {1}": "{0} üçün montaj: ötürüldü — {1}"
+"Монтаж для {0}: пропущено — {1}": "{0} üçün montaj: ötürüldü — {1}",
+" 📤 Автопубликация (официальные API площадок) ": "📤 Avtomatik paylaşım (platformaların rəsmi API-ləri)",
+"Настраивается один раз. Пошаговая инструкция — файл «АВТОПУБЛИКАЦИЯ — настройка.txt» в папке программы. TikTok до проверки их приложения принимает видео только в черновики — останется нажать «Опубликовать» в телефоне.": "Bir dəfə qurulur. Addım-addım təlimat — proqram qovluğunda «АВТОПУБЛИКАЦИЯ — настройка.txt» faylı. TikTok tətbiqi yoxlanana qədər videoları yalnız qaralamalara qəbul edir — telefonda «Dərc et» düyməsini basmaq qalacaq.",
+"Подключить (файл client_secret.json)…": "Qoşul (client_secret.json faylı)…",
+"ID аккаунта:": "Hesab ID-si:",
+"Токен:": "Token:",
+"✔ подключено": "✔ qoşulub",
+"подключаю... (войди в аккаунт в открывшемся браузере)": "qoşuluram... (açılan brauzerdə hesaba daxil ol)",
+"{0} подключён для автопубликации": "{0} avtomatik paylaşım üçün qoşuldu",
+"Файл client_secret.json из Google Cloud": "Google Cloud-dan client_secret.json faylı",
+"Впиши ID аккаунта Instagram и токен доступа.": "Instagram hesab ID-sini və giriş tokenini yaz.",
+"Впиши Client key и Client secret своего приложения TikTok.": "Öz TikTok tətbiqinin Client key və Client secret-ini yaz."
 }

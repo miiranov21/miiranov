@@ -594,6 +594,7 @@ class App:
                   foreground=self.muted).pack(side="left")
 
         self._build_telegram(sett)
+        self._build_publish_settings(sett)
 
         # кнопки
         btns = ttk.Frame(main)
@@ -2695,6 +2696,102 @@ class App:
         for r in recs:
             archive.forget(r)
         self.refresh_archive()
+
+    # ---------- настройки: автопубликация через официальные API ----------
+    def _build_publish_settings(self, parent):
+        from . import publisher
+        box = ttk.LabelFrame(parent, text=T(" 📤 Автопубликация (официальные API площадок) "), padding=6)
+        box.pack(fill="x", pady=(0, 6))
+        ttk.Label(box, foreground=self.muted, wraplength=1050, justify="left", text=T(
+            "Настраивается один раз. Пошаговая инструкция — файл «АВТОПУБЛИКАЦИЯ — настройка.txt» в папке программы. "
+            "TikTok до проверки их приложения принимает видео только в черновики — останется нажать «Опубликовать» в телефоне.")
+                  ).pack(anchor="w")
+        self.pub_status: dict = {}
+        rows = ttk.Frame(box)
+        rows.pack(fill="x", pady=(4, 0))
+        # YouTube
+        ttk.Label(rows, text="YouTube:", width=11).grid(row=0, column=0, sticky="w")
+        ttk.Button(rows, text=T("Подключить (файл client_secret.json)…"), command=self._yt_connect).grid(row=0, column=1, sticky="w")
+        self.pub_status["youtube"] = ttk.Label(rows, text="")
+        self.pub_status["youtube"].grid(row=0, column=2, sticky="w", padx=8)
+        # Instagram
+        ttk.Label(rows, text="Instagram:", width=11).grid(row=1, column=0, sticky="w", pady=4)
+        igf = ttk.Frame(rows)
+        igf.grid(row=1, column=1, sticky="w", pady=4)
+        ig = publisher.load().get("instagram") or {}
+        self.ig_id = tk.StringVar(value=ig.get("user_id", ""))
+        self.ig_token = tk.StringVar(value=ig.get("token", ""))
+        ttk.Label(igf, text=T("ID аккаунта:")).pack(side="left")
+        ttk.Entry(igf, textvariable=self.ig_id, width=18).pack(side="left", padx=4)
+        ttk.Label(igf, text=T("Токен:")).pack(side="left")
+        ttk.Entry(igf, textvariable=self.ig_token, width=26, show="•").pack(side="left", padx=4)
+        ttk.Button(igf, text=T("Подключить"), command=self._ig_connect).pack(side="left")
+        self.pub_status["instagram"] = ttk.Label(rows, text="")
+        self.pub_status["instagram"].grid(row=1, column=2, sticky="w", padx=8)
+        # TikTok
+        ttk.Label(rows, text="TikTok:", width=11).grid(row=2, column=0, sticky="w")
+        ttf = ttk.Frame(rows)
+        ttf.grid(row=2, column=1, sticky="w")
+        tt = publisher.load().get("tiktok") or {}
+        self.tt_key = tk.StringVar(value=tt.get("client_key", ""))
+        self.tt_secret = tk.StringVar(value=tt.get("client_secret", ""))
+        ttk.Label(ttf, text="Client key:").pack(side="left")
+        ttk.Entry(ttf, textvariable=self.tt_key, width=18).pack(side="left", padx=4)
+        ttk.Label(ttf, text="Client secret:").pack(side="left")
+        ttk.Entry(ttf, textvariable=self.tt_secret, width=18, show="•").pack(side="left", padx=4)
+        ttk.Button(ttf, text=T("Подключить"), command=self._tt_connect).pack(side="left")
+        self.pub_status["tiktok"] = ttk.Label(rows, text="")
+        self.pub_status["tiktok"].grid(row=2, column=2, sticky="w", padx=8)
+        self._update_pub_status()
+
+    def _update_pub_status(self):
+        from . import publisher
+        cfg, ok = publisher.load(), publisher.connected()
+        for pl, lbl in self.pub_status.items():
+            if ok[pl]:
+                extra = (cfg.get(pl) or {}).get("username") or ""
+                lbl.config(text=T("✔ подключено") + (f" (@{extra})" if extra else ""), foreground="#3ddc84")
+            else:
+                lbl.config(text=T("не подключено"), foreground=self.muted)
+
+    def _pub_bg(self, platform: str, fn):
+        lbl = self.pub_status[platform]
+        lbl.config(text=T("подключаю... (войди в аккаунт в открывшемся браузере)"))
+
+        def work():
+            try:
+                fn()
+                err = None
+            except Exception as e:
+                err = e
+            self.root.after(0, lambda: (self._update_pub_status(),
+                                        messagebox.showwarning(library.PLATFORM_NAMES[platform], tr_line(str(err)))
+                                        if err else self.activity.event("📤", T("{0} подключён для автопубликации").format(
+                                            library.PLATFORM_NAMES[platform]))))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _yt_connect(self):
+        from . import publisher
+        path = filedialog.askopenfilename(title=T("Файл client_secret.json из Google Cloud"),
+                                          filetypes=[("JSON", "*.json"), (T("Все файлы"), "*.*")])
+        if path:
+            self._pub_bg("youtube", lambda: publisher.youtube_connect(path))
+
+    def _ig_connect(self):
+        from . import publisher
+        uid, tok = self.ig_id.get().strip(), self.ig_token.get().strip()
+        if not uid or not tok:
+            messagebox.showinfo("Instagram", T("Впиши ID аккаунта Instagram и токен доступа."))
+            return
+        self._pub_bg("instagram", lambda: publisher.instagram_connect(uid, tok))
+
+    def _tt_connect(self):
+        from . import publisher
+        key, sec = self.tt_key.get().strip(), self.tt_secret.get().strip()
+        if not key or not sec:
+            messagebox.showinfo("TikTok", T("Впиши Client key и Client secret своего приложения TikTok."))
+            return
+        self._pub_bg("tiktok", lambda: publisher.tiktok_connect(key, sec))
 
     def _stream_rows(self) -> dict:
         """Все известные стримы по каналам: из памяти программы + загруженные с сайта."""

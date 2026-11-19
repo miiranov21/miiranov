@@ -81,3 +81,24 @@ def deliveries(times_msk: list, now: datetime) -> tuple[datetime | None, datetim
     past = [t for t in inst if t <= now_l]
     fut = [t for t in inst if t > now_l]
     return (past[-1] if past else None), (fut[0] if fut else None)
+
+
+def et_to_local(et_naive: datetime) -> datetime:
+    """Время по восточному времени США → наивное время компьютера (с учётом летнего/зимнего времени в США)."""
+    guess = et_naive + timedelta(hours=5)  # как будто зима
+    off = et_offset(guess)
+    u = (et_naive - off).replace(tzinfo=timezone.utc)
+    return to_local(u)
+
+
+def slot_instances_et(times_et: list, now: datetime, days: int = 14) -> list[datetime]:
+    """Будущие слоты по времени США (ET) — постоянное время для аудитории; по Москве оно само сдвигается."""
+    base = et(now).replace(hour=0, minute=0, second=0, microsecond=0)
+    out = []
+    for d in range(-1, days + 1):
+        day = base + timedelta(days=d)
+        for t in times_et or []:
+            hm = _hm(t)
+            if hm:
+                out.append(et_to_local(day.replace(hour=hm[0], minute=hm[1])))
+    return sorted(set(out))

@@ -336,8 +336,11 @@ def next_slot(platform: str, st: dict, strat: dict, now: datetime | None = None)
     сдвиг между площадками (чтобы не выходить везде одновременно)."""
     ap = strat.get("autopilot") or {}
     now = now or datetime.now()
+    slots_et = (ap.get("target_slots_et") or {}).get(platform)
     slots = (ap.get("target_slots_msk") or {}).get(platform)
-    if slots:  # расписание под США: слоты по московскому времени из стратегии «Доктора»
+    if slots_et:  # расписание под США: постоянное время аудитории (ET), по Москве сдвигается само
+        return _target_slot(platform, slots_et, st, ap, now, zone="et")
+    if slots:  # запасной вариант: слоты по московскому времени
         return _target_slot(platform, slots, st, ap, now)
     win = ap.get("post_window_local") or {"from": 12, "to": 23}
     gap = timedelta(hours=float(ap.get("min_gap_hours", 4)))
@@ -371,7 +374,7 @@ def next_slot(platform: str, st: dict, strat: dict, now: datetime | None = None)
     return t
 
 
-def _target_slot(platform: str, slots: list, st: dict, ap: dict, now: datetime) -> datetime:
+def _target_slot(platform: str, slots: list, st: dict, ap: dict, now: datetime, zone: str = "msk") -> datetime:
     """Первый свободный слот площадки. Если публикацию планируют в приложении (schedule_in_app), слот должен быть
     позже следующей дневной отправки пачки в Telegram (+30 мин) — иначе его не успеют запланировать."""
     from . import schedule
@@ -388,7 +391,8 @@ def _target_slot(platform: str, slots: list, st: dict, ap: dict, now: datetime) 
         t = _parse((q or {}).get("when"))
         if t and (q or {}).get("status") not in ("skipped", "error"):
             mine.add(t.replace(second=0, microsecond=0))
-    for t in schedule.slot_instances(slots, now, days=30):
+    inst = schedule.slot_instances_et(slots, now, days=30) if zone == "et" else schedule.slot_instances(slots, now, days=30)
+    for t in inst:
         if t >= earliest and t.replace(second=0, microsecond=0) not in mine:
             return t.replace(second=0, microsecond=0)
     return earliest.replace(second=0, microsecond=0)

@@ -1427,8 +1427,9 @@ ${imgs.length ? `Прикреплены кадры из видео по поря
     const game = /gta/i.test((c.caption || "") + (c.transcript || "")) ? ["#gta6", "#gta"] : [];
     const tags = ["#" + s.replace(/\W/g, "").toLowerCase(), ...game, ru ? "#стрим" : "#stream"].slice(0, 5);
     const title = c.caption || (ru ? `${s}: лучший момент стрима` : `${s} best stream moment`);
+    const weak = /peak .* in gta|you have to see|in a nutshell|chat|чат|бля|хуй|хуя|ебан|нахуй|craziest moment|лучший момент стрима|вот за это смотрят|и его реакция/i.test(c.caption || "");
     return {
-      hook: c.has_hook ? "" : (ru ? `${s.toUpperCase()} ТАКОГО НЕ ЖДАЛ` : `${s.toUpperCase()} DIDN'T EXPECT THIS`),
+      hook: (c.has_hook && !weak) ? "" : (ru ? `${s.toUpperCase()} ТАКОГО НЕ ЖДАЛ` : `${s.toUpperCase()} DIDN'T EXPECT THIS`),
       tiktok: { title, description: title + (ru ? ". Что бы ты сделал?" : ". What would you do?"), hashtags: tags },
       youtube: { title: title.slice(0, 60), description: title, hashtags: tags.slice(0, 3) },
       instagram: { title, description: title + (ru ? "\nОтправь другу, который это оценит" : "\nSend this to a friend who needs to see it"), hashtags: tags }
@@ -1452,7 +1453,7 @@ ${imgs.length ? `Прикреплены кадры из видео по поря
 - TikTok: title до 80 символов, description 1–2 предложения + вопрос зрителю;
 - YouTube Shorts: title до 60 символов, главное ключевое слово в начале; description 1 предложение; 2–3 хэштега;
 - Instagram Reels: description: первая строка цепляет, дальше призыв переслать другу; до 5 хэштегов;
-- hook: если has_hook=false, придумай крупную надпись на первые 3 секунды (до 6 слов, ЗАГЛАВНЫМИ), про стримера и момент; если has_hook=true — пустая строка;
+- hook: крупная надпись на первые 3 секунды (до 6 слов, ЗАГЛАВНЫМИ), про стримера и момент. Пиши её, если has_hook=false ИЛИ текущая надпись on_video_caption слабая: шаблонная («Peak X in GTA 6», «You have to see this…», «in a nutshell»), говорит про чат («chat lost it», «"LOL" — chat…») или содержит мат. Если текущая надпись сильная — пустая строка;
 - не выдумывай событий, которых нет в надписи и расшифровке.${stats}
 
 Клипы (JSON):
@@ -1482,8 +1483,8 @@ ${JSON.stringify(items)}
           if (!pp) return;
           const tx = t[p] || {};
           const edits = [];
-          if (!c.has_hook && t.hook) edits.push({ type: "hook", text: String(t.hook).slice(0, 60), seconds: 3 });
-          if (!c.credit) edits.push({ type: "credit", pos: "bottom-left" });
+          if (t.hook) edits.push(c.has_hook ? { type: "replace_hook", text: String(t.hook).slice(0, 60) } : { type: "hook", text: String(t.hook).slice(0, 60), seconds: 3 });
+          if (!c.credit) edits.push({ type: "credit", pos: "top-left" });
           dec.platforms[p] = { post: true, when: isoLocal(pp.when), title: tx.title || "", description: tx.description || "",
             hashtags: (tx.hashtags || []).slice(0, 5), edits };
         });
@@ -1557,8 +1558,8 @@ ${JSON.stringify(items)}
       tb.append(tr);
     });
     o.append(sch);
-    const hooks = plan.chosen.filter(c => !c.has_hook && texts[c.id] && texts[c.id].hook);
-    if (hooks.length) o.append(listCard("Добавить хук на первые 3 секунды", hooks.map(c => `${c.streamer} · ${c.id.split("/").pop()}: «${texts[c.id].hook}»`), "warn"));
+    const hooks = plan.chosen.filter(c => texts[c.id] && texts[c.id].hook);
+    if (hooks.length) o.append(listCard("Новый хук на первые 3 секунды", hooks.map(c => `${c.streamer} · ${c.id.split("/").pop()}: «${texts[c.id].hook}»`), "warn"));
     if (plan.matches && plan.matches.length) o.append(listCard("Найдено в аналитике — отмечу как выложенное",
       plan.matches.map(m => `${PL_NAME[m.p]}: ${m.c.streamer} · ${m.c.id.split("/").pop()} — ${fmt(m.v.f.views, 0)} просм.`), "good"));
     if (plan.del.length) o.append(listCard("Советую удалить", plan.del.slice(0, 60).map(c => `${c.streamer} · ${c.id.split("/").pop()}: ${c._.delReason}`).concat(plan.del.length > 60 ? [`и ещё ${plan.del.length - 60}`] : []), "bad"));

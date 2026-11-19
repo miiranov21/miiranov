@@ -307,8 +307,56 @@ def _duration(path: str) -> float:
         return 60.0
 
 
-def build_fix_filters(issues: list, size=(1080, 1920), subs_burned: bool = True, dur: float = 60.0):
-    """Фильтры ffmpeg для исправления: (видео-фильтр, аудио-фильтр) или None, если править нечего."""
+def subtitle_lines(words: list, words_per_line: int = 3) -> list[tuple[float, float, str]]:
+    """Строки субтитров ровно так, как их нарезает subtitles.make_ass: (начало, конец, текст)."""
+    ws = []
+    for item in words or []:
+        try:
+            ws.append((float(item[0]), float(item[1]), str(item[2])))
+        except (TypeError, ValueError, IndexError):
+            continue
+    ws = [w for w in ws if w[2].strip()]
+    lines, cur = [], []
+    for w in ws:
+        if cur and (len(cur) >= words_per_line or w[0] - cur[-1][1] > 0.6):
+            lines.append(cur)
+            cur = []
+        cur.append(w)
+    if cur:
+        lines.append(cur)
+    out = []
+    for i, ln in enumerate(lines):
+        start, end = ln[0][0], ln[-1][1] + 0.15
+        if i + 1 < len(lines):
+            end = min(end, lines[i + 1][0][0])
+        out.append((start, end, " ".join(w[2].strip() for w in ln)))
+    return out
+
+
+def _subs_cover(issues: list, words: list | None, dur: float) -> tuple[list, list]:
+    """Какие строки субтитров надо закрыть: [(начало, конец)] для размытия и [(начало, конец, текст со звёздочками)]."""
+    speech = [i for i in issues if i.get("kind") in ("profanity", "slur") and i.get("fix") in ("bleep", "mute")]
+    if not speech:
+        return [], []
+    lines = subtitle_lines(words or [])
+    spans, redraw = [], []
+    for i in speech:
+        hit = [ln for ln in lines if ln[0] < i["t1"] + 0.05 and ln[1] > i["t0"] - 0.05]
+        if not hit:  # слов нет (старый клип) — закрываем с запасом вокруг слова
+            spans.append((max(0.0, i["t0"] - 1.2), min(dur, i["t1"] + 1.2)))
+            continue
+        for a, b, text in hit:
+            span = (max(0.0, a - 0.1), min(dur, b + 0.1))
+            if span not in spans:
+                spans.append(span)
+                redraw.append((a, b, censor_text(text)))
+    return spans, redraw
+
+
+def build_fix_filters(issues: list, size=(1080, 1920), subs_burned: bool = True, dur: float = 60.0,
+                      words: list | None = None, redraw_ass: str | None = None):
+    """Фильтры ffmpeg для исправления: (видео-фильтр, аудио-фильтр) или None, если править нечего.
+    redraw_ass — имя .ass-файла с той же строкой субтитров, но со звёздочками (рисуется поверх размытой)."""
     W, H = size
     bleep = [(i["t0"], min(i["t1"], dur)) for i in issues if i.get("fix") == "bleep"]
     mute = [(i["t0"], min(i["t1"], dur)) for i in issues if i.get("fix") == "mute"]
@@ -328,15 +376,20 @@ def build_fix_filters(issues: list, size=(1080, 1920), subs_burned: bool = True,
             rect = (0, 0, W, H)
         blurs.append((rect, (i["t0"], min(i["t1"], dur))))
     if subs_burned:
-        for span in bleep:  # писк + размытая строка субтитров, чтобы слово нельзя было прочитать
+        # строка субтитров с матом висит на экране дольше самого слова — размываем ВСЮ строку на всё её время
+        spans, _ = _subs_cover(issues, words, dur)
+        for span in spans:
             blurs.append((SUBS_BOX, span))
     vf = None
     if blurs:
         chain, cur = [], "0:v"
         for n, ((x, y, w, h), (a, b)) in enumerate(blurs):
-            chain.append(f"[{cur}]split[m{n}][c{n}];[c{n}]crop={w}:{h}:{x}:{y},boxblur=30:3[b{n}];"
+            chain.append(f"[{cur}]split[m{n}][c{n}];[c{n}]crop={w}:{h}:{x}:{y},boxblur=40:4[b{n}];"
                          f"[m{n}][b{n}]overlay={x}:{y}:enable='between(t,{a:.2f},{b:.2f})'[v{n}]")
             cur = f"v{n}"
+        if redraw_ass:  # поверх размытого — та же строка, но «б**» вместо мата, чтобы субтитры не пропадали
+            chain.append(f"[{cur}]ass={redraw_ass}[vr]")
+            cur = "vr"
         vf = ";".join(chain).rsplit(f"[{cur}]", 1)[0] + "[v]"
     af = None
     if bleep or mute:
@@ -351,19 +404,33 @@ def build_fix_filters(issues: list, size=(1080, 1920), subs_burned: bool = True,
     return vf, af
 
 
-def fix_clip(src: str, out: str, issues: list, subs_burned: bool = True) -> str:
+def fix_clip(src: str, out: str, issues: list, subs_burned: bool = True, words: list | None = None) -> str:
     dur = _duration(src)
-    vf, af = build_fix_filters(issues, subs_burned=subs_burned, dur=dur)
+    ass_name, cwd = None, None
+    if subs_burned:
+        _, redraw = _subs_cover(issues, words, dur)
+        if redraw:
+            from .subtitles import ASS_HEADER, _ts
+            cwd = os.path.join(paths.default_work_dir(), "fixed")
+            os.makedirs(cwd, exist_ok=True)
+            ass_name = "censor.ass"
+            with open(os.path.join(cwd, ass_name), "w", encoding="utf-8") as f:
+                f.write(ASS_HEADER)
+                for a, b, text in redraw:
+                    text = text.upper().replace("{", "(").replace("}", ")")
+                    f.write(f"Dialogue: 0,{_ts(a)},{_ts(b)},Default,,0,0,0,,{text}\n")
+    vf, af = build_fix_filters(issues, subs_burned=subs_burned, dur=dur, words=words, redraw_ass=ass_name)
     if not vf and not af:
         raise ValueError("нечего исправлять")
     graph = ";".join(x for x in (vf, af) if x)
+    src, out = os.path.abspath(src), os.path.abspath(out)  # ffmpeg запускается из папки субтитров (пути с «:»)
     cmd = ["ffmpeg", "-y", "-v", "error", "-i", src, "-filter_complex", graph,
            "-map", "[v]" if vf else "0:v", "-map", "[a]" if af else "0:a?"]
     cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p"] if vf else ["-c:v", "copy"]
     cmd += ["-c:a", "aac", "-b:a", "160k"] if af else ["-c:a", "copy"]
     cmd += ["-movflags", "+faststart", out]
     flags = 0x08000000 if os.name == "nt" else 0
-    r = subprocess.run(cmd, capture_output=True, text=True, creationflags=flags)
+    r = subprocess.run(cmd, capture_output=True, text=True, creationflags=flags, cwd=cwd)
     if r.returncode != 0:
         raise RuntimeError("ffmpeg: " + r.stderr[-600:])
     return out

@@ -1758,7 +1758,9 @@ class App:
 
             def work():
                 try:
-                    policy.fix_clip(c["path"], out, chosen, subs_burned=bool(c.get("transcript") or c.get("words")))
+                    words = c.get("words") or (c.get("policy") or {}).get("words") or []
+                    policy.fix_clip(c["path"], out, chosen, subs_burned=bool(c.get("transcript") or words),
+                                    words=words)
                     err = None
                 except Exception as e:
                     err = e

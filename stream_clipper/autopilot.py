@@ -367,8 +367,9 @@ def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEW
         c["_score"] = score(c, strat)
     by_path = {c["path"]: c for c in clips}
 
-    # 1) публикация того, чему пора
-    if not paused and ap.get("auto_publish", True):
+    # 1) публикация того, чему пора (в режиме «через Telegram» выкладку ведёт tg_assist — бот присылает пост в слот)
+    from . import tg_assist
+    if not paused and ap.get("auto_publish", True) and tg_assist.mode() != "telegram_assist":
         stats["published"] += _publish_due(st, by_path, strat, say, event)
 
     # 2) отбор

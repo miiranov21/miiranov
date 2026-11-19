@@ -671,6 +671,7 @@ class App:
         self.job = None  # что сейчас делается: ("watch",) или ("vod", ссылка)
         self.root.after(1500, self._resume_after_update)
         self.root.after(20000, self._autopilot_tick)
+        self.root.after(15000, self._assist_tick)
         self.root.after(2500, self.check_updates)
 
     # ---------- горячие клавиши и меню правой кнопки ----------
@@ -3151,6 +3152,31 @@ class App:
             else:
                 self.status.config(text=T("🤖 Автопилот: новых клипов для отбора нет, жду"))
             self._check_trends()
+        threading.Thread(target=work, daemon=True).start()
+
+    def _assist_tick(self):
+        """Раз в 20 секунд: публикация через Telegram — отправить то, чему пора, и прочитать «✅ Выложил» / «⏭ Пропустить»."""
+        self.root.after(20000, self._assist_tick)
+        from . import telegram, tg_assist
+        if getattr(self, "_assist_busy", False) or not telegram.load().get("token") or tg_assist.mode() != "telegram_assist":
+            return
+        self._assist_busy = True
+        paused = bool(self.v["pub_paused"].get())
+
+        def event(icon, text, path=None, kind="info"):
+            self.root.after(0, lambda: self.activity.event(icon, tr_line(text), path, kind))
+
+        def work():
+            try:
+                stats = tg_assist.tick(paused, event)
+            except Exception as e:
+                stats = {"error": str(e)}
+            self.root.after(0, lambda: done(stats))
+
+        def done(stats):
+            self._assist_busy = False
+            if stats.get("posted"):
+                self.refresh_clips()
         threading.Thread(target=work, daemon=True).start()
 
     def _check_trends(self):

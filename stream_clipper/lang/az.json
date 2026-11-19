@@ -804,5 +804,15 @@
 "Перенести в общую папку клипы, которые уже есть на этом компьютере? Тогда их увидит и друг.": "Bu kompüterdə artıq olan kliplər ümumi qovluğa köçürülsün? Onda dostun da onları görəcək.",
 "Сначала включи общую папку.": "Əvvəlcə ümumi qovluğu yandır.",
 "переношу...": "köçürürəm...",
-"Перенесено клипов: {0}": "Köçürülən kliplər: {0}"
+"Перенесено клипов: {0}": "Köçürülən kliplər: {0}",
+"ты (основной чат)": "sən (əsas çat)",
+"Получают посты: {0}": "Postları alır: {0}",
+"ждут подтверждения: {0}": "təsdiq gözləyir: {0}",
+"Новых желающих нет. Пусть друг откроет твоего бота в Telegram и нажмёт «Старт», подожди полминуты и нажми эту кнопку снова.": "Yeni istəyən yoxdur. Qoy dostun Telegram-da sənin botunu açıb «Start» düyməsini bassın, yarım dəqiqə gözlə və bu düyməni yenidən bas.",
+"Добавить получателей: {0}? Им будут приходить те же видео и посты, и они смогут нажимать «✅ Выложил».": "Alıcılar əlavə edilsin: {0}? Onlara eyni videolar və postlar gələcək və onlar «✅ Paylaşdım» düyməsini basa biləcəklər.",
+"Получатели постов: {0}": "Postların alıcıları: {0}",
+"Убрать получателей: {0}? Посты им приходить перестанут.": "Alıcılar çıxarılsın: {0}? Onlara postlar gəlməyəcək.",
+"👥 Чтобы посты приходили и другу: он открывает твоего бота в Telegram и жмёт «Старт», а ты нажимаешь «Добавить друга». Вам обоим будут приходить одни и те же видео; кто выложил — жмёт «✅ Выложил», и у второго кнопка сразу меняется на «Выложил: имя». Программа другу не нужна.": "👥 Postlar dostuna da gəlsin deyə: o, Telegram-da sənin botunu açıb «Start» basır, sən isə «Dostu əlavə et» düyməsini basırsan. İkinizə də eyni videolar gələcək; kim paylaşıbsa — «✅ Paylaşdım» basır və digərində düymə dərhal «Paylaşdı: ad» olur. Dostuna proqram lazım deyil.",
+"➕ Добавить друга": "➕ Dostu əlavə et",
+"Убрать получателей": "Alıcıları çıxar"
 }

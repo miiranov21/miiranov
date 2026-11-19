@@ -1017,6 +1017,71 @@ class App:
         self.tg_status = ttk.Label(row, text=(T("✔ подключено: ") + cfg.get("name", "")) if cfg.get("chat_id")
                                    else T("не подключено"), foreground=self.muted)
         self.tg_status.pack(side="left", padx=6)
+        rr = ttk.Frame(tg)
+        rr.pack(fill="x", pady=(6, 0))
+        ttk.Label(rr, foreground=self.muted, wraplength=1050, justify="left", text=T(
+            "👥 Чтобы посты приходили и другу: он открывает твоего бота в Telegram и жмёт «Старт», а ты нажимаешь "
+            "«Добавить друга». Вам обоим будут приходить одни и те же видео; кто выложил — жмёт «✅ Выложил», и у второго "
+            "кнопка сразу меняется на «Выложил: имя». Программа другу не нужна.")).pack(anchor="w")
+        rr2 = ttk.Frame(tg)
+        rr2.pack(fill="x", pady=(4, 0))
+        ttk.Button(rr2, text=T("➕ Добавить друга"), command=self._tg_approve).pack(side="left")
+        ttk.Button(rr2, text=T("Убрать получателей"), command=self._tg_remove_recipient).pack(side="left", padx=6)
+        self.tg_recips = ttk.Label(rr2, text=self._tg_recipients_text())
+        self.tg_recips.pack(side="left", padx=6)
+
+    def _tg_recipients_text(self) -> str:
+        from . import telegram
+        c = telegram.load()
+        names = [T("ты (основной чат)")] + [e.get("name", "?") for e in c.get("extra_chats") or []]
+        pend = c.get("pending_chats") or []
+        txt = T("Получают посты: {0}").format(", ".join(names))
+        if pend:
+            txt += "   ·   " + T("ждут подтверждения: {0}").format(", ".join(p["name"] for p in pend))
+        return txt
+
+    def _tg_refresh_recipients(self):
+        if hasattr(self, "tg_recips"):
+            self.tg_recips.config(text=self._tg_recipients_text())
+
+    def _tg_approve(self):
+        """Подтвердить тех, кто нажал «Старт» у бота (например, друга): им будут приходить те же посты."""
+        from . import telegram
+        c = telegram.load()
+        pend = c.get("pending_chats") or []
+        if not pend:
+            messagebox.showinfo("Telegram", T("Новых желающих нет. Пусть друг откроет твоего бота в Telegram и нажмёт "
+                                             "«Старт», подожди полминуты и нажми эту кнопку снова."))
+            return
+        names = ", ".join(p["name"] for p in pend)
+        if not messagebox.askyesno("Telegram", T("Добавить получателей: {0}? Им будут приходить те же видео и посты, "
+                                                "и они смогут нажимать «✅ Выложил».").format(names)):
+            return
+        extra = c.setdefault("extra_chats", [])
+        for p in pend:
+            if p["id"] not in [e["id"] for e in extra]:
+                extra.append(p)
+                try:
+                    telegram._call(c["token"], "sendMessage", data={"chat_id": p["id"], "text": "✅ Готово! Теперь сюда будут "
+                                    "приходить видео для публикации. Выложил — нажми «✅ Выложил» под постом."})
+                except Exception:
+                    pass
+        c["pending_chats"] = []
+        telegram.save(c)
+        self._tg_refresh_recipients()
+        self.activity.event("👥", T("Получатели постов: {0}").format(", ".join(e["name"] for e in extra)))
+
+    def _tg_remove_recipient(self):
+        from . import telegram
+        c = telegram.load()
+        extra = c.get("extra_chats") or []
+        if not extra:
+            return
+        if messagebox.askyesno("Telegram", T("Убрать получателей: {0}? Посты им приходить перестанут.").format(
+                ", ".join(e["name"] for e in extra))):
+            c["extra_chats"] = []
+            telegram.save(c)
+            self._tg_refresh_recipients()
 
     def _tg_toggle(self):
         from . import telegram
@@ -3382,6 +3447,7 @@ class App:
 
         def done(stats):
             self._assist_busy = False
+            self._tg_refresh_recipients()
             if stats.get("posted"):
                 self.refresh_clips()
         threading.Thread(target=work, daemon=True).start()

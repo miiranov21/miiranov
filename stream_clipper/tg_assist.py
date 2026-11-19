@@ -151,37 +151,61 @@ def _buttons(job: dict, jid: str) -> str:
         ensure_ascii=False)
 
 
+def recipients(c: dict) -> list[dict]:
+    """Кому слать посты: основной чат (личный или группа) + подтверждённые получатели (например, друг)."""
+    out = [{"id": c["chat_id"], "main": True}]
+    for e in c.get("extra_chats") or []:
+        if e.get("id") and e["id"] != c["chat_id"]:
+            out.append({"id": e["id"], "name": e.get("name", "")})
+    return out
+
+
 def _send(c: dict, jid: str, job: dict, channel: str) -> None:
+    """Видео и текст с кнопками — каждому получателю (видео загружается один раз, остальным уходит по file_id)."""
     target = _target(c)
     if not c.get("assist_hint"):
-        try:
-            m = telegram._call(c["token"], "sendMessage", data={"chat_id": c["chat_id"], "text": HINT, **target})
+        for r in recipients(c):
             try:
-                telegram._call(c["token"], "pinChatMessage", data={"chat_id": c["chat_id"], "message_id": m["message_id"],
-                                                                   "disable_notification": "true"})
+                m = telegram._call(c["token"], "sendMessage", data={"chat_id": r["id"], "text": HINT,
+                                                                    **(target if r.get("main") else {})})
+                try:
+                    telegram._call(c["token"], "pinChatMessage", data={"chat_id": r["id"], "message_id": m["message_id"],
+                                                                       "disable_notification": "true"})
+                except Exception:
+                    pass
             except Exception:
                 pass
-            c["assist_hint"] = True
-            telegram.save(c)
-        except Exception:
-            pass
+        c["assist_hint"] = True
+        telegram.save(c)
     video = _fit_size(_render_for(job))
+    msgs, file_id = [], None
     try:
-        with open(video, "rb") as f:
-            v = telegram._call(c["token"], "sendVideo", timeout=900,
-                               data={"chat_id": c["chat_id"], "supports_streaming": "true",
-                                     "caption": f"{NAMES[job['platform']]} · {channel}", **target},
-                               files={"video": (f"{job['platform']}_{jid}.mp4", f, "video/mp4")})
+        for r in recipients(c):
+            extra = target if r.get("main") else {}
+            data = {"chat_id": r["id"], "supports_streaming": "true",
+                    "caption": f"{NAMES[job['platform']]} · {channel}", **extra}
+            try:
+                if file_id:
+                    v = telegram._call(c["token"], "sendVideo", timeout=120, data=dict(data, video=file_id))
+                else:
+                    with open(video, "rb") as f:
+                        v = telegram._call(c["token"], "sendVideo", timeout=900, data=data,
+                                           files={"video": (f"{job['platform']}_{jid}.mp4", f, "video/mp4")})
+                    file_id = ((v.get("video") or {}).get("file_id")) or None
+                m = telegram._call(c["token"], "sendMessage", data={"chat_id": r["id"], "text": _text(job, channel),
+                                                                    "parse_mode": "HTML", "reply_markup": _buttons(job, jid),
+                                                                    "reply_to_message_id": v["message_id"], **extra})
+                msgs.append({"chat": r["id"], "msg": m["message_id"], "video": v["message_id"]})
+            except Exception:
+                if r.get("main"):
+                    raise  # основной чат обязателен; у друга может быть, например, бот на паузе — не мешаем остальным
     finally:
         if video.endswith("tg_assist_small.mp4"):
             try:
                 os.remove(video)
             except OSError:
                 pass
-    m = telegram._call(c["token"], "sendMessage", data={"chat_id": c["chat_id"], "text": _text(job, channel),
-                                                        "parse_mode": "HTML", "reply_markup": _buttons(job, jid),
-                                                        "reply_to_message_id": v["message_id"], **target})
-    job.update({"status": "sent", "msg_id": m["message_id"], "video_msg": v["message_id"], "sent_at": time.time()})
+    job.update({"status": "sent", "msgs": msgs, "msg_id": msgs[0]["msg"] if msgs else None, "sent_at": time.time()})
 
 
 def _next_when(st: dict, platform: str) -> str:
@@ -207,46 +231,78 @@ def _sync_autopilot(job: dict, status: str, when: str | None = None) -> None:
         autopilot.save_state(ap)
 
 
+def _who(cq: dict) -> str:
+    u = cq.get("from") or {}
+    return (u.get("first_name") or u.get("username") or "").strip()
+
+
 def handle_updates(st: dict, c: dict, event) -> int:
-    """Нажатия «✅ Выложил» / «⏭ Пропустить»."""
+    """Нажатия «✅ Выложил» / «⏭ Пропустить» (от любого получателя) и новые желающие получать посты (/start)."""
     ups = telegram._call(c["token"], "getUpdates", timeout=20,
                          data={"offset": st.get("offset", 0), "timeout": 0,
-                               "allowed_updates": json.dumps(["callback_query"])})
+                               "allowed_updates": json.dumps(["message", "callback_query"])})
+    known = {r["id"] for r in recipients(c)}
     n = 0
     for u in ups:
         st["offset"] = max(st.get("offset", 0), u["update_id"] + 1)
+        msg = u.get("message") or {}
+        chat = msg.get("chat") or {}
+        if msg and chat.get("type") == "private" and chat.get("id") not in known:
+            # кто-то нажал «Старт» у бота — посты он получит только после подтверждения в программе
+            pend = c.setdefault("pending_chats", [])
+            if chat["id"] not in [p["id"] for p in pend]:
+                name = chat.get("first_name") or chat.get("username") or str(chat["id"])
+                pend.append({"id": chat["id"], "name": name})
+                telegram.save(c)
+                event("👤", f"{name} нажал «Старт» у бота и хочет получать посты — подтверди в «Настройки» → Telegram",
+                      None, "warn")
+                try:
+                    telegram._call(c["token"], "sendMessage", data={
+                        "chat_id": chat["id"], "text": "👋 Запрос принят. Посты начнут приходить, когда владелец "
+                                                       "подтвердит тебя в программе Stream Clipper."})
+                except Exception:
+                    pass
+            continue
         cq = u.get("callback_query")
         if not cq or ":" not in (cq.get("data") or ""):
             continue
         act, jid = cq["data"].split(":", 1)
         job = st["jobs"].get(jid)
+        who = _who(cq)
         note = "?"
         if job and act == "ok" and job["status"] != "posted":
             library.set_posted(job["path"], True, job["platform"])
             library.record_published(job["path"], job["platform"], job.get("title", ""),
                                      (job.get("description", "") + "\n\n" + " ".join(job.get("hashtags") or [])).strip())
             job["status"] = "posted"
+            job["posted_by"] = who
             _sync_autopilot(job, "published")
-            note = "✅ Отмечено: выложено"
-            event("✅", f"{os.path.basename(job['path'])[:-4]}: выложено в {NAMES[job['platform']]} (отмечено в Telegram)",
-                  job["path"], "clip")
+            note = f"✅ Выложил{': ' + who if who else ''}"
+            event("✅", f"{os.path.basename(job['path'])[:-4]}: выложено в {NAMES[job['platform']]}"
+                       f"{' (' + who + ')' if who else ''}", job["path"], "clip")
             n += 1
+        elif job and act == "ok":
+            note = f"Уже выложено{': ' + job.get('posted_by') if job.get('posted_by') else ''}"
         elif job and act == "skip" and job["status"] != "posted":
             job["when"] = _next_when(st, job["platform"])
             job["status"] = "pending"
             job.pop("reminded", None)
             _sync_autopilot(job, "waiting", job["when"])
-            note = f"⏭ Перенёс на {job['when'][8:10]}.{job['when'][5:7]} {job['when'][11:16]}"
+            note = f"⏭ {who + ' перенёс' if who else 'Перенёс'} на {job['when'][8:10]}.{job['when'][5:7]} {job['when'][11:16]}"
             event("⏭", f"{os.path.basename(job['path'])[:-4]}: {NAMES[job['platform']]} — {note}", None, "info")
         try:
             telegram._call(c["token"], "answerCallbackQuery", data={"callback_query_id": cq["id"], "text": note})
-            if job and job.get("msg_id"):
-                telegram._call(c["token"], "editMessageReplyMarkup",
-                               data={"chat_id": c["chat_id"], "message_id": job["msg_id"],
-                                     "reply_markup": json.dumps({"inline_keyboard": [[{"text": note, "callback_data": "noop:0"}]]},
-                                                                ensure_ascii=False)})
         except Exception:
             pass
+        if job and act in ("ok", "skip"):  # кнопки меняются у ВСЕХ получателей — второй увидит, что уже выложено
+            for m in job.get("msgs") or ([{"chat": c["chat_id"], "msg": job["msg_id"]}] if job.get("msg_id") else []):
+                try:
+                    telegram._call(c["token"], "editMessageReplyMarkup", data={
+                        "chat_id": m["chat"], "message_id": m["msg"],
+                        "reply_markup": json.dumps({"inline_keyboard": [[{"text": note, "callback_data": "noop:0"}]]},
+                                                   ensure_ascii=False)})
+                except Exception:
+                    pass
     return n
 
 
@@ -296,15 +352,16 @@ def tick(paused: bool, event) -> dict:
                 event("❌", f"Telegram: не отправилось ({NAMES[job['platform']]}) — {e}"[:220], None, "error")
     for jid, job in st["jobs"].items():  # одно напоминание через 30 минут
         if job["status"] == "sent" and not job.get("reminded") and time.time() - job.get("sent_at", 0) > REMIND_AFTER:
-            try:
-                telegram._call(c["token"], "sendMessage", data={
-                    "chat_id": c["chat_id"], "text": f"⏰ Напоминание: {NAMES[job['platform']]} ждёт публикации — "
-                                                     "выложи и нажми «✅ Выложил» (или «⏭ Пропустить»).",
-                    "reply_to_message_id": job.get("msg_id"), **_target(c)})
-                job["reminded"] = True
-                stats["reminded"] += 1
-            except Exception:
-                pass
+            for m in job.get("msgs") or [{"chat": c["chat_id"], "msg": job.get("msg_id")}]:
+                try:
+                    telegram._call(c["token"], "sendMessage", data={
+                        "chat_id": m["chat"], "text": f"⏰ Напоминание: {NAMES[job['platform']]} ждёт публикации — "
+                                                      "выложи и нажми «✅ Выложил» (или «⏭ Пропустить»).",
+                        "reply_to_message_id": m["msg"], **(_target(c) if m["chat"] == c["chat_id"] else {})})
+                except Exception:
+                    pass
+            job["reminded"] = True
+            stats["reminded"] += 1
     save(st)
     return stats
 

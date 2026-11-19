@@ -151,10 +151,18 @@ def send_clip(path: str, clip: dict, channel: str) -> str:
     name = f"{safe}_{sec // 3600}h{sec % 3600 // 60:02d}m{sec % 60:02d}s.mp4"  # латиницей — везде читается
     try:
         with open(send_path, "rb") as f:
-            _call(c["token"], "sendDocument", timeout=600,
-                  data={"chat_id": c["chat_id"], "caption": caption, "disable_content_type_detection": "true",
-                        **target},
-                  files={"document": (name, f, "application/octet-stream")})
+            res = _call(c["token"], "sendDocument", timeout=600,
+                        data={"chat_id": c["chat_id"], "caption": caption, "disable_content_type_detection": "true",
+                              **target},
+                        files={"document": (name, f, "application/octet-stream")})
+        fid = ((res or {}).get("document") or {}).get("file_id")
+        for e in c.get("extra_chats") or []:  # тот же клип — и другим получателям (без повторной загрузки)
+            if fid and e.get("id") and e["id"] != c["chat_id"]:
+                try:
+                    _call(c["token"], "sendDocument", timeout=120,
+                          data={"chat_id": e["id"], "caption": caption, "document": fid})
+                except Exception:
+                    pass
     finally:
         if send_path != path:
             try:

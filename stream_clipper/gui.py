@@ -1639,15 +1639,23 @@ class App:
             return
         opened = getattr(self, "_publish_opened", set())
         self._publish_opened = opened
-        if "folder" not in opened:  # окно папки открываем один раз — дальше файл в нём просто меняется
+        auto = platform == "youtube" and self.cfg.get("yt_auto", True)
+        if not auto:
+            self._open_manual_upload(platform)
+        self.post_texts(clip, platform, staged, auto=auto)
+
+    def _open_manual_upload(self, platform: str, force: bool = False):
+        """Ручной способ: страница загрузки в обычном браузере + окно папки «К загрузке» (по разу за сеанс)."""
+        opened = self._publish_opened
+        if force or "folder" not in opened:  # окно папки открываем один раз — дальше файл в нём просто меняется
             opened.add("folder")
             self._open(library.upload_dir())
-        if platform not in opened:
+        if force or platform not in opened:
             opened.add(platform)
             webbrowser.open(library.UPLOAD_PAGES[platform])
-        self.post_texts(clip, platform, staged)
 
-    def post_texts(self, clip: dict | None = None, platform: str | None = None, staged: str = ""):
+    def post_texts(self, clip: dict | None = None, platform: str | None = None, staged: str = "",
+                   auto: bool = False):
         """Окно с описанием и хэштегами для выбранного клипа (YouTube / Instagram / TikTok)."""
         from . import caption as cap
         if clip is None:
@@ -1677,6 +1685,9 @@ class App:
                                 f"момент {sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}",
                       font=("Segoe UI", 12, "bold")).pack(anchor="w")
             ttk.Label(frm, wraplength=620, justify="left", text=(
+                "Программа сама откроет YouTube в отдельном окне браузера и вставит туда файл, название, описание "
+                "и хэштеги. Тебе останется проверить и нажать «Опубликовать».\n"
+                "В первый раз войди в этом окне в свой Google-аккаунт — дальше он запомнится.") if auto else (
                 f"Файл уже лежит в папке «К загрузке» (Рабочий стол → YouTube → К загрузке), кроме него там ничего нет.\n"
                 f"На сайте {pname} нажми «Выбрать файл» и открой эту папку — или перетащи файл из открытого окна папки.\n"
                 + ("Имя файла = название ролика, YouTube подставит его сам." if platform == "youtube" else "")
@@ -1689,6 +1700,9 @@ class App:
                        command=lambda: self._open(library.upload_dir())).pack(side="left", padx=6)
             ttk.Button(tools, text="📋  Путь к файлу",
                        command=lambda: self._copy_text(staged, win)).pack(side="left")
+            if auto:
+                ttk.Button(tools, text="▶  Вставить в YouTube ещё раз",
+                           command=lambda: start_upload()).pack(side="left", padx=6)
         fields = {}
         for key, label, h in (("title", "Название (надпись на клипе)", 2), ("description", "Описание", 5),
                               ("hashtags", "Хэштеги", 3)):
@@ -1758,6 +1772,41 @@ class App:
             ttk.Button(nb, text="Пропустить этот", command=lambda: go_next(False)).pack(side="left", padx=6)
         if not hasattr(self, "post_cache"):
             self.post_cache = {}
+        started = []
+
+        def start_upload():
+            """Заполняем YouTube в браузере (в фоне, чтобы окно программы не замирало)."""
+            from . import browser_upload
+            started.append(1)
+            title = fields["title"].get("1.0", "end-1c").strip()
+            desc = (fields["description"].get("1.0", "end-1c").strip() + "\n\n"
+                    + fields["hashtags"].get("1.0", "end-1c").strip()).strip()
+
+            def say(msg):
+                def show():
+                    if win.winfo_exists():
+                        status.config(text=msg)
+                    self.clips_info.config(text=msg)
+                self.root.after(0, show)
+
+            def work():
+                try:
+                    ok = browser_upload.youtube_upload(staged, title, desc, log=say)
+                except Exception as e:
+                    say(f"Не получилось заполнить YouTube автоматически: {type(e).__name__}: {e}")
+                    ok = False
+                if not ok:
+                    say("Автоматически не вышло — открыл страницу загрузки и папку «К загрузке», перетащи файл сам.")
+                    self.root.after(0, lambda: self._open_manual_upload(platform, force=True))
+            threading.Thread(target=work, daemon=True).start()
+
+        if auto:
+            orig_fill = fill
+
+            def fill(post):  # noqa: F811 — как только текст готов, сразу несём его в YouTube
+                orig_fill(post)
+                if not started and win.winfo_exists():
+                    start_upload()
         if c["path"] in self.post_cache:
             fill(self.post_cache[c["path"]])
         else:

@@ -9,5 +9,7 @@ requests>=2.28
 opencv-python-headless>=4.8,<5
 # подписи к клипам через Claude (нужен ключ в claude_key.txt)
 anthropic>=2.0
+# «Выложить в YouTube»: программа сама заполняет страницу загрузки (браузер берётся с компьютера)
+playwright>=1.45
 # для авто-субтитров (--subs), необязательно:
 # faster-whisper>=1.0

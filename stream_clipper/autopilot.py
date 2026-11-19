@@ -405,6 +405,11 @@ def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEW
     from .caption import claude_allowed
     if not claude_allowed():  # стратегия: бесплатный режим, Claude не трогаем даже при наличии ключа
         key = None
+    try:  # разовые команды «Доктора» (например, сбросить отметки «выложено» после удаления видео с площадок)
+        from . import commands
+        commands.run(event)
+    except Exception as e:
+        event("❌", f"Команды «Доктора»: {e}"[:200], None, "error")
     strat = strategy.get()
     ap = strat.get("autopilot") or {}
     st = load_state()
@@ -433,6 +438,14 @@ def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEW
     fresh = [c for c in clips if c["path"] not in st["clips"] and not any(c["posted"].values())]
     up_upload = os.path.normpath(library.upload_dir())
     fresh = [c for c in fresh if not os.path.normpath(c["path"]).startswith(up_upload)]
+    # канал под один язык: клипы стримеров на другом языке в план не ставим (и не архивируем — пригодятся другому каналу)
+    acc = strat.get("account") or {}
+    need = (acc.get("streamers_language") or acc.get("language") or "").lower()
+    if need:
+        from .caption import streamer_langs
+        langs = streamer_langs()
+        fresh = [c for c in fresh
+                 if (langs.get((c.get("channel") or "").lower()) or c.get("lang") or need) == need]
     if ap.get("auto_delete", True):
         dups = duplicates(fresh)
         for c in list(fresh):

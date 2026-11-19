@@ -8,18 +8,50 @@
     "publish_mode_note": "Бесплатный режим: в момент слота Telegram-бот присылает готовое видео под площадку, текст в один тап и кнопку площадки; пользователь пересылает видео и жмёт «Опубликовать», потом «✅ Выложил». Когда появится платный Metricool или пройденный аудит TikTok, переключить на api.",
     "auto_delete": true,
     "delete_mode": "archive",
-    "posts_per_day": {"tiktok": 3, "youtube": 3, "instagram": 2},
+    "posts_per_day": {
+      "tiktok": 3,
+      "youtube": 3,
+      "instagram": 2
+    },
     "min_gap_hours": 4,
     "platform_stagger_minutes": 20,
-    "post_window_local": {"from": 12, "to": 23},
+    "post_window_local": {
+      "from": 12,
+      "to": 23
+    },
     "min_score_to_post": 55,
     "archive_below_score": 20
   },
   "scoring": {
-    "weights": {"rating": 6, "ai_score": 3, "has_hook": 10, "fresh_bonus_per_day_under_3": 0, "stale_penalty_per_day_over_3": 5},
-    "duration_sweet_spot_sec": {"tiktok": [12, 45], "youtube": [15, 50], "instagram": [8, 30]},
+    "weights": {
+      "rating": 6,
+      "ai_score": 3,
+      "has_hook": 10,
+      "fresh_bonus_per_day_under_3": 0,
+      "stale_penalty_per_day_over_3": 5
+    },
+    "duration_sweet_spot_sec": {
+      "tiktok": [
+        12,
+        45
+      ],
+      "youtube": [
+        15,
+        50
+      ],
+      "instagram": [
+        8,
+        30
+      ]
+    },
     "streamer_weights": {},
-    "moment_type_weights": {"shock": 1.15, "laugh": 1.1, "fail": 1.05, "hype": 1.0, "talk": 0.6}
+    "moment_type_weights": {
+      "shock": 1.15,
+      "laugh": 1.1,
+      "fail": 1.05,
+      "hype": 1.0,
+      "talk": 0.6
+    }
   },
   "platform_fit": {
     "tiktok": "реакции, юмор, фейлы, тренды; можно 30–60 с, если история держит",
@@ -27,25 +59,96 @@
     "instagram": "короче и чище: 8–30 с, без мата и резкого контента, эмоция или «отправь другу»"
   },
   "risk_rules": [
-    {"risk": "музыка с авторскими правами (фон стрима, DMCA-треки)", "action": "заглушить фрагмент или заменить звуком из библиотеки; на YouTube клип с заявкой Content ID длиннее 60 с блокируется"},
-    {"risk": "мат", "action": "запикать (bleep) в Instagram и YouTube; в TikTok допустим редкий, но не в первые 3 с"},
-    {"risk": "нагота, насилие крупным планом, оружие у реальных людей, наркотики", "action": "размыть или вырезать; если не вырезается — не публиковать на этой площадке"},
-    {"risk": "чужие вотермарки, плашки доната, QR-коды, ссылки на другие площадки в кадре", "action": "обрезать или замазать"},
-    {"risk": "неоригинальный контент (голая нарезка чужого стрима)", "action": "обязательно: свой хук-текст, субтитры, зумы и монтаж с темпом, подпись автора; без этого TikTok и Reels режут охват"},
-    {"risk": "одинаковые видео подряд", "action": "не публиковать одинаковый момент на одной площадке; на разных — разные тексты и обложки"},
-    {"risk": "кликбейт, который не совпадает с содержанием", "action": "хук должен описывать то, что реально видно"}
+    {
+      "risk": "музыка с авторскими правами (фон стрима, DMCA-треки)",
+      "action": "заглушить фрагмент или заменить звуком из библиотеки; на YouTube клип с заявкой Content ID длиннее 60 с блокируется"
+    },
+    {
+      "risk": "мат",
+      "action": "запикать (bleep) в Instagram и YouTube; в TikTok допустим редкий, но не в первые 3 с"
+    },
+    {
+      "risk": "нагота, насилие крупным планом, оружие у реальных людей, наркотики",
+      "action": "размыть или вырезать; если не вырезается — не публиковать на этой площадке"
+    },
+    {
+      "risk": "чужие вотермарки, плашки доната, QR-коды, ссылки на другие площадки в кадре",
+      "action": "обрезать или замазать"
+    },
+    {
+      "risk": "неоригинальный контент (голая нарезка чужого стрима)",
+      "action": "обязательно: свой хук-текст, субтитры, зумы и монтаж с темпом, подпись автора; без этого TikTok и Reels режут охват"
+    },
+    {
+      "risk": "одинаковые видео подряд",
+      "action": "не публиковать одинаковый момент на одной площадке; на разных — разные тексты и обложки"
+    },
+    {
+      "risk": "кликбейт, который не совпадает с содержанием",
+      "action": "хук должен описывать то, что реально видно"
+    }
   ],
   "text_rules": {
-    "banned_hashtags": ["#fyp", "#fyppp", "#foryou", "#foryoupage", "#viral", "#virall", "#рек", "#рекомендации", "#xyzbca", "#trending"],
-    "cross_platform_banned": {"tiktok": ["#shorts", "#reels"], "instagram": ["#shorts", "#tiktok", "#fyp"], "youtube": ["#reels", "#tiktok", "#fyp"]},
-    "hashtags_count": {"tiktok": [3, 5], "youtube": [2, 3], "instagram": [3, 5]},
-    "title_max": {"tiktok": 80, "youtube": 60, "instagram": 125},
+    "banned_hashtags": [
+      "#fyp",
+      "#fyppp",
+      "#foryou",
+      "#foryoupage",
+      "#viral",
+      "#virall",
+      "#рек",
+      "#рекомендации",
+      "#xyzbca",
+      "#trending"
+    ],
+    "cross_platform_banned": {
+      "tiktok": [
+        "#shorts",
+        "#reels"
+      ],
+      "instagram": [
+        "#shorts",
+        "#tiktok",
+        "#fyp"
+      ],
+      "youtube": [
+        "#reels",
+        "#tiktok",
+        "#fyp"
+      ]
+    },
+    "hashtags_count": {
+      "tiktok": [
+        3,
+        5
+      ],
+      "youtube": [
+        2,
+        3
+      ],
+      "instagram": [
+        3,
+        5
+      ]
+    },
+    "title_max": {
+      "tiktok": 80,
+      "youtube": 60,
+      "instagram": 125
+    },
     "must_include": "ник стримера и что именно произошло — так ищут в поиске",
     "hook": "до 6 слов, ЗАГЛАВНЫМИ, первые 0–3 с, про стримера и момент, без выдумок"
   },
   "credit_rules": {
     "why": "Подпись автора не делает нарезку оригинальной для алгоритмов, но снижает риск жалоб правообладателя и банов за перезалив. Многие стримеры разрешают нарезки с указанием автора. Поэтому указываем всегда, но так, чтобы не мешало.",
-    "on_video": {"tiktok": true, "youtube": true, "instagram": true, "pos": "top-left", "style": "мелко, полупрозрачно: «Twitch | ник» или «YouTube | ник»", "never": "bottom-left: там подпись и ник аккаунта в интерфейсе TikTok и Reels закрывают надпись"},
+    "on_video": {
+      "tiktok": true,
+      "youtube": true,
+      "instagram": true,
+      "pos": "top-left",
+      "style": "мелко, полупрозрачно: «Twitch | ник» или «YouTube | ник»",
+      "never": "bottom-left: там подпись и ник аккаунта в интерфейсе TikTok и Reels закрывают надпись"
+    },
     "in_text": {
       "tiktok": "в конце описания: «🎥 ник (Twitch)»; @ник, только если у стримера есть известный TikTok-аккаунт",
       "youtube": "в описании отдельной строкой: «Стрим: <vod_url или ссылка на канал>»",
@@ -57,6 +160,138 @@
   "lessons": [
     "19.11: три видео в TikTok за 6 минут — пачки делят тестовый показ, держать паузу 3–4 ч",
     "19.11: #shorts/#reels/#fyp/#viral в TikTok — убрать",
-    "19.11: голые нарезки IShowSpeed — добавлять свой монтаж и хук"
-  ]
+    "19.11: голые нарезки IShowSpeed — добавлять свой монтаж и хук",
+    "19.11: надписи однотипные («X и его реакция в GTA 6» ×N) — без ключа Claude программа берёт 5–6 шаблонов; добавлен hook_bank"
+  ],
+  "hook_bank": {
+    "rules": [
+      "до 6 слов, первые 0–3 с, читается за секунду",
+      "про стримера и то, что видно в кадре; не выдумывать событий",
+      "не писать «в GTA 6» в каждой надписи — игра и так видна; максимум в каждой пятой",
+      "не упоминать чат, зрителей, донаты",
+      "без мата; цитата стримера только цензурная",
+      "не повторять одну и ту же надпись чаще раза в 20 клипов; один шаблон — не чаще раза в 5 клипов",
+      "лучший вариант — короткая цитата стримера из расшифровки (2–6 слов), если она смешная или громкая",
+      "можно интригу: обещание развязки («ЖДИ КОНЦОВКУ», «СМОТРИ НА ЕГО ЛИЦО»)",
+      "{s} — короткий ник, как зовут фанаты: Speed, Кай, Равшан"
+    ],
+    "nicknames": {
+      "IShowSpeed": "SPEED",
+      "kaicenat": "KAI",
+      "theburntpeanut": "PEANUT",
+      "ravshann": "РАВШАН",
+      "deepins02": "ДИПИНС",
+      "honeymad": "ХАНИМЭД"
+    },
+    "ru": {
+      "laugh": [
+        "{s} ПЛАЧЕТ ОТ СМЕХА",
+        "{s} НЕ ВЫДЕРЖАЛ",
+        "ЭТО СЛОМАЛО {s}",
+        "{s} ЛЁГ",
+        "ДАЖЕ {s} НЕ ОЖИДАЛ",
+        "{s} ОРЁТ НА ВЕСЬ ДОМ",
+        "СМОТРИ НА ЕГО ЛИЦО",
+        "{s} ЗАДЫХАЕТСЯ ОТ СМЕХА",
+        "ИЗ-ЗА ЭТОГО {s} УПАЛ СО СТУЛА",
+        "{s} НЕ МОЖЕТ ОСТАНОВИТЬСЯ"
+      ],
+      "shock": [
+        "{s} ЗАВИС",
+        "{s} В ПОЛНОМ ШОКЕ",
+        "{s} НЕ ВЕРИТ ГЛАЗАМ",
+        "ЧТО ЭТО БЫЛО, {s}?",
+        "{s} ПОТЕРЯЛ ДАР РЕЧИ",
+        "ЖДИ КОНЦОВКУ",
+        "ЭТОГО НЕ ЖДАЛ НИКТО",
+        "{s} МОЛЧИТ 5 СЕКУНД",
+        "{s}: «ЭТО ЧТО ВООБЩЕ?»",
+        "ЛИЦО {s} В ЭТОТ МОМЕНТ"
+      ],
+      "hype": [
+        "{s} СДЕЛАЛ ЭТО",
+        "{s} ЗАТАЩИЛ",
+        "ЧИСТЕЙШИЙ МОМЕНТ {s}",
+        "{s} НА ДРУГОМ УРОВНЕ",
+        "ТАК МОЖЕТ ТОЛЬКО {s}",
+        "{s} ПОКАЗАЛ КАК НАДО",
+        "{s} В УДАРЕ",
+        "ЭТО ЛУЧШЕЕ У {s} ЗА ДЕНЬ"
+      ],
+      "fail": [
+        "{s} ВСЁ ИСПОРТИЛ",
+        "ПЛАН {s} НЕ СРАБОТАЛ",
+        "{s} ПОЖАЛЕЛ СРАЗУ",
+        "{s} ПЕРЕПУТАЛ ВСЁ",
+        "ОДНА ОШИБКА {s}",
+        "{s} ДУМАЛ, ЧТО ПОЛУЧИТСЯ",
+        "КАК {s} ЭТО СДЕЛАЛ?!",
+        "{s} СЛОМАЛ ИГРУ",
+        "ХУЖЕ ПОПЫТКИ НЕ БЫЛО",
+        "{s} И ЕГО «ГЕНИАЛЬНЫЙ» ПЛАН"
+      ],
+      "talk": [
+        "{s} ВЫДАЛ БАЗУ",
+        "{s} СКАЗАЛ ЛИШНЕЕ",
+        "{s} ОБЪЯСНИЛ ВСЁ",
+        "ПОСЛУШАЙ, ЧТО ГОВОРИТ {s}",
+        "{s} ПРО ЭТО СЕРЬЁЗНО"
+      ]
+    },
+    "en": {
+      "laugh": [
+        "{s} CAN'T STOP LAUGHING",
+        "{s} IS CRYING 😭",
+        "THIS BROKE {s}",
+        "{s} LOST IT",
+        "EVEN {s} DIDN'T SEE THIS COMING",
+        "WATCH HIS FACE",
+        "{s} CAN'T BREATHE",
+        "{s} FELL OUT HIS CHAIR",
+        "{s} COULDN'T HOLD IT",
+        "NOBODY WAS READY"
+      ],
+      "shock": [
+        "{s} FROZE",
+        "{s} IS SPEECHLESS",
+        "{s} CAN'T BELIEVE THIS",
+        "WHAT JUST HAPPENED, {s}?",
+        "WAIT FOR THE END",
+        "NOBODY EXPECTED THIS",
+        "{s} WENT SILENT",
+        "{s}: \"WHAT IS THAT?\"",
+        "{s}'S FACE SAYS IT ALL",
+        "THIS SHOOK {s}"
+      ],
+      "hype": [
+        "{s} ACTUALLY DID IT",
+        "{s} PULLED IT OFF",
+        "CLEANEST {s} CLIP EVER",
+        "{s} IS BUILT DIFFERENT",
+        "ONLY {s} COULD DO THIS",
+        "{s} WENT CRAZY",
+        "{s} IS ON ANOTHER LEVEL",
+        "BEST {s} MOMENT TODAY"
+      ],
+      "fail": [
+        "{s} RUINED EVERYTHING",
+        "{s}'S PLAN BACKFIRED",
+        "{s} REGRETTED THIS INSTANTLY",
+        "ONE MISTAKE, {s}",
+        "{s} REALLY THOUGHT THIS WOULD WORK",
+        "HOW DID {s} DO THIS?!",
+        "{s} BROKE THE GAME",
+        "WORST ATTEMPT EVER",
+        "{s} SHOULD'VE STAYED HOME",
+        "{s} WILL NEVER LIVE THIS DOWN"
+      ],
+      "talk": [
+        "{s} SAID TOO MUCH",
+        "{s} SPITTING FACTS",
+        "LISTEN TO WHAT {s} SAID",
+        "{s} WAS DEAD SERIOUS",
+        "{s} EXPLAINED EVERYTHING"
+      ]
+    }
+  }
 }

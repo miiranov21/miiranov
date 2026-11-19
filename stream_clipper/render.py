@@ -82,7 +82,8 @@ def caption_y(layout: str, zoom: float = 1.0, cam_share: float | None = None, ga
     if layout == "blur":
         z = GAME_ZOOM.get(game_view, zoom) if game_view else zoom
         fg_h = W * z * 9 / 16
-        return int((H - fg_h) / 2 * 0.55)
+        # не выше 310: выше стоит подпись автора (y≈170) и вкладки TikTok/Reels (верхние 8%)
+        return max(310, int((H - fg_h) / 2 * 0.55))
     return 380
 
 
@@ -105,15 +106,27 @@ WM_POSITIONS = ("corner", "center", "moving")
 _WM_PATH = [(170, 260), (900, 420), (260, 1250), (880, 1600), (540, 900), (190, 1700), (860, 230)]
 
 
+def watermark_corner(credit_pos: str = "", caption_y: int | None = None) -> tuple[int, int, int]:
+    """Угол для знака: (выравнивание ASS, x, y). Ниже верхних 8% кадра (там вкладки TikTok/Reels), в верхнем углу,
+    напротив подписи автора; правую колонку кнопок площадок (середина-низ справа) не трогаем.
+    Если надпись-плашка стоит высоко и доходит до этой строки — знак опускаем под неё."""
+    an, x = (7, 40) if credit_pos == "top-right" else (9, 1040)
+    y = 170
+    if caption_y is not None and caption_y - 150 < y + 50:
+        y = caption_y + 150
+    return an, x, y
+
+
 def write_watermark_ass(path: str, text: str, pos: str = "moving", opacity: float = 0.4,
-                        duration: float = 600) -> str:
+                        duration: float = 600, credit_pos: str = "", caption_y: int | None = None) -> str:
     """Текстовый водяной знак (полупрозрачный)."""
     from .subtitles import _ts
     alpha = f"{int(round((1 - max(0.05, min(opacity, 1.0))) * 255)):02X}"
     safe = text.replace("{", "(").replace("}", ")").replace("\n", " ")
     lines = []
     if pos == "corner":
-        lines.append((0, duration, f"{{\\an9\\pos(1035,60)}}{safe}"))
+        an, x, y = watermark_corner(credit_pos, caption_y)
+        lines.append((0, duration, f"{{\\an{an}\\pos({x},{y})\\fs40}}{safe}"))
     elif pos == "center":
         lines.append((0, duration, f"{{\\an5\\pos(540,1180)}}{safe}"))
     else:  # плавает: каждые 6 секунд плавно переезжает в следующую точку

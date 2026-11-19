@@ -43,6 +43,8 @@ class Settings:
     watermark_image: str = "" # водяной знак картинкой (PNG)
     watermark_pos: str = "moving"   # corner | center | moving
     watermark_opacity: float = 0.4
+    per_streamer: dict = field(default_factory=dict)  # настройки «Доктора» под конкретного стримера (по нику)
+    no_facecam_fallback: dict = field(default_factory=dict)  # что менять, если вебка не найдена (от «Доктора»)
     hype_words: list = field(default_factory=lambda: list(detect.DEFAULT_HYPE))
 
 
@@ -80,6 +82,7 @@ def write_report(folder: str, clips: list[dict], source: str, link_fn=None) -> N
 def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = None) -> str:
     """Собирает вертикальный клип. Возвращает подпись (или '')."""
     meta = meta or {}
+    cfg = _for_streamer(cfg, meta.get("streamer", ""), log)
     layout, facecam = cfg.layout, cfg.facecam
     if layout == "auto":
         from .facecam import resolve
@@ -90,6 +93,13 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
             facecam = None
         layout = "facecam" if facecam else "blur"
         log(f"    вебка {'найдена — ставлю её сверху' if facecam else 'не найдена — игра на размытом фоне'}")
+        if not facecam and cfg.no_facecam_fallback:
+            import copy
+            cfg = copy.copy(cfg)
+            fb = {k: v for k, v in cfg.no_facecam_fallback.items() if k not in ("layout", "facecam")}
+            ch = apply_settings(cfg, fb)
+            if ch:
+                log("    без вебки — по совету «Доктора»: " + ", ".join(ch))
     base = os.path.splitext(out)[0]
     ass_files, transcript = [], ""
     use_subs = cfg.subs
@@ -137,7 +147,11 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
         # знак ставим под надписью-плашкой, чтобы не закрывал её
         ass_files.insert(len(ass_files) - (1 if text else 0),
                          render.write_watermark_ass(base + ".wm.ass", cfg.watermark_text.strip(),
-                                                    cfg.watermark_pos, cfg.watermark_opacity))
+                                                    cfg.watermark_pos, cfg.watermark_opacity,
+                                                    credit_pos=cfg.credit_pos if cfg.credit else "",
+                                                    caption_y=render.caption_y(layout, cfg.zoom,
+                                                                               game_view=cfg.game_view)
+                                                    if text else None))
     meta["transcript"] = transcript[:800]
     if transcript:
         from . import subtitles as _subs
@@ -186,19 +200,19 @@ def render_subs(segment: str, ass: str, cfg: Settings) -> str:
     return make_ass(segment, ass, cfg.whisper_model, cfg.language)
 
 
-def refresh_live(cfg: Settings, log=print) -> None:
-    """Подхватываем настройки, изменённые в окне во время работы (клипов в час, длина клипа)."""
-    try:
-        with open(paths.live_settings_path(), encoding="utf-8") as f:
-            live = json.load(f)
-    except Exception:
-        return
+def apply_settings(cfg: Settings, live: dict) -> list[str]:
+    """Применяет словарь настроек (из окна или от «Доктора») к cfg. Возвращает, что поменялось (по-русски)."""
     changed = []
     top = live.get("top")
-    if isinstance(top, int) and top > 0 and top != cfg.top:
+    if isinstance(top, int) and not isinstance(top, bool) and top > 0 and top != cfg.top:
         cfg.top = top
         changed.append(f"клипов за час: {top}")
     pre, post = live.get("pre"), live.get("post")
+    length = live.get("length")
+    if (pre is None or post is None) and isinstance(length, (int, float)) and not isinstance(length, bool) \
+            and length > 0:
+        pre = max(2, round(length * 0.57))
+        post = max(2, length - pre)
     if isinstance(pre, (int, float)) and isinstance(post, (int, float)) and pre > 0 and post > 0 \
             and (pre, post) != (cfg.clip_pre, cfg.clip_post):
         cfg.clip_pre, cfg.clip_post = float(pre), float(post)
@@ -217,7 +231,11 @@ def refresh_live(cfg: Settings, log=print) -> None:
             setattr(cfg, key, val)
             changed.append(f"{name}: {'вкл' if val else 'выкл'}")
     fc = live.get("facecam")
-    if isinstance(fc, bool) and fc != (cfg.layout != "blur"):
+    lay = live.get("layout")
+    if lay in ("auto", "blur", "crop") and lay != cfg.layout:
+        cfg.layout = lay
+        changed.append(f"раскладка: {lay}")
+    elif isinstance(fc, bool) and lay is None and fc != (cfg.layout != "blur"):
         cfg.layout = "auto" if fc else "blur"
         changed.append(f"вебка сверху: {'вкл' if fc else 'выкл'}")
     al = live.get("auto_length")
@@ -232,8 +250,55 @@ def refresh_live(cfg: Settings, log=print) -> None:
     if isinstance(q, int) and q in (720, 1080) and q != cfg.max_height:
         cfg.max_height = q
         changed.append(f"качество: {q}")
+    if "watermark_text" in live and isinstance(live["watermark_text"], str) \
+            and live["watermark_text"].strip() != cfg.watermark_text.strip():
+        cfg.watermark_text = live["watermark_text"].strip()
+        changed.append(f"водяной знак: {cfg.watermark_text or 'выкл'}")
+    wp = live.get("watermark_pos")
+    if wp in render.WM_POSITIONS and wp != cfg.watermark_pos:
+        cfg.watermark_pos = wp
+        changed.append(f"знак: {wp}")
+    wo = live.get("watermark_opacity")
+    if isinstance(wo, (int, float)) and not isinstance(wo, bool) and 0.05 <= wo <= 1 \
+            and abs(wo - cfg.watermark_opacity) > 1e-3:
+        cfg.watermark_opacity = float(wo)
+        changed.append(f"заметность знака: {wo}")
+    return changed
+
+
+def refresh_live(cfg: Settings, log=print) -> None:
+    """Подхватываем настройки, изменённые в окне во время работы (или выбранные «Доктором»)."""
+    try:
+        with open(paths.live_settings_path(), encoding="utf-8") as f:
+            live = json.load(f)
+    except Exception:
+        return
+    changed = apply_settings(cfg, live)
+    ps = live.get("per_streamer")
+    ps = {str(k).lower().lstrip("@"): v for k, v in ps.items() if isinstance(v, dict)} if isinstance(ps, dict) else {}
+    if ps != cfg.per_streamer:
+        cfg.per_streamer = ps
+        if ps:
+            changed.append("свои настройки для: " + ", ".join(ps))
+    fb = live.get("no_facecam_fallback")
+    fb = fb if isinstance(fb, dict) else ({"game_view": fb} if fb in ("full", "wide", "center") else {})
+    if fb != cfg.no_facecam_fallback:
+        cfg.no_facecam_fallback = fb
     if changed:
         log("Новые настройки подхвачены: " + ", ".join(changed))
+
+
+def _for_streamer(cfg: Settings, streamer: str, log=print) -> Settings:
+    """Копия настроек с переопределениями «Доктора» для этого стримера (если есть)."""
+    over = (cfg.per_streamer or {}).get((streamer or "").lower().lstrip("@"))
+    if not over:
+        return cfg
+    import copy
+    c = copy.copy(cfg)
+    ch = apply_settings(c, over)
+    if ch:
+        log(f"    для {streamer} — свои настройки: " + ", ".join(ch))
+    return c
 
 
 class MediaAnalysis:

@@ -30,7 +30,7 @@ STREAMERS_HEADER = T("""# Стримеры, за которыми следит �
 # YouTube — @ник канала (youtube.com/@MrBeast -> @MrBeast)
 """)
 DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
-            "top": "3", "length": "35", "quality": "1080", "autoupdate": True,
+            "top": "3", "length": "35", "quality": "1080", "autoupdate": True, "doctor_settings": True,
             "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": T("плавает по экрану"), "wm_op": T("средне"), "game_view": T("целиком"), "yt_browser": T("не брать"),
             "credit_auto": False, "credit_pos": T("вверху слева"), "lang": i18n.LANG,
             "start_from": T("с начала"), "start_mode": T("от начала стрима"), "theme": T("Фиолетовая (как Twitch)")}
@@ -498,12 +498,22 @@ class App:
         # настройки
         opt = ttk.LabelFrame(top, text=T(" Что делать с клипом "), padding=6)
         opt.pack(side="right", fill="y", before=box)  # блоку настроек — его полная ширина
+        self._doc_widgets: dict = {}  # настройка → её поля (блокируются, пока выбирает «Доктор»)
+        self._doc_reason: dict = {}
+        self._doc_extra: dict = {}
+        self.v["doctor_settings"] = tk.BooleanVar(value=bool(self.cfg.get("doctor_settings", True)))
+        ttk.Checkbutton(opt, text=T("🩺 Доверить настройки Доктору"), variable=self.v["doctor_settings"],
+                        command=self._doctor_toggled).pack(anchor="w", pady=(0, 2))
+        self.doc_hint = ttk.Label(opt, text="", foreground=self.muted, wraplength=330, justify="left")
+        self.doc_hint.pack(anchor="w", pady=(0, 4))
         for key, text in (("subs", T("Субтитры (речь стримера)")),
                           ("caption", T("Надпись-плашка с подписью к моменту")),
                           ("facecam", T("Вебка стримера сверху")),
                           ("audio", T("Искать по звуку и картинке (без чата)"))):
             self.v[key] = tk.BooleanVar(value=bool(self.cfg.get(key)))
-            ttk.Checkbutton(opt, text=text, variable=self.v[key]).pack(anchor="w", pady=2)
+            w = ttk.Checkbutton(opt, text=text, variable=self.v[key])
+            w.pack(anchor="w", pady=2)
+            self._doc_reg(key, w)
             self.v[key].trace_add("write", lambda *a: self._on_live_setting(quick=True))
         grid = ttk.Frame(opt)
         grid.pack(anchor="w", pady=(6, 0))
@@ -522,11 +532,13 @@ class App:
                 cb.configure(validate="key", validatecommand=digits)
                 self.v[key].trace_add("write", lambda *a: self._on_live_setting())
             cb.grid(row=r, column=1, sticky="w", padx=6)
+            self._doc_reg(key, cb)
         ttk.Label(grid, text=T("Игра в кадре:")).grid(row=3, column=0, sticky="w", pady=2)
         gv = self.cfg.get("game_view")
         self.v["game_view"] = tk.StringVar(value=gv if gv in GAME_VIEW else T("целиком"))
-        ttk.Combobox(grid, textvariable=self.v["game_view"], values=list(GAME_VIEW), width=12,
-                     state="readonly").grid(row=3, column=1, sticky="w", padx=6)
+        w = ttk.Combobox(grid, textvariable=self.v["game_view"], values=list(GAME_VIEW), width=12, state="readonly")
+        w.grid(row=3, column=1, sticky="w", padx=6)
+        self._doc_reg("game_view", w)
         # картинка-пример: как будет выглядеть клип при выбранном варианте
         self.gv_images = {}
         for label, key in GAME_VIEW.items():
@@ -570,10 +582,14 @@ class App:
         r1 = ttk.Frame(wm)
         r1.pack(fill="x")
         self.v["wm_on"] = tk.BooleanVar(value=bool(self.cfg.get("wm_on")))
-        ttk.Checkbutton(r1, text=T("Ставить"), variable=self.v["wm_on"]).pack(side="left")
+        w = ttk.Checkbutton(r1, text=T("Ставить"), variable=self.v["wm_on"])
+        w.pack(side="left")
+        self._doc_reg("wm_on", w)
         ttk.Label(r1, text=T("  Текст:")).pack(side="left")
         self.v["wm_text"] = tk.StringVar(value=self.cfg.get("wm_text", ""))
-        ttk.Entry(r1, textvariable=self.v["wm_text"], width=20).pack(side="left", padx=4)
+        w = ttk.Entry(r1, textvariable=self.v["wm_text"], width=20)
+        w.pack(side="left", padx=4)
+        self._doc_reg("wm_text", w)
         ttk.Label(r1, text=T("(например @твой_канал)"), foreground=self.muted).pack(side="left")
         self.v["wm_image"] = tk.StringVar(value=self.cfg.get("wm_image", ""))
         ttk.Button(r1, text="✕", width=3, command=lambda: self.v["wm_image"].set("")).pack(side="right")
@@ -587,12 +603,16 @@ class App:
         ttk.Label(r2, text=T("Где:")).pack(side="left")
         self.v["wm_pos"] = tk.StringVar(value=self.cfg.get("wm_pos") if self.cfg.get("wm_pos") in WM_POS
                                         else T("плавает по экрану"))
-        ttk.Combobox(r2, textvariable=self.v["wm_pos"], values=list(WM_POS), width=18,
-                     state="readonly").pack(side="left", padx=4)
+        w = ttk.Combobox(r2, textvariable=self.v["wm_pos"], values=list(WM_POS), width=18, state="readonly")
+        w.pack(side="left", padx=4)
+        self._doc_reg("wm_pos", w)
         ttk.Label(r2, text=T("  Заметность:")).pack(side="left")
         self.v["wm_op"] = tk.StringVar(value=self.cfg.get("wm_op") if self.cfg.get("wm_op") in WM_OP else T("средне"))
-        ttk.Combobox(r2, textvariable=self.v["wm_op"], values=list(WM_OP), width=9,
-                     state="readonly").pack(side="left", padx=4)
+        w = ttk.Combobox(r2, textvariable=self.v["wm_op"], values=list(WM_OP), width=9, state="readonly")
+        w.pack(side="left", padx=4)
+        self._doc_reg("wm_op", w)
+        for k in ("wm_on", "wm_text", "wm_pos", "wm_op"):
+            self.v[k].trace_add("write", lambda *a: self._on_live_setting())
         ttk.Label(r2, text=T("  «плавает» — лучшая защита: знак нельзя обрезать или замазать"),
                   foreground=self.muted).pack(side="left")
 
@@ -600,15 +620,18 @@ class App:
         cr = ttk.LabelFrame(sett, text=T(" Подпись автора — чей это клип (Twitch | KaiCenat) "), padding=6)
         cr.pack(fill="x", pady=(0, 6))
         self.v["credit_auto"] = tk.BooleanVar(value=bool(self.cfg.get("credit_auto", False)))
-        ttk.Checkbutton(cr, text=T("Сразу подписывать все новые клипы"), variable=self.v["credit_auto"]).pack(side="left")
+        w = ttk.Checkbutton(cr, text=T("Сразу подписывать все новые клипы"), variable=self.v["credit_auto"])
+        w.pack(side="left")
+        self._doc_reg("credit_auto", w)
         ttk.Label(cr, text=T("  Где:")).pack(side="left")
         cpos = self.cfg.get("credit_pos")
         if cpos == T("внизу слева") and not self.cfg.get("credit_pos_v2"):
             cpos = T("вверху слева")  # раньше по умолчанию было «внизу» — там подпись закрывает интерфейс площадок
         self.v["credit_pos"] = tk.StringVar(value=cpos if cpos in CREDIT_POS else T("вверху слева"))
         self.v["credit_pos_v2"] = tk.BooleanVar(value=True)
-        ttk.Combobox(cr, textvariable=self.v["credit_pos"], values=list(CREDIT_POS), width=14,
-                     state="readonly").pack(side="left", padx=4)
+        w = ttk.Combobox(cr, textvariable=self.v["credit_pos"], values=list(CREDIT_POS), width=14, state="readonly")
+        w.pack(side="left", padx=4)
+        self._doc_reg("credit_pos", w)
         for k in ("credit_auto", "credit_pos"):
             self.v[k].trace_add("write", lambda *a: self._on_live_setting())
         ttk.Label(cr, text=T("  иначе — галочкой в колонке «Автор» на нужных клипах (вкладка «Клипы»)"),
@@ -694,6 +717,7 @@ class App:
         self.root.after(1500, self._resume_after_update)
         self.root.after(20000, self._autopilot_tick)
         self.root.after(15000, self._assist_tick)
+        self.root.after(3000, self._doctor_settings_tick)
         self.root.after(2500, self.check_updates)
 
     # ---------- горячие клавиши и меню правой кнопки ----------
@@ -1147,8 +1171,11 @@ class App:
 
     def _save_settings(self):
         hidden = self.cfg.get("log_hidden", False)
+        manual = self.cfg.get("manual_settings")
         self.cfg = {k: (v.get()) for k, v in self.v.items()}
         self.cfg["log_hidden"] = hidden
+        if manual:
+            self.cfg["manual_settings"] = manual
         with open(SETTINGS, "w", encoding="utf-8") as f:
             json.dump(_ru(self.cfg), f, ensure_ascii=False, indent=1)
 
@@ -1190,7 +1217,12 @@ class App:
                 "subs": subs, "caption": bool(self.v["caption"].get()), "facecam": bool(self.v["facecam"].get()),
                 "audio": bool(self.v["audio"].get()), "game_view": GAME_VIEW.get(self.v["game_view"].get(), "full"),
                 "quality": int(self.v["quality"].get() or 1080),
-                "auto_length": self.v["length"].get() == T("авто")}
+                "auto_length": self.v["length"].get() == T("авто"),
+                "watermark_text": self.v["wm_text"].get().strip() if self.v["wm_on"].get() else "",
+                "watermark_pos": WM_POS.get(self.v["wm_pos"].get(), "moving"),
+                "watermark_opacity": WM_OP.get(self.v["wm_op"].get(), 0.4),
+                "per_streamer": dict(self._doc_extra.get("per_streamer") or {}),
+                "no_facecam_fallback": self._doc_extra.get("no_facecam_fallback") or {}}
 
     _LIVE_NAMES = {"subs": "Субтитры", "caption": "Надпись-плашка", "facecam": "Вебка сверху",
                    "audio": "Поиск по звуку и картинке"}
@@ -1224,6 +1256,11 @@ class App:
             parts.append(T("игра в кадре: {0}").format(self.v["game_view"].get()))
         if old and new["quality"] != old.get("quality"):
             parts.append(T("качество: {0}").format(new["quality"]))
+        if old and (new["watermark_text"], new["watermark_pos"], new["watermark_opacity"]) != \
+                (old.get("watermark_text"), old.get("watermark_pos"), old.get("watermark_opacity")):
+            parts.append(T("водяной знак: {0}").format(new["watermark_text"] or T("выкл")))
+        if old and new["per_streamer"] != old.get("per_streamer"):
+            parts.append(T("свои настройки для: {0}").format(", ".join(new["per_streamer"]) or "—"))
         if self.v["subs"].get() and not new["subs"]:
             self._append(T("⚠ Субтитры не установлены — запусти install_subs.bat. Пока режу без них.\n"))
         self._append(T("Настройки изменены: {0} — применятся к следующим клипам, работа не прерывается.\n").format(
@@ -1296,6 +1333,10 @@ class App:
         self._set_running(True, what)
         try:
             self._live_sent = self._live_values()
+            # рабочая часть сразу получает и то, чего нет в параметрах запуска (настройки «Доктора» по стримерам)
+            os.makedirs(os.path.dirname(paths.live_settings_path()), exist_ok=True)
+            with open(paths.live_settings_path(), "w", encoding="utf-8") as f:
+                json.dump(self._live_sent, f)
         except Exception:
             self._live_sent = None
         threading.Thread(target=self._reader, args=(self.proc,), daemon=True).start()
@@ -3372,6 +3413,198 @@ class App:
         self.clip_by_iid: dict = {}
         self.root.after(1000, self._auto_refresh)
         self.root.after(4000, self._exchange_tick)
+
+    # ---------- настройки клипов от «Доктора» (strategy.json → clip_settings) ----------
+    DOC_KEYS = ("subs", "caption", "facecam", "audio", "top", "length", "quality", "game_view",
+                "wm_on", "wm_text", "wm_pos", "wm_op", "credit_auto", "credit_pos")
+    DOC_NAMES = {"subs": "субтитры", "caption": "надпись-плашка", "facecam": "вебка сверху",
+                 "audio": "поиск по звуку и картинке", "top": "клипов за час", "length": "длина клипа",
+                 "quality": "качество", "game_view": "игра в кадре", "wm_on": "водяной знак",
+                 "wm_text": "текст знака", "wm_pos": "где знак", "wm_op": "заметность знака",
+                 "credit_auto": "подпись автора", "credit_pos": "где подпись автора"}
+    # ключ «Доктора» → поля окна, на которые он влияет
+    DOC_MAP = {"subs": ("subs",), "caption": ("caption",), "facecam": ("facecam",), "layout": ("facecam",),
+               "audio": ("audio",), "top": ("top",), "length": ("length",), "auto_length": ("length",),
+               "quality": ("quality",), "game_view": ("game_view",), "credit": ("credit_auto",),
+               "credit_pos": ("credit_pos",), "watermark_text": ("wm_on", "wm_text"),
+               "watermark_pos": ("wm_pos",), "watermark_opacity": ("wm_op",)}
+
+    def _doc_reg(self, key: str, widget):
+        """Поле, которое может выбирать «Доктор»: запоминаем его и вешаем подсказку «выбирает Доктор: причина»."""
+        self._doc_widgets.setdefault(key, []).append(widget)
+        tip = {"w": None}
+
+        def show(e):
+            text = self._doc_reason.get(key)
+            if not text or tip["w"] is not None:
+                return
+            t = tk.Toplevel(widget)
+            t.wm_overrideredirect(True)
+            t.wm_geometry(f"+{e.x_root + 14}+{e.y_root + 14}")
+            tk.Label(t, text=text, bg="#fff8d6", fg="#222", justify="left", wraplength=340,
+                     padx=8, pady=4, font=("Segoe UI", 9)).pack()
+            tip["w"] = t
+
+        def hide(e):
+            if tip["w"] is not None:
+                tip["w"].destroy()
+                tip["w"] = None
+        widget.bind("<Enter>", show, add="+")
+        widget.bind("<Leave>", hide, add="+")
+
+    def _doctor_to_gui(self, d: dict) -> dict:
+        """clip_settings.defaults (ключи рабочей части) → значения полей окна."""
+        out = {}
+        for k in ("subs", "caption", "facecam", "audio"):
+            if isinstance(d.get(k), bool):
+                out[k] = d[k]
+        if d.get("layout") in ("auto", "facecam", "blur", "crop"):
+            out["facecam"] = d["layout"] in ("auto", "facecam")
+        for k in ("top", "quality"):
+            if isinstance(d.get(k), int) and not isinstance(d.get(k), bool) and d[k] > 0:
+                out[k] = str(d[k])
+        if "quality" in out and out["quality"] not in ("720", "1080"):
+            out.pop("quality")
+        if d.get("auto_length") is True or d.get("length") == "auto":
+            out["length"] = T("авто")
+        elif isinstance(d.get("length"), (int, float)) and not isinstance(d.get("length"), bool) and d["length"] > 0:
+            out["length"] = str(int(d["length"]))
+        rev = {v: k for k, v in GAME_VIEW.items()}
+        if d.get("game_view") in rev:
+            out["game_view"] = rev[d["game_view"]]
+        if isinstance(d.get("credit"), bool):
+            out["credit_auto"] = d["credit"]
+        rev = {v: k for k, v in CREDIT_POS.items()}
+        if d.get("credit_pos") in rev:
+            out["credit_pos"] = rev[d["credit_pos"]]
+        if isinstance(d.get("watermark_text"), str):
+            out["wm_text"] = d["watermark_text"].strip()
+            out["wm_on"] = bool(out["wm_text"])
+        rev = {v: k for k, v in WM_POS.items()}
+        if d.get("watermark_pos") in rev:
+            out["wm_pos"] = rev[d["watermark_pos"]]
+        op = d.get("watermark_opacity")
+        if isinstance(op, (int, float)) and not isinstance(op, bool):
+            out["wm_op"] = min(WM_OP, key=lambda lab: abs(WM_OP[lab] - op))
+        return out
+
+    def _doctor_reasons(self, cs: dict, keys) -> dict:
+        """Причина для каждого поля окна: reasons — словарь по ключам «Доктора» или общий текст."""
+        r = cs.get("reasons")
+        out = {}
+        general = r if isinstance(r, str) else " ".join(map(str, r)) if isinstance(r, list) else ""
+        if isinstance(r, dict):
+            general = str(r.get("general") or r.get("all") or r.get("defaults") or "")
+            for dk, gks in self.DOC_MAP.items():
+                if r.get(dk):
+                    for g in gks:
+                        out[g] = str(r[dk])
+        for g in keys:
+            out.setdefault(g, general)
+        return out
+
+    def _doc_lock(self, locked: set):
+        for key, ws in self._doc_widgets.items():
+            for w in ws:
+                try:
+                    w.state(["disabled"] if key in locked else ["!disabled"])
+                except Exception:
+                    pass
+
+    def _doctor_settings_tick(self):
+        """Раз в минуту: свежая стратегия (качается не чаще раза в час) → применить clip_settings."""
+        self.root.after(60000, self._doctor_settings_tick)
+        if getattr(self, "_doc_busy", False):
+            return
+        self._doc_busy = True
+
+        def work():
+            from . import strategy
+            try:
+                strategy.refresh(log=lambda m: None)
+            except Exception:
+                pass
+            self.root.after(0, done)
+
+        def done():
+            self._doc_busy = False
+            try:
+                self._apply_doctor_settings()
+            except Exception as e:
+                self.activity.event("❌", T("Настройки от Доктора не применились: {0}").format(e), kind="error")
+        threading.Thread(target=work, daemon=True).start()
+
+    def _fmt_doc_value(self, val) -> str:
+        if isinstance(val, bool):
+            return T("вкл") if val else T("выкл")
+        return str(val) if val != "" else "—"
+
+    def _apply_doctor_settings(self):
+        from . import strategy
+        if not self.v["doctor_settings"].get():
+            return
+        cs = strategy.get().get("clip_settings") or {}
+        if not isinstance(cs, dict) or not (cs.get("defaults") or cs.get("per_streamer")):
+            self.doc_hint.config(text=T("🩺 Доктор ещё не прислал настройки — пока работают твои."))
+            self._doc_reason = {}
+            self._doc_lock(set())
+            return
+        vals = self._doctor_to_gui(cs.get("defaults") or {})
+        if "manual_settings" not in self.cfg:  # твои ручные настройки — вернутся, если снимешь галочку
+            self.cfg["manual_settings"] = {k: self.v[k].get() for k in self.DOC_KEYS}
+        changes = []
+        for k, v in vals.items():
+            if self.v[k].get() != v:
+                changes.append(k)
+                self.v[k].set(v)
+        ps = cs.get("per_streamer") if isinstance(cs.get("per_streamer"), dict) else {}
+        fb = cs.get("no_facecam_fallback")
+        fb = fb if isinstance(fb, dict) else ({"game_view": fb} if fb in GAME_VIEW.values() else {})
+        extra = {"per_streamer": {str(n): o for n, o in ps.items() if isinstance(o, dict)},
+                 "no_facecam_fallback": fb}
+        extra_changed = extra != self._doc_extra
+        self._doc_extra = extra
+        reasons = self._doctor_reasons(cs, vals)
+        self._doc_reason = {k: T("выбирает Доктор: {0}").format(r) if r else T("выбирает Доктор")
+                            for k, r in reasons.items() if k in vals}
+        self._doc_lock(set(vals))
+        hint = T("🩺 Выбирает Доктор — поля заблокированы (наведи мышь — причина).")
+        if extra["per_streamer"]:
+            hint += "\n" + T("Свои настройки для: {0}").format(", ".join(extra["per_streamer"]))
+        self.doc_hint.config(text=hint)
+        if changes or (extra_changed and getattr(self, "_doc_announced", False)):
+            parts = [f"{T(self.DOC_NAMES[k])}: {self._fmt_doc_value(self.v[k].get())}" for k in changes
+                     if k != "wm_on" or "wm_text" not in changes]
+            if extra_changed and extra["per_streamer"]:
+                parts.append(T("для {0} — свои").format(", ".join(extra["per_streamer"])))
+            why = "; ".join(dict.fromkeys(reasons.get(k, "") for k in changes if reasons.get(k)))
+            self.activity.event("🩺", T("Доктор поменял настройки клипов: {0}").format(", ".join(parts) or "—")
+                                + (f" — {why}" if why else ""))
+        self._doc_announced = True
+        if changes or extra_changed:
+            self._save_settings()
+            self._on_live_setting(quick=True)
+
+    def _doctor_toggled(self):
+        if self.v["doctor_settings"].get():
+            self.activity.event("🩺", T("Настройки клипов доверены Доктору — он выбирает их по трендам и аналитике"))
+            self._apply_doctor_settings()
+            self._save_settings()
+            return
+        manual = self.cfg.pop("manual_settings", None) or {}
+        for k, v in manual.items():
+            if k in self.v:
+                try:
+                    self.v[k].set(v)
+                except Exception:
+                    pass
+        self._doc_extra = {}
+        self._doc_reason = {}
+        self._doc_lock(set())
+        self.doc_hint.config(text="")
+        self.activity.event("🩺", T("Настройки клипов снова твои — вернул те, что были до Доктора"))
+        self._save_settings()
+        self._on_live_setting(quick=True)
 
     # ---------- автопилот ----------
     AUTOPILOT_EVERY = 5 * 60 * 1000

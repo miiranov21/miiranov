@@ -160,7 +160,7 @@ def build(clip: dict, rec: dict, out: str, log=print) -> dict:
         log(T_("Подписываю автора..."))
         ass = f"{stamp}_credit.ass"
         render.write_credit_ass(os.path.join(work, ass), credit_mod.platform_of(clip), credit_mod.author_of(clip),
-                                cr.get("pos", "bottom-left"))
+                                cr.get("pos", "top-left"), text=cr.get("text") or None)
         nxt = os.path.join(work, f"{stamp}_credit.mp4")
         _ffmpeg(["ffmpeg", "-y", "-v", "error", "-i", os.path.abspath(cur), "-vf", f"ass={ass}", "-c:v", "libx264",
                  "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "copy", os.path.abspath(nxt)],
@@ -276,7 +276,7 @@ def build_variant(clip: dict, extra_ops: list, out: str, log=print) -> str:
     import copy
     rec = copy.deepcopy(ensure(clip))
     for e in extra_ops:
-        op = {k: v for k, v in e.items() if k in ("type", "cut_start", "cut_end", "text", "seconds", "pos")}
+        op = {k: v for k, v in e.items() if k in ("type", "cut_start", "cut_end", "text", "seconds", "pos", "style")}
         if op.get("type") == "trim":
             op["cut_start"], op["cut_end"] = float(op.get("cut_start") or 0), float(op.get("cut_end") or 0)
         if op.get("type") in ("trim", "credit", "hook"):

@@ -32,7 +32,7 @@ STREAMERS_HEADER = T("""# Стримеры, за которыми следит �
 DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
             "top": "3", "length": "35", "quality": "1080", "autoupdate": True,
             "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": T("плавает по экрану"), "wm_op": T("средне"), "game_view": T("целиком"), "yt_browser": T("не брать"),
-            "credit_auto": False, "credit_pos": T("внизу слева"), "lang": i18n.LANG,
+            "credit_auto": False, "credit_pos": T("вверху слева"), "lang": i18n.LANG,
             "start_from": T("с начала"), "start_mode": T("от начала стрима"), "theme": T("Фиолетовая (как Twitch)")}
 CREDIT_POS = {T("внизу слева"): "bottom-left", T("вверху слева"): "top-left", T("вверху справа"): "top-right"}
 SHOW_ALL = T("все клипы")
@@ -578,8 +578,11 @@ class App:
         self.v["credit_auto"] = tk.BooleanVar(value=bool(self.cfg.get("credit_auto", False)))
         ttk.Checkbutton(cr, text=T("Сразу подписывать все новые клипы"), variable=self.v["credit_auto"]).pack(side="left")
         ttk.Label(cr, text=T("  Где:")).pack(side="left")
-        self.v["credit_pos"] = tk.StringVar(value=self.cfg.get("credit_pos") if self.cfg.get("credit_pos") in CREDIT_POS
-                                            else T("внизу слева"))
+        cpos = self.cfg.get("credit_pos")
+        if cpos == T("внизу слева") and not self.cfg.get("credit_pos_v2"):
+            cpos = T("вверху слева")  # раньше по умолчанию было «внизу» — там подпись закрывает интерфейс площадок
+        self.v["credit_pos"] = tk.StringVar(value=cpos if cpos in CREDIT_POS else T("вверху слева"))
+        self.v["credit_pos_v2"] = tk.BooleanVar(value=True)
         ttk.Combobox(cr, textvariable=self.v["credit_pos"], values=list(CREDIT_POS), width=14,
                      state="readonly").pack(side="left", padx=4)
         for k in ("credit_auto", "credit_pos"):
@@ -1081,7 +1084,7 @@ class App:
         if subs and importlib.util.find_spec("faster_whisper") is None:
             subs = False  # распознавание речи не установлено — включать нечего (предупреждение — в журнале)
         return {"top": top, "pre": pre, "post": post, "credit": bool(self.v["credit_auto"].get()),
-                "credit_pos": CREDIT_POS.get(self.v["credit_pos"].get(), "bottom-left"),
+                "credit_pos": CREDIT_POS.get(self.v["credit_pos"].get(), "top-left"),
                 "subs": subs, "caption": bool(self.v["caption"].get()), "facecam": bool(self.v["facecam"].get()),
                 "audio": bool(self.v["audio"].get()), "game_view": GAME_VIEW.get(self.v["game_view"].get(), "full"),
                 "quality": int(self.v["quality"].get() or 1080)}
@@ -1158,7 +1161,7 @@ class App:
         if browser:
             f += ["--cookies-browser", browser]
         if c.get("credit_auto"):
-            f += ["--credit", "--credit-pos", CREDIT_POS.get(c.get("credit_pos"), "bottom-left")]
+            f += ["--credit", "--credit-pos", CREDIT_POS.get(c.get("credit_pos"), "top-left")]
         text, image = c.get("wm_text", "").strip(), c.get("wm_image", "")
         if c.get("wm_on") and (text or (image and os.path.exists(image))):
             if text:
@@ -1654,7 +1657,7 @@ class App:
                                                     "автора (раньше она ставилась всем клипам). Посмотри превью справа. "
                                                     "Всё равно подписать?")):
                 return
-        pos = CREDIT_POS.get(self.v["credit_pos"].get(), "bottom-left")
+        pos = CREDIT_POS.get(self.v["credit_pos"].get(), "top-left")
         if self.preview.path in {c["path"] for c in todo}:
             self.preview.release()
         self._credit_busy = True
@@ -3239,6 +3242,8 @@ class App:
         def fill(post):
             if not win.winfo_exists():
                 return
+            from . import exchange as _ex
+            post = dict(post, description=_ex.with_author(post.get("description", ""), c, platform))
             for k in ("description", "hashtags"):
                 fields[k].delete("1.0", "end")
                 fields[k].insert("1.0", post[k])

@@ -231,3 +231,23 @@ def platform_text(p: dict) -> tuple[str, str]:
     tags = " ".join(p.get("hashtags") or [])
     desc = "\n\n".join(x for x in (p.get("description") or "", tags) if x)
     return p.get("title") or "", desc
+
+
+def author_line(clip: dict, platform: str) -> str:
+    """Строка про автора в описании (правила «Доктора»): TikTok/Instagram — «🎥 ник (Twitch)», YouTube — «Стрим: ссылка»."""
+    from . import credit
+    name = credit.author_of(clip)
+    src = credit.platform_of(clip)
+    if platform == "youtube":
+        url = clip.get("vod_url") or ""
+        if not url or "twitch.tv/" not in url and "youtu" not in url:
+            url = f"https://www.twitch.tv/{name}" if src == "Twitch" else f"https://www.youtube.com/@{name}"
+        return f"Стрим: {url}"
+    return f"🎥 {name} ({src})"
+
+
+def with_author(desc: str, clip: dict, platform: str | None) -> str:
+    if not platform:
+        return desc
+    line = author_line(clip, platform)
+    return desc if line in desc else (desc.rstrip() + "\n\n" + line).strip()

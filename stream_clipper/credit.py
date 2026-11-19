@@ -71,7 +71,7 @@ def _run(cmd: list, cwd: str | None = None) -> None:
         raise RuntimeError("ffmpeg: " + r.stderr[-500:])
 
 
-def add(clip: dict, pos: str = "bottom-left") -> None:
+def add(clip: dict, pos: str = "top-left") -> None:
     """Накладывает подпись на клип; чистую версию откладывает, чтобы потом можно было снять."""
     path = os.path.normpath(clip["path"])
     work = os.path.join(paths.default_work_dir(), "credit_clean")

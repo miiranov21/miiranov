@@ -25,7 +25,7 @@ def _common(p: argparse.ArgumentParser) -> None:
     g.add_argument("--no-caption", action="store_true", help="без плашки с подписью")
     g.add_argument("--credit", action="store_true", help="сразу вшивать подпись автора стрима во все клипы")
     g.add_argument("--no-credit", action="store_true", help="не подписывать автора стрима на клипе")
-    g.add_argument("--credit-pos", choices=["bottom-left", "top-left", "top-right"], default="bottom-left",
+    g.add_argument("--credit-pos", choices=["bottom-left", "top-left", "top-right"], default="top-left",
                    help="где подпись автора: внизу слева / вверху слева / вверху справа")
     g.add_argument("--watermark-text", default="", help="водяной знак текстом, например @мой_канал")
     g.add_argument("--watermark-image", default="", help="водяной знак картинкой (PNG с прозрачностью)")

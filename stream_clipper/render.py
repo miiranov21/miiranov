@@ -136,28 +136,33 @@ def write_watermark_ass(path: str, text: str, pos: str = "moving", opacity: floa
     return path
 
 
-CREDIT_POS = {"bottom-left": (1, 40, 1470), "top-left": (7, 40, 70), "top-right": (9, 1040, 70)}
+# top-left / top-right — чуть ниже верхних 8% кадра (там вкладки TikTok и Reels); bottom-left не советуем:
+# внизу подпись закрывают ник аккаунта и описание в интерфейсе площадок
+CREDIT_POS = {"bottom-left": (1, 40, 1470), "top-left": (7, 40, 170), "top-right": (9, 1040, 170)}
 _PLATFORM_COLOR = {"twitch": "&H00FF4691", "youtube": "&H000021FF", "kick": "&H0017FC53"}  # ASS: &HAABBGGRR
 
 
-def write_credit_ass(path: str, platform: str, name: str, pos: str = "bottom-left", duration: float = 600) -> str:
+def write_credit_ass(path: str, platform: str, name: str, pos: str = "top-left", duration: float = 600,
+                     text: str | None = None) -> str:
     """Подпись автора стрима: «Twitch | KaiCenat» — чтобы было видно, чей это контент."""
     from .subtitles import _ts
-    an, x, y = CREDIT_POS.get(pos, CREDIT_POS["bottom-left"])
+    an, x, y = CREDIT_POS.get(pos, CREDIT_POS["top-left"])
+    if text:  # свой текст подписи (например, от «Доктора»)
+        name, platform = text, ""
     plat = (platform or "").strip()
     color = _PLATFORM_COLOR.get(plat.lower(), "&H00FFFFFF")
     safe = name.replace("{", "(").replace("}", ")").replace("\\", "")
-    text = f"{{\\an{an}\\pos({x},{y})}}{{\\c{color}}}{plat}{{\\c&H00FFFFFF}}  |  {safe}" if plat else \
+    line = f"{{\\an{an}\\pos({x},{y})}}{{\\c{color}}}{plat}{{\\c&H30FFFFFF}}  |  {safe}" if plat else \
         f"{{\\an{an}\\pos({x},{y})}}{safe}"
     with open(path, "w", encoding="utf-8") as f:
         f.write("[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 2\n\n"
                 "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
                 "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, "
                 "Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-                "Style: Credit,Arial,42,&H00FFFFFF,&H00FFFFFF,&H50000000,&H50000000,-1,0,0,0,"
+                "Style: Credit,Arial,34,&H30FFFFFF,&H30FFFFFF,&H90000000,&H90000000,-1,0,0,0,"
                 "100,100,0,0,3,10,0,1,20,20,20,1\n\n[Events]\n"
                 "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
-                f"Dialogue: 3,{_ts(0)},{_ts(duration)},Credit,,0,0,0,,{text}\n")
+                f"Dialogue: 3,{_ts(0)},{_ts(duration)},Credit,,0,0,0,,{line}\n")
     return path
 
 

@@ -37,7 +37,7 @@ class Settings:
     game_view: str = "full"   # игра в кадре: full — целиком, wide — крупнее, center — только центр
     start_from: str | None = None  # с какого места стрима начать анализ: «1:30», «сейчас» или пусто — с начала
     credit: bool = False      # сразу вшивать подпись автора «Twitch | KaiCenat» (иначе — галочкой на нужных клипах)
-    credit_pos: str = "bottom-left"  # bottom-left | top-left | top-right
+    credit_pos: str = "top-left"  # top-left | top-right | bottom-left (внизу её закрывает интерфейс площадок)
     watermark_text: str = ""  # водяной знак текстом, например "@мой_канал"
     watermark_image: str = "" # водяной знак картинкой (PNG)
     watermark_pos: str = "moving"   # corner | center | moving

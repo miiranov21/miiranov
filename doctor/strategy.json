@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "generated": "2026-11-19T16:00:00+03:00",
+  "source": "Доктор шортсов (облако): аналитика Windsor.ai + исследование конкурентов. Обновляется в 9:42 и 20:42 МСК.",
+  "autopilot": {
+    "auto_publish": true,
+    "auto_delete": true,
+    "delete_mode": "archive",
+    "posts_per_day": {"tiktok": 3, "youtube": 3, "instagram": 2},
+    "min_gap_hours": 4,
+    "platform_stagger_minutes": 20,
+    "post_window_local": {"from": 12, "to": 23},
+    "min_score_to_post": 55,
+    "archive_below_score": 20
+  },
+  "scoring": {
+    "weights": {"rating": 6, "ai_score": 3, "has_hook": 10, "fresh_bonus_per_day_under_3": 0, "stale_penalty_per_day_over_3": 5},
+    "duration_sweet_spot_sec": {"tiktok": [12, 45], "youtube": [15, 50], "instagram": [8, 30]},
+    "streamer_weights": {},
+    "moment_type_weights": {"shock": 1.15, "laugh": 1.1, "fail": 1.05, "hype": 1.0, "talk": 0.6}
+  },
+  "platform_fit": {
+    "tiktok": "реакции, юмор, фейлы, тренды; можно 30–60 с, если история держит",
+    "youtube": "понятный с первого кадра момент, сильный заголовок с ником и игрой в начале; 15–50 с",
+    "instagram": "короче и чище: 8–30 с, без мата и резкого контента, эмоция или «отправь другу»"
+  },
+  "risk_rules": [
+    {"risk": "музыка с авторскими правами (фон стрима, DMCA-треки)", "action": "заглушить фрагмент или заменить звуком из библиотеки; на YouTube клип с заявкой Content ID длиннее 60 с блокируется"},
+    {"risk": "мат", "action": "запикать (bleep) в Instagram и YouTube; в TikTok допустим редкий, но не в первые 3 с"},
+    {"risk": "нагота, насилие крупным планом, оружие у реальных людей, наркотики", "action": "размыть или вырезать; если не вырезается — не публиковать на этой площадке"},
+    {"risk": "чужие вотермарки, плашки доната, QR-коды, ссылки на другие площадки в кадре", "action": "обрезать или замазать"},
+    {"risk": "неоригинальный контент (голая нарезка чужого стрима)", "action": "обязательно: свой хук-текст, субтитры, зумы и монтаж с темпом, подпись автора; без этого TikTok и Reels режут охват"},
+    {"risk": "одинаковые видео подряд", "action": "не публиковать одинаковый момент на одной площадке; на разных — разные тексты и обложки"},
+    {"risk": "кликбейт, который не совпадает с содержанием", "action": "хук должен описывать то, что реально видно"}
+  ],
+  "text_rules": {
+    "banned_hashtags": ["#fyp", "#fyppp", "#foryou", "#foryoupage", "#viral", "#virall", "#рек", "#рекомендации", "#xyzbca", "#trending"],
+    "cross_platform_banned": {"tiktok": ["#shorts", "#reels"], "instagram": ["#shorts", "#tiktok", "#fyp"], "youtube": ["#reels", "#tiktok", "#fyp"]},
+    "hashtags_count": {"tiktok": [3, 5], "youtube": [2, 3], "instagram": [3, 5]},
+    "title_max": {"tiktok": 80, "youtube": 60, "instagram": 125},
+    "must_include": "ник стримера и что именно произошло — так ищут в поиске",
+    "hook": "до 6 слов, ЗАГЛАВНЫМИ, первые 0–3 с, про стримера и момент, без выдумок"
+  },
+  "trends": [],
+  "competitors": [],
+  "lessons": [
+    "19.11: три видео в TikTok за 6 минут — пачки делят тестовый показ, держать паузу 3–4 ч",
+    "19.11: #shorts/#reels/#fyp/#viral в TikTok — убрать",
+    "19.11: голые нарезки IShowSpeed — добавлять свой монтаж и хук"
+  ]
+}

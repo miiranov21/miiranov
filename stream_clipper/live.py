@@ -432,7 +432,9 @@ class LiveSession:
             try:
                 seg = self._cut(chunks, h.start, h.end, os.path.join(self.work, name + "_raw.mp4"))
                 tmp = os.path.join(self.work, name + ".mp4")
-                meta = {"streamer": self.channel, "title": self.title, "top_messages": h.top_messages, "lang": lang}
+                meta = {"streamer": self.channel, "title": self.title, "top_messages": h.top_messages, "lang": lang,
+                        "platform": "YouTube" if self.is_youtube else "Twitch",
+                        "credit_name": self.info.get("uploader") or self.info.get("channel") or self.channel}
                 d["caption"] = _make_short(seg, tmp, cfg, log, meta)
                 d["transcript"], d["lang"] = meta.get("transcript", ""), lang
                 d["rating"] = _final_rating(d, meta)

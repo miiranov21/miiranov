@@ -28,7 +28,9 @@ STREAMERS_HEADER = """# Стримеры, за которыми следит п�
 DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
             "top": "3", "length": "35", "quality": "1080", "autoupdate": True,
             "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": "плавает по экрану", "wm_op": "средне", "game_view": "целиком", "yt_browser": "не брать",
+            "credit_on": True, "credit_pos": "внизу слева",
             "start_from": "с начала", "start_mode": "от начала стрима", "theme": "Фиолетовая (как Twitch)"}
+CREDIT_POS = {"внизу слева": "bottom-left", "вверху слева": "top-left", "вверху справа": "top-right"}
 WM_POS = {"плавает по экрану": "moving", "по центру": "center", "в углу": "corner"}
 
 # цветовые темы окна: bg — фон, panel — блоки, field — поля ввода, accent — главные кнопки и акценты
@@ -517,6 +519,21 @@ class App:
         ttk.Combobox(r2, textvariable=self.v["wm_op"], values=list(WM_OP), width=9,
                      state="readonly").pack(side="left", padx=4)
         ttk.Label(r2, text="  «плавает» — лучшая защита: знак нельзя обрезать или замазать",
+                  foreground=self.muted).pack(side="left")
+
+        # подпись автора
+        cr = ttk.LabelFrame(sett, text=" Подпись автора — чей это клип (Twitch | KaiCenat) ", padding=6)
+        cr.pack(fill="x", pady=(0, 6))
+        self.v["credit_on"] = tk.BooleanVar(value=bool(self.cfg.get("credit_on", True)))
+        ttk.Checkbutton(cr, text="Подписывать платформу и стримера", variable=self.v["credit_on"]).pack(side="left")
+        ttk.Label(cr, text="  Где:").pack(side="left")
+        self.v["credit_pos"] = tk.StringVar(value=self.cfg.get("credit_pos") if self.cfg.get("credit_pos") in CREDIT_POS
+                                            else "внизу слева")
+        ttk.Combobox(cr, textvariable=self.v["credit_pos"], values=list(CREDIT_POS), width=14,
+                     state="readonly").pack(side="left", padx=4)
+        for k in ("credit_on", "credit_pos"):
+            self.v[k].trace_add("write", lambda *a: self._on_live_setting())
+        ttk.Label(cr, text="  указывает источник — так требуют правила площадок",
                   foreground=self.muted).pack(side="left")
 
         self._build_telegram(sett)
@@ -1009,7 +1026,8 @@ class App:
             return
         try:
             with open(paths.live_settings_path(), "w", encoding="utf-8") as f:
-                json.dump({"top": top, "pre": pre, "post": post}, f)
+                json.dump({"top": top, "pre": pre, "post": post, "credit": bool(self.v["credit_on"].get()),
+                           "credit_pos": CREDIT_POS.get(self.v["credit_pos"].get(), "bottom-left")}, f)
         except OSError:
             return
         self._append(f"Настройки изменены: {top} клипов за час, по {pre + post} с — применятся к следующим клипам.\n")
@@ -1048,6 +1066,10 @@ class App:
         browser = YT_BROWSERS.get(c.get("yt_browser"), "")
         if browser:
             f += ["--cookies-browser", browser]
+        if not c.get("credit_on", True):
+            f += ["--no-credit"]
+        else:
+            f += ["--credit-pos", CREDIT_POS.get(c.get("credit_pos"), "bottom-left")]
         text, image = c.get("wm_text", "").strip(), c.get("wm_image", "")
         if c.get("wm_on") and (text or (image and os.path.exists(image))):
             if text:

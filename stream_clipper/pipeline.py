@@ -36,6 +36,8 @@ class Settings:
     caption: bool = True      # плашка с подписью к моменту
     game_view: str = "full"   # игра в кадре: full — целиком, wide — крупнее, center — только центр
     start_from: str | None = None  # с какого места стрима начать анализ: «1:30», «сейчас» или пусто — с начала
+    credit: bool = True       # подпись автора стрима на клипе: «Twitch | KaiCenat»
+    credit_pos: str = "bottom-left"  # bottom-left | top-left | top-right
     watermark_text: str = ""  # водяной знак текстом, например "@мой_канал"
     watermark_image: str = "" # водяной знак картинкой (PNG)
     watermark_pos: str = "moving"   # corner | center | moving
@@ -125,6 +127,10 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
         log(f"    подпись: {text}")
         ass_files.append(render.write_caption_ass(base + ".caption.ass", text,
                                                   render.caption_y(layout, cfg.zoom, game_view=cfg.game_view)))
+    if cfg.credit and meta.get("credit_name"):
+        # чей это стрим — платформа и ник автора (уважение к автору и правилам площадок)
+        ass_files.insert(0, render.write_credit_ass(base + ".credit.ass", meta.get("platform", ""),
+                                                    meta["credit_name"], cfg.credit_pos))
     if cfg.watermark_text.strip():
         # знак ставим под надписью-плашкой, чтобы не закрывал её
         ass_files.insert(len(ass_files) - (1 if text else 0),
@@ -192,6 +198,13 @@ def refresh_live(cfg: Settings, log=print) -> None:
             and (pre, post) != (cfg.clip_pre, cfg.clip_post):
         cfg.clip_pre, cfg.clip_post = float(pre), float(post)
         changed.append(f"длина клипа: {int(pre + post)} с")
+    credit, cpos = live.get("credit"), live.get("credit_pos")
+    if isinstance(credit, bool) and credit != cfg.credit:
+        cfg.credit = credit
+        changed.append("подпись автора: " + ("вкл" if credit else "выкл"))
+    if cpos in render.CREDIT_POS and cpos != cfg.credit_pos:
+        cfg.credit_pos = cpos
+        changed.append("подпись автора перенесена")
     if changed:
         log("Новые настройки подхвачены: " + ", ".join(changed))
 
@@ -396,7 +409,8 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                                                       cfg.max_height)
                         tmp = os.path.join(work, name + ".mp4")
                         meta = {"streamer": channel, "title": title, "top_messages": h.top_messages,
-                                "lang": lang or "en"}
+                                "lang": lang or "en", "platform": "YouTube" if yt else "Twitch",
+                                "credit_name": (info.get("uploader") or channel)}
                         d["caption"] = _make_short(seg, tmp, cfg, log, meta)
                         d["transcript"], d["lang"] = meta.get("transcript", ""), lang or "en"
                         d["rating"] = _final_rating(d, meta)

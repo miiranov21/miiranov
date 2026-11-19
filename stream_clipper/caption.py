@@ -149,22 +149,125 @@ def remember_caption(streamer: str, text: str) -> None:
         json.dump(data, f, ensure_ascii=False, indent=1)
 
 
+# ---------- банк хуков «Доктора» (strategy.json → hook_bank) и история выданных надписей ----------
+def hook_bank() -> dict:
+    try:
+        from . import strategy
+        hb = strategy.get().get("hook_bank") or {}
+        return hb if isinstance(hb, dict) else {}
+    except Exception:
+        return {}
+
+
+def short_nick(streamer: str, bank: dict | None = None) -> str:
+    """Короткий ник, как зовут фанаты (hook_bank.nicknames), иначе — красиво оформленный логин."""
+    bank = hook_bank() if bank is None else bank
+    nicks = {k.lower(): v for k, v in (bank.get("nicknames") or {}).items()}
+    return nicks.get((streamer or "").lower()) or _nice_name(streamer)
+
+
+def _history_path() -> str:
+    return os.path.join(paths.default_work_dir(), "captions_history.json")
+
+
+def caption_history() -> list[dict]:
+    """Все выданные надписи по порядку (общие для всех стримеров): [{"text", "tpl"}]."""
+    try:
+        import json
+        with open(_history_path(), encoding="utf-8") as f:
+            data = json.load(f)
+        return [h for h in data if isinstance(h, dict)] if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def _remember_history(text: str, tpl: str) -> None:
+    import json
+    hist = caption_history()
+    hist.append({"text": text, "tpl": tpl})
+    os.makedirs(os.path.dirname(_history_path()), exist_ok=True)
+    tmp = _history_path() + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(hist[-100:], f, ensure_ascii=False, indent=0)
+    os.replace(tmp, _history_path())
+
+
+TEXT_GAP, TPL_GAP = 20, 5  # одна надпись — не чаще раза в 20 клипов, один шаблон — не чаще раза в 5
+LAST_TPL: dict = {"value": ""}  # шаблон, по которому сделана последняя надпись (для истории)
+
+
+def _norm(t: str) -> str:
+    return re.sub(r"\W+", " ", (t or "").lower()).strip()
+
+
+def _bank_category(cat: str, bank_lang: dict) -> list[str]:
+    """Тип момента из реакции чата → список хуков банка (для «просто момента» — смесь подходящих типов)."""
+    if bank_lang.get(cat):
+        return list(bank_lang[cat])
+    mix = []
+    for c in ("shock", "laugh", "hype"):
+        mix += list(bank_lang.get(c) or [])
+    return mix
+
+
+def _pick_fresh(cands: list[tuple[str, str]], spare: list[tuple[str, str]] = ()) -> tuple[str, str] | None:
+    """cands: [(готовая надпись, шаблон)] → случайная, которой не было в последних 20 и шаблона — в последних 5.
+    Если в своём типе момента свежих не осталось — берём свежую из запасных (соседние типы), и только потом повтор."""
+    import random
+    hist = caption_history()
+    recent_text = {_norm(h.get("text", "")) for h in hist[-TEXT_GAP:]}
+    recent_tpl = {h.get("tpl", "") for h in hist[-TPL_GAP:]}
+
+    def fresh(lst):
+        return [c for c in lst if _norm(c[0]) not in recent_text and c[1] not in recent_tpl]
+    tiers = (fresh(cands), fresh(spare),
+             [c for c in cands if _norm(c[0]) not in recent_text],
+             [c for c in spare if _norm(c[0]) not in recent_text],
+             cands)
+    for tier in tiers:
+        if tier:
+            return random.choice(tier)
+    return None
+
+
 def template_caption(streamer: str, title: str, top_messages: list[str], lang: str,
                      quote: str | None = None) -> str:
-    import random
+    """Надпись без Claude: 1) цензурная цитата стримера 2–6 слов, 2) банк хуков «Доктора», 3) старые шаблоны."""
     lang = "ru" if lang == "ru" else "en"
-    gta = "gta" in title.lower() or "гта" in title.lower() or "gta" in " ".join(top_messages).lower()
-    g = (" в GTA 6" if lang == "ru" else " in GTA 6") if gta else ""
-    s = _nice_name(streamer)
+    bank = hook_bank()
+    s = short_nick(streamer, bank)
     cat = _category(top_messages)  # чат подсказывает только тип момента
-    options = [t.format(s=s, g=g) for t in TEMPLATES[lang][cat]]
-    used = set(recent_captions(streamer))
-    if quote:  # цитата самого стримера — самое живое, что можно поставить без Claude
-        q = f"{s}: «{quote}»" if lang == "ru" else f'{s}: "{quote}"'
-        if q not in used and random.random() < 0.7:
+    hist = [_norm(h.get("text", "")) for h in caption_history()[-TEXT_GAP:]] + \
+        [_norm(t) for t in recent_captions(streamer)[-TEXT_GAP:]]
+    if quote and 2 <= len(quote.split()) <= 6:  # цитата самого стримера — самое живое
+        q = quote.strip(" .,!?").upper()
+        q = f"{s}: «{q}»" if lang == "ru" else f'{s}: "{q}"'
+        if _norm(q) not in hist and _norm(quote) not in " ".join(hist):
+            LAST_TPL["value"] = "quote"
             return q
-    fresh = [o for o in options if o not in used] or options
-    return random.choice(fresh)
+    hooks = _bank_category(cat, bank.get(lang) or {})
+    if hooks:  # хуки банка — заглавными, без «в GTA 6»: игра и так видна
+        def fmt(lst):
+            out = []
+            for t in lst:
+                try:
+                    out.append((t.format(s=s).upper(), "bank:" + t))
+                except (KeyError, IndexError, ValueError):
+                    pass
+            return out
+        bl = bank.get(lang) or {}
+        near = [t for c in ("shock", "laugh", "hype") if c != cat for t in (bl.get(c) or []) if t not in hooks]
+        got = _pick_fresh(fmt(hooks), fmt(near))
+        if got:
+            LAST_TPL["value"] = got[1]
+            return got[0]
+    # запасной вариант — стратегия не скачалась: старые шаблоны, «в GTA 6» не чаще раза в 5 надписей
+    gta = "gta" in title.lower() or "гта" in title.lower() or "gta" in " ".join(top_messages).lower()
+    gta_recent = any("gta" in h for h in hist[-TPL_GAP + 1:])
+    g = (" в GTA 6" if lang == "ru" else " in GTA 6") if gta and not gta_recent else ""
+    got = _pick_fresh([(t.format(s=s, g=g), "tpl:" + t) for t in TEMPLATES[lang][cat]])
+    LAST_TPL["value"] = got[1]
+    return got[0]
 
 
 LAST_SCORE: dict = {"value": None}  # оценка Claude для последней надписи (1–10)
@@ -175,6 +278,7 @@ def make_caption(streamer: str, title: str, top_messages: list[str], transcript:
     key = _api_key()
     text = None
     LAST_SCORE["value"] = None
+    LAST_TPL["value"] = ""
     if key:
         try:
             text = _claude_caption(key, streamer, title, top_messages, transcript, lang, frames or [])
@@ -188,9 +292,30 @@ def make_caption(streamer: str, title: str, top_messages: list[str], transcript:
     text = censor_text(text)
     try:
         remember_caption(streamer, text)
+        _remember_history(text, LAST_TPL["value"] or "claude:" + _norm(text))
     except Exception:
         pass
     return text
+
+
+def _system_prompt(streamer: str, lang: str) -> str:
+    """SYSTEM_PROMPT + правила и 5 случайных примеров из банка хуков «Доктора» (если стратегия скачана)."""
+    import random
+    bank = hook_bank()
+    rules = [r for r in bank.get("rules") or [] if isinstance(r, str)]
+    pool = [h for v in (bank.get("ru" if lang == "ru" else "en") or {}).values() if isinstance(v, list) for h in v]
+    if not rules and not pool:
+        return SYSTEM_PROMPT
+    nick = short_nick(streamer, bank)
+    extra = "\n\nHouse style for captions (from our strategy, follow it):"
+    if rules:
+        extra += "\n" + "\n".join(f"- {r}" for r in rules)
+    extra += f"\n- call the streamer {nick}; do not add the game name to every caption — the game is visible anyway."
+    if pool:
+        ex = random.sample(pool, min(5, len(pool)))
+        extra += ("\nStyle examples (ALL CAPS, short; write in this style, but your own words for this exact moment):\n"
+                  + "\n".join(f"- {e.replace('{s}', nick)}" for e in ex))
+    return SYSTEM_PROMPT + extra
 
 
 def _claude_caption(key: str, streamer: str, title: str, top_messages: list[str], transcript: str,
@@ -206,7 +331,9 @@ def _claude_caption(key: str, streamer: str, title: str, top_messages: list[str]
             f"What the streamer says in the clip (auto transcript, may be empty or rough):\n"
             f"{transcript[:1500] or '(no transcript)'}\n"
             f"Captions already used for this streamer — do not repeat them, vary the wording and angle:\n"
-            + ("\n".join(f"- {c}" for c in recent_captions(streamer)[-15:]) or "(none yet)"))
+            + ("\n".join(f"- {c}" for c in recent_captions(streamer)[-15:]) or "(none yet)")
+            + "\nLast 20 captions across all clips — do not repeat any of them or their pattern:\n"
+            + ("\n".join(f"- {h.get('text', '')}" for h in caption_history()[-TEXT_GAP:]) or "(none yet)"))
     content: list = []
     for p in (frames or [])[:3]:  # кадры момента — Claude видит, что происходит на экране
         try:
@@ -225,7 +352,7 @@ def _claude_caption(key: str, streamer: str, title: str, top_messages: list[str]
         output_config={"effort": "low"},
         betas=["server-side-fallback-2026-07-01"],
         fallbacks="default",
-        system=SYSTEM_PROMPT,
+        system=_system_prompt(streamer, lang),
         messages=[{"role": "user", "content": content}],
     )
     if response.stop_reason == "refusal":

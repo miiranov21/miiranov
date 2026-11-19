@@ -127,6 +127,12 @@ def _channels_from_file() -> list[str]:
 def main(argv=None) -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    try:  # банк надписей «Доктора» нужен и без окна (не чаще раза в час, тихо, в фоне)
+        import threading
+        from . import strategy
+        threading.Thread(target=lambda: strategy.refresh(log=lambda m: None), daemon=True).start()
+    except Exception:
+        pass
     p = argparse.ArgumentParser(prog="python -m stream_clipper",
                                 description="Автонарезка хайлайтов из Twitch-стримов в YouTube Shorts")
     sub = p.add_subparsers(dest="cmd", required=True)

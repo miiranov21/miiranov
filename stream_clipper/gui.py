@@ -27,8 +27,21 @@ STREAMERS_HEADER = """# Стримеры, за которыми следит п�
 DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
             "top": "3", "length": "35", "quality": "1080", "autoupdate": True,
             "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": "плавает по экрану", "wm_op": "средне", "game_view": "целиком", "yt_browser": "не брать",
-            "start_from": "с начала"}
+            "start_from": "с начала", "theme": "Фиолетовая (как Twitch)"}
 WM_POS = {"плавает по экрану": "moving", "по центру": "center", "в углу": "corner"}
+
+# цветовые темы окна: bg — фон, panel — блоки, field — поля ввода, accent — главные кнопки и акценты
+THEMES = {
+    "Фиолетовая (как Twitch)": dict(bg="#18181b", panel="#232328", field="#2d2d34", fg="#efeff1", muted="#a1a1aa",
+                                    accent="#9147ff", accent_fg="#ffffff", border="#3a3a44", select="#5b2bb5"),
+    "Красная (как YouTube)": dict(bg="#0f0f0f", panel="#1c1c1c", field="#272727", fg="#f1f1f1", muted="#aaaaaa",
+                                  accent="#e62117", accent_fg="#ffffff", border="#333333", select="#8a1610"),
+    "Синяя ночь": dict(bg="#0f172a", panel="#16213a", field="#1e2a47", fg="#e2e8f0", muted="#94a3b8",
+                       accent="#06b6d4", accent_fg="#04212a", border="#2a3a5c", select="#0e7490"),
+    "Светлая мятная": dict(bg="#f3f7f6", panel="#ffffff", field="#ffffff", fg="#1f2a2e", muted="#6b7c80",
+                           accent="#10a37f", accent_fg="#ffffff", border="#d5e2df", select="#bfe9dc"),
+    "Классическая (серая)": None,
+}
 GAME_VIEW = {"целиком": "full", "крупнее": "wide", "только центр": "center"}
 YT_BROWSERS = {"не брать": "", "Firefox": "firefox", "Chrome": "chrome", "Edge": "edge", "Opera": "opera",
                "Brave": "brave", "Vivaldi": "vivaldi"}
@@ -96,6 +109,9 @@ class App:
         self.lines: queue.Queue = queue.Queue()
         self.cfg = _load_json(SETTINGS, DEFAULTS)
         root.title("Stream Clipper — нарезки для Shorts")
+        self.v: dict = {}
+        self.pal = self._apply_theme(self.cfg.get("theme"))
+        self.muted = self.pal["muted"] if self.pal else "#666"
         root.geometry("920x820")
         root.minsize(700, 640)
         try:
@@ -107,6 +123,69 @@ class App:
         root.protocol("WM_DELETE_WINDOW", self.on_close)
         root.after(150, self._drain)
 
+    # ---------- оформление ----------
+    def _apply_theme(self, name):
+        pal = THEMES.get(name) if name in THEMES else THEMES["Фиолетовая (как Twitch)"]
+        style = ttk.Style()
+        if not pal:
+            return None
+        style.theme_use("clam")
+        bg, panel, field, fg, muted, acc, acc_fg, border, sel = (pal[k] for k in (
+            "bg", "panel", "field", "fg", "muted", "accent", "accent_fg", "border", "select"))
+        self.root.configure(bg=bg)
+        style.configure(".", background=bg, foreground=fg, fieldbackground=field, bordercolor=border,
+                        lightcolor=panel, darkcolor=panel, troughcolor=panel, focuscolor=acc,
+                        selectbackground=sel, selectforeground=fg, insertcolor=fg, font=("Segoe UI", 10))
+        style.configure("TFrame", background=bg)
+        style.configure("TLabel", background=bg, foreground=fg)
+        style.configure("TLabelframe", background=bg, bordercolor=border)
+        style.configure("TLabelframe.Label", background=bg, foreground=acc, font=("Segoe UI", 10, "bold"))
+        style.configure("TButton", background=panel, foreground=fg, bordercolor=border, padding=6)
+        style.map("TButton", background=[("active", border), ("disabled", bg)], foreground=[("disabled", muted)])
+        style.configure("Big.TButton", background=acc, foreground=acc_fg, bordercolor=acc)
+        style.map("Big.TButton", background=[("active", sel), ("disabled", panel)],
+                  foreground=[("disabled", muted)])
+        style.configure("TMenubutton", background=panel, foreground=fg, bordercolor=border, padding=6)
+        style.configure("TCheckbutton", background=bg, foreground=fg, indicatorbackground=field,
+                        indicatorforeground=acc)
+        style.map("TCheckbutton", background=[("active", bg)], indicatorbackground=[("selected", acc)])
+        style.configure("TEntry", fieldbackground=field, foreground=fg, bordercolor=border)
+        style.configure("TCombobox", fieldbackground=field, foreground=fg, background=panel, arrowcolor=fg,
+                        bordercolor=border)
+        style.map("TCombobox", fieldbackground=[("readonly", field)], foreground=[("readonly", fg)])
+        style.configure("TNotebook", background=bg, bordercolor=border, tabmargins=(4, 4, 4, 0))
+        style.configure("TNotebook.Tab", background=panel, foreground=muted, padding=(14, 6), bordercolor=border)
+        style.map("TNotebook.Tab", background=[("selected", acc)], foreground=[("selected", acc_fg)])
+        style.configure("Treeview", background=field, fieldbackground=field, foreground=fg, bordercolor=border)
+        style.map("Treeview", background=[("selected", sel)], foreground=[("selected", fg)])
+        style.configure("Treeview.Heading", background=panel, foreground=fg, bordercolor=border)
+        style.configure("Vertical.TScrollbar", background=panel, arrowcolor=fg, bordercolor=border)
+        # обычные (не ttk) поля и списки
+        for opt, val in (("*Text.background", field), ("*Text.foreground", fg), ("*Text.insertBackground", fg),
+                         ("*Text.selectBackground", sel), ("*Listbox.background", field),
+                         ("*Listbox.foreground", fg), ("*Listbox.selectBackground", sel),
+                         ("*Menu.background", panel), ("*Menu.foreground", fg), ("*Menu.activeBackground", acc),
+                         ("*Menu.activeForeground", acc_fg), ("*TCombobox*Listbox.background", field),
+                         ("*TCombobox*Listbox.foreground", fg), ("*Canvas.background", bg),
+                         ("*Toplevel.background", bg)):
+            self.root.option_add(opt, val)
+        return pal
+
+    def _change_theme(self, *_):
+        name = self.v["theme"].get()
+        if name == self.cfg.get("theme"):
+            return
+        self._save_settings()
+        if messagebox.askyesno("Оформление", "Чтобы применить тему, окно перезапустится. Перезапустить сейчас?"
+                               + ("\n(Работа остановится аккуратно и продолжится сама.)" if self.proc else "")):
+            if self.proc:
+                with open(RESUME, "w", encoding="utf-8") as f:
+                    json.dump(self.job or ["watch"], f)
+                self.updating = True
+                open(paths.stop_request_path(), "w").close()
+            else:
+                self._restart()
+
     # ---------- интерфейс ----------
     def _build(self):
         self.nb = ttk.Notebook(self.root)
@@ -114,6 +193,14 @@ class App:
         main = ttk.Frame(self.nb, padding=8)
         clips = ttk.Frame(self.nb, padding=8)
         sett = ttk.Frame(self.nb, padding=8)
+        themef = ttk.LabelFrame(sett, text=" 🎨 Оформление ", padding=6)
+        themef.pack(fill="x", pady=(0, 6))
+        ttk.Label(themef, text="Тема окна:").pack(side="left")
+        th = self.cfg.get("theme")
+        self.v["theme"] = tk.StringVar(value=th if th in THEMES else "Фиолетовая (как Twitch)")
+        cb_theme = ttk.Combobox(themef, textvariable=self.v["theme"], values=list(THEMES), width=26, state="readonly")
+        cb_theme.pack(side="left", padx=6)
+        cb_theme.bind("<<ComboboxSelected>>", self._change_theme)
         self.nb.add(main, text="  Управление  ")
         self.nb.add(clips, text="  Клипы  ")
         self.nb.add(sett, text="  Настройки  ")
@@ -138,12 +225,11 @@ class App:
 
         # настройки
         opt = ttk.LabelFrame(top, text=" Что делать с клипом ", padding=6)
-        opt.pack(side="left", fill="both", expand=True)
-        self.v = {}
+        opt.pack(side="right", fill="y", before=box)  # блоку настроек — его полная ширина
         for key, text in (("subs", "Субтитры (речь стримера)"),
                           ("caption", "Надпись-плашка с подписью к моменту"),
                           ("facecam", "Вебка стримера сверху"),
-                          ("audio", "Учитывать громкость (крики, взрывы)")):
+                          ("audio", "Искать по звуку и картинке (без чата)")):
             self.v[key] = tk.BooleanVar(value=bool(self.cfg.get(key)))
             ttk.Checkbutton(opt, text=text, variable=self.v[key]).pack(anchor="w", pady=2)
         grid = ttk.Frame(opt)
@@ -168,8 +254,20 @@ class App:
         self.v["game_view"] = tk.StringVar(value=gv if gv in GAME_VIEW else "целиком")
         ttk.Combobox(grid, textvariable=self.v["game_view"], values=list(GAME_VIEW), width=12,
                      state="readonly").grid(row=3, column=1, sticky="w", padx=6)
+        # картинка-пример: как будет выглядеть клип при выбранном варианте
+        self.gv_images = {}
+        for label, key in GAME_VIEW.items():
+            try:
+                self.gv_images[label] = tk.PhotoImage(file=os.path.join(PROG, "stream_clipper", "assets",
+                                                                        f"gameview_{key}.png"))
+            except Exception:
+                pass
+        self.gv_preview = ttk.Label(grid)
+        self.gv_preview.grid(row=0, column=2, rowspan=4, padx=(10, 0), sticky="ne")
+        self.v["game_view"].trace_add("write", lambda *a: self._update_gv_preview())
+        self._update_gv_preview()
         ttk.Label(grid, text="числа можно вписать свои;\nменяются и во время работы",
-                  foreground="#666").grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
+                  foreground=self.muted).grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
         # ключ Claude
         keyf = ttk.LabelFrame(sett, text=" Ключ Claude API для умных надписей (необязательно) ", padding=6)
@@ -189,7 +287,7 @@ class App:
         ttk.Combobox(ytf, textvariable=self.v["yt_browser"], values=list(YT_BROWSERS), width=12,
                      state="readonly").pack(side="left", padx=6)
         ttk.Label(ytf, text="нужно, если YouTube считает программу ботом (лучше Firefox, войди в нём в YouTube)",
-                  foreground="#666").pack(side="left")
+                  foreground=self.muted).pack(side="left")
 
         # водяной знак
         wm = ttk.LabelFrame(sett, text=" Водяной знак — чтобы клипы не крали ", padding=6)
@@ -201,11 +299,11 @@ class App:
         ttk.Label(r1, text="  Текст:").pack(side="left")
         self.v["wm_text"] = tk.StringVar(value=self.cfg.get("wm_text", ""))
         ttk.Entry(r1, textvariable=self.v["wm_text"], width=20).pack(side="left", padx=4)
-        ttk.Label(r1, text="(например @твой_канал)", foreground="#666").pack(side="left")
+        ttk.Label(r1, text="(например @твой_канал)", foreground=self.muted).pack(side="left")
         self.v["wm_image"] = tk.StringVar(value=self.cfg.get("wm_image", ""))
         ttk.Button(r1, text="✕", width=3, command=lambda: self.v["wm_image"].set("")).pack(side="right")
         ttk.Button(r1, text="Логотип…", command=self.choose_logo).pack(side="right", padx=4)
-        self.logo_label = ttk.Label(r1, text="", foreground="#666")
+        self.logo_label = ttk.Label(r1, text="", foreground=self.muted)
         self.logo_label.pack(side="right")
         self.v["wm_image"].trace_add("write", lambda *a: self._update_logo_label())
         self._update_logo_label()
@@ -221,7 +319,7 @@ class App:
         ttk.Combobox(r2, textvariable=self.v["wm_op"], values=list(WM_OP), width=9,
                      state="readonly").pack(side="left", padx=4)
         ttk.Label(r2, text="  «плавает» — лучшая защита: знак нельзя обрезать или замазать",
-                  foreground="#666").pack(side="left")
+                  foreground=self.muted).pack(side="left")
 
         self._build_telegram(sett)
 
@@ -250,12 +348,19 @@ class App:
         ttk.Combobox(fromrow, textvariable=self.v["start_from"], width=11,
                      values=["с начала", "сейчас", "0:30", "1:00", "1:30", "2:00", "3:00", "4:00"]
                      ).pack(side="left", padx=6)
-        ttk.Label(fromrow, foreground="#666",
+        ttk.Label(fromrow, foreground=self.muted,
                   text="часы:минуты от начала стрима. Для ссылки и для уже идущих стримов Twitch").pack(side="left")
 
         # журнал
         logf = ttk.LabelFrame(main, text=" Что происходит ", padding=6)
         logf.pack(fill="both", expand=True, pady=(6, 0))
+        logbar = ttk.Frame(logf)
+        logbar.pack(fill="x")
+        self.log_detailed = tk.BooleanVar(value=False)
+        self.log_lines: list = []  # (текст, важная ли строка)
+        ttk.Label(logbar, text="Коротко: что началось и какие клипы готовы", foreground=self.muted).pack(side="left")
+        self.b_details = ttk.Button(logbar, text="Подробнее ▾", command=self._toggle_details)
+        self.b_details.pack(side="right")
         self.log = ScrolledText(logf, height=8, font=("Consolas", 10), state="disabled", wrap="word")
         self.log.pack(fill="both", expand=True)
         bottom = ttk.Frame(main)
@@ -267,7 +372,7 @@ class App:
         self.status = ttk.Label(bottom, text="Готово. Не забудь включить VPN.", anchor="w", width=10)
         self.status.pack(side="left", fill="x", expand=True)
         # плашка «есть новая версия» (показывается, когда нужно)
-        self.update_bar = tk.Frame(self.root, bg="#fff3c4")
+        self.update_bar = tk.Frame(self.root, bg="#fff3c4")  # жёлтая плашка видна в любой теме
         self.update_label = tk.Label(self.update_bar, bg="#fff3c4", font=("Segoe UI", 10, "bold"))
         self.update_label.pack(side="left", padx=10, pady=6)
         ttk.Button(self.update_bar, text="Обновить сейчас", command=self.install_update).pack(side="right", padx=8)
@@ -360,7 +465,9 @@ class App:
         m = tk.Menu(self.root, tearoff=0)
         m.add_command(label="▶  Смотреть", command=self.play_clip)
         m.add_command(label="📋  Копировать надпись   Ctrl+C", command=self.copy_caption)
-        m.add_command(label="✔  Выложен / не выложен", command=self.toggle_posted)
+        m.add_command(label="✍  Описание и хэштеги", command=self.post_texts)
+        for key, label in library.PLATFORM_NAMES.items():
+            m.add_command(label=f"✔  Выложено в {label} / снять", command=lambda k=key: self.toggle_posted(k))
         m.add_command(label="📂  Показать в папке", command=self.reveal_clip)
         m.add_command(label="🎥  Указать вебку этого стримера", command=self.pick_facecam)
         m.add_separator()
@@ -371,7 +478,7 @@ class App:
     def _platform_tab(self, title: str, hint: str, names: list[str]) -> tk.Text:
         f = ttk.Frame(self.platforms, padding=4)
         self.platforms.add(f, text=title)
-        ttk.Label(f, text=hint + "  (по одному в строке)", foreground="#666").pack(anchor="w")
+        ttk.Label(f, text=hint + "  (по одному в строке)", foreground=self.muted).pack(anchor="w")
         t = tk.Text(f, height=6, width=28, font=("Segoe UI", 11), undo=True)
         t.pack(fill="both", expand=True)
         t.insert("1.0", "\n".join(names))
@@ -395,7 +502,7 @@ class App:
     def _build_queue_tab(self):
         f = ttk.Frame(self.platforms, padding=4)
         self.platforms.add(f, text="  Очередь  ")
-        ttk.Label(f, text="Кто выше — того программа обрабатывает первым", foreground="#666").pack(anchor="w")
+        ttk.Label(f, text="Кто выше — того программа обрабатывает первым", foreground=self.muted).pack(anchor="w")
         row = ttk.Frame(f)
         row.pack(fill="both", expand=True)
         self.queue_list = tk.Listbox(row, height=6, font=("Segoe UI", 11), activestyle="none", exportselection=False)
@@ -520,7 +627,7 @@ class App:
         cfg = telegram.load()
         tg = ttk.LabelFrame(parent, text=" 📱 Клипы на телефон (Telegram) ", padding=6)
         tg.pack(fill="x", pady=(0, 6))
-        ttk.Label(tg, justify="left", foreground="#666", text=(
+        ttk.Label(tg, justify="left", foreground=self.muted, text=(
             "1) В Telegram найди @BotFather → /newbot → придумай имя → он пришлёт ключ (токен). Вставь его сюда.\n"
             "2) Папки по датам (лучше): создай группу → в её настройках включи «Темы» → добавь туда бота\n"
             "    администратором с правом «Управление темами» → напиши в группе любое сообщение.\n"
@@ -537,7 +644,7 @@ class App:
         ttk.Button(row, text="Подключить", command=self._tg_connect).pack(side="left")
         ttk.Button(row, text="Проверить", command=self._tg_test).pack(side="left", padx=4)
         self.tg_status = ttk.Label(row, text=("✔ подключено: " + cfg.get("name", "")) if cfg.get("chat_id")
-                                   else "не подключено", foreground="#666")
+                                   else "не подключено", foreground=self.muted)
         self.tg_status.pack(side="left", padx=6)
 
     def _tg_toggle(self):
@@ -608,6 +715,11 @@ class App:
             json.dump(self.cfg, f, ensure_ascii=False, indent=1)
 
     # ---------- запуск ----------
+    def _update_gv_preview(self):
+        img = self.gv_images.get(self.v["game_view"].get())
+        if img is not None:
+            self.gv_preview.config(image=img, text="")
+
     def _num(self, key: str, lo: int, hi: int) -> int:
         """Число из поля с границами; пустое/неверное — значение по умолчанию."""
         try:
@@ -795,20 +907,46 @@ class App:
                     if self.pending_update and self.v["autoupdate"].get():
                         self.root.after(1000, self.install_update)
                 else:
-                    self._append(item)
+                    self._append(item, important=self._is_important(item))
                     if "готово ->" in item:
                         self.root.after(500, self.refresh_clips)
         except queue.Empty:
             pass
         self.root.after(150, self._drain)
 
-    def _append(self, text: str):
+    _IMPORTANT_START = ("▶", "✅", "🔴", "⏹", "👀", "⚠", "❌", "===", "Есть обновление", "Обновлени", "Настройки",
+                        "Список стримеров", "Очередь", "Вебка", "Для ", "Останавлива", "Telegram", "Клипы будут")
+    _IMPORTANT_HAS = ("ОШИБКА", "не смог", "не получил", "ошибка", "нет связи", "не бот", "не найден",
+                      "не сработает", "не получились", "продолжаю с того места")
+
+    def _is_important(self, line: str) -> bool:
+        t = line.strip()
+        if not t:
+            return False
+        return t.startswith(self._IMPORTANT_START) or any(k in t for k in self._IMPORTANT_HAS)
+
+    def _append(self, text: str, important: bool = True):
+        self.log_lines.append((text, important))
+        if len(self.log_lines) > 6000:
+            self.log_lines = self.log_lines[-4000:]
+        if important or self.log_detailed.get():
+            self.log.config(state="normal")
+            self.log.insert("end", text if text.endswith("\n") or not important else text)
+            self.log.see("end")
+            self.log.config(state="disabled")
+        if text.strip() and important:
+            self.status.config(text=text.strip().splitlines()[-1][:120])
+
+    def _toggle_details(self):
+        self.log_detailed.set(not self.log_detailed.get())
+        self.b_details.config(text="Коротко ▴" if self.log_detailed.get() else "Подробнее ▾")
         self.log.config(state="normal")
-        self.log.insert("end", text)
+        self.log.delete("1.0", "end")
+        for text, important in self.log_lines:
+            if important or self.log_detailed.get():
+                self.log.insert("end", text)
         self.log.see("end")
         self.log.config(state="disabled")
-        if text.strip():
-            self.status.config(text=text.strip().splitlines()[-1][:120])
 
     def _set_running(self, running: bool, what: str = ""):
         self.b_watch.config(state="disabled" if running else "normal")
@@ -958,33 +1096,48 @@ class App:
         self.streamer_box.pack(side="left", padx=(4, 12))
         self.streamer_box.bind("<<ComboboxSelected>>", lambda e: self.refresh_clips())
         self.hide_posted = tk.BooleanVar(value=False)
-        ttk.Checkbutton(bar, text="Скрыть выложенные", variable=self.hide_posted,
+        ttk.Checkbutton(bar, text="Скрыть выложенные везде", variable=self.hide_posted,
                         command=self.refresh_clips).pack(side="left")
         ttk.Button(bar, text="⟳ Обновить", command=self.refresh_clips).pack(side="right")
 
         style = ttk.Style()
-        style.configure("Clips.Treeview", rowheight=136, font=("Segoe UI", 10))
+        style.configure("Clips.Treeview", rowheight=70, font=("Segoe UI", 10))
         style.configure("Clips.Treeview.Heading", font=("Segoe UI", 10, "bold"))
         # кнопки и подпись закрепляем внизу, список занимает остальное место
-        self.clips_info = ttk.Label(parent, text="", anchor="w")
+        self.clips_info = ttk.Label(parent, text="", anchor="w", foreground=self.muted)
         self.clips_info.pack(side="bottom", fill="x", pady=(6, 0))
         btns = ttk.Frame(parent)
         btns.pack(side="bottom", fill="x")
-        for text, cmd in (("▶  Смотреть", self.play_clip), ("📋  Копировать надпись", self.copy_caption),
-                          ("✔  Выложен / не выложен", self.toggle_posted), ("📂  Показать в папке", self.reveal_clip),
-                          ("🎥  Указать вебку", self.pick_facecam), ("🗑  Удалить", self.delete_clip)):
-            ttk.Button(btns, text=text, command=cmd).pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text="☑  Выбрать все", command=self.select_all_clips).pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text="▶  Смотреть", command=self.play_clip).pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text="✍  Описание и хэштеги", style="Big.TButton",
+                   command=self.post_texts).pack(side="left", padx=(0, 6))
+        posted_mb = ttk.Menubutton(btns, text="✔  Отметить: выложено в…")
+        pm = tk.Menu(posted_mb, tearoff=0)
+        for key, label in library.PLATFORM_NAMES.items():
+            pm.add_command(label=f"{label} — выложено / снять отметку", command=lambda k=key: self.toggle_posted(k))
+        posted_mb["menu"] = pm
+        posted_mb.pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text="🗑  Удалить", command=self.delete_clip).pack(side="left", padx=(0, 6))
+        more = ttk.Menubutton(btns, text="Ещё ▾")
+        mm = tk.Menu(more, tearoff=0)
+        mm.add_command(label="📋  Копировать надпись", command=self.copy_caption)
+        mm.add_command(label="📂  Показать в папке", command=self.reveal_clip)
+        mm.add_command(label="🎥  Указать вебку этого стримера", command=self.pick_facecam)
+        more["menu"] = mm
+        more.pack(side="left")
         frame = ttk.Frame(parent)
         frame.pack(fill="both", expand=True, pady=6)
-        cols = ("streamer", "moment", "caption", "created", "status")
+        cols = ("streamer", "moment", "caption", "created", "youtube", "instagram", "tiktok")
         self.tree = ttk.Treeview(frame, columns=cols, show="tree headings", style="Clips.Treeview",
                                  selectmode="extended", height=3)
         self.tree.heading("#0", text="Превью")
-        self.tree.column("#0", width=96, stretch=False)
-        for c, title, w in (("streamer", "Стример", 120), ("moment", "Момент", 80), ("caption", "Надпись", 300),
-                            ("created", "Создан", 70), ("status", "Статус", 100)):
+        self.tree.column("#0", width=66, stretch=False)
+        for c, title, w in (("streamer", "Стример", 110), ("moment", "Момент", 70), ("caption", "Надпись", 300),
+                            ("created", "Создан", 66), ("youtube", "YouTube", 80), ("instagram", "Instagram", 88),
+                            ("tiktok", "TikTok", 70)):
             self.tree.heading(c, text=title)
-            self.tree.column(c, width=w, stretch=(c == "caption"))
+            self.tree.column(c, width=w, stretch=(c == "caption"), anchor="w" if c == "caption" else "center")
         sb = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=sb.set)
         self.tree.pack(side="left", fill="both", expand=True)
@@ -1020,23 +1173,24 @@ class App:
         for c in clips:
             if self.streamer_var.get() != "Все" and c.get("channel") != self.streamer_var.get():
                 continue
-            if self.hide_posted.get() and c["posted"]:
+            if self.hide_posted.get() and all(c["posted"].get(p) for p in library.PLATFORMS):
                 continue
             img = self._thumb(c["path"])
             if img is None:
                 missing.append(c["path"])
             sec = int(c.get("moment", c.get("start", 0)))
             values = (c.get("channel", ""), f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}",
-                      c.get("caption", "") or "—", c.get("created", ""), "✔ выложен" if c["posted"] else "новый")
+                      c.get("caption", "") or "—", c.get("created", ""),
+                      *("✔" if c["posted"].get(p) else "—" for p in library.PLATFORMS))
             iid = self.tree.insert("", "end", text="", image=img or "", values=values)
             self.clip_by_iid[iid] = c
             if c["path"] in sel_paths:
                 self.tree.selection_add(iid)
             shown += 1
-        posted = sum(1 for c in clips if c["posted"])
-        self.clips_info.config(text=f"Клипов за {date or '—'}: {len(clips)}, выложено: {posted}. "
-                                    f"Двойной клик — посмотреть клип.")
-        self.nb.tab(1, text=f"  Клипы ({len(clips) - posted} новых)  " if clips else "  Клипы  ")
+        fresh = sum(1 for c in clips if not any(c["posted"].values()))
+        self.clips_info.config(text=f"Клипов за {date or '—'}: {len(clips)}, ещё нигде не выложено: {fresh}. "
+                                    f"Двойной клик — посмотреть. Несколько клипов: Ctrl или Shift + клик.")
+        self.nb.tab(1, text=f"  Клипы ({fresh} новых)  " if clips else "  Клипы  ")
         if missing:
             threading.Thread(target=self._make_thumbs, args=(missing,), daemon=True).start()
 
@@ -1048,6 +1202,8 @@ class App:
             return None
         try:
             img = tk.PhotoImage(file=tp)
+            if img.height() > 80:
+                img = img.subsample(2)  # компактный список: превью вдвое меньше
         except Exception:
             return None
         self.images[path] = img
@@ -1079,13 +1235,89 @@ class App:
             self.root.clipboard_append(text)
             self.clips_info.config(text="Надпись скопирована — вставь её в название ролика (Ctrl+V).")
 
-    def toggle_posted(self):
+    def toggle_posted(self, platform: str = "youtube"):
         sel = self._selected()
         if sel:
-            value = not all(c["posted"] for c in sel)
+            value = not all(c["posted"].get(platform) for c in sel)
             for c in sel:
-                library.set_posted(c["path"], value)
+                library.set_posted(c["path"], value, platform)
+            name = library.PLATFORM_NAMES.get(platform, platform)
             self.refresh_clips()
+            self.clips_info.config(text=f"{name}: {'отмечено как выложенное' if value else 'отметка снята'} "
+                                        f"({len(sel)} шт.)")
+
+    def select_all_clips(self):
+        kids = self.tree.get_children()
+        if kids:
+            self.tree.selection_set(kids)
+
+    def post_texts(self):
+        """Окно с описанием и хэштегами для выбранного клипа (YouTube / Instagram / TikTok)."""
+        from . import caption as cap
+        sel = self._selected()
+        if not sel:
+            return
+        c = sel[0]
+        lang = c.get("lang") or ("ru" if any("а" <= ch.lower() <= "я" for ch in (c.get("caption") or "")) else "en")
+        win = tk.Toplevel(self.root)
+        win.title(f"Описание и хэштеги — {c.get('channel', '')}")
+        win.transient(self.root)
+        win.geometry("620x470")
+        frm = ttk.Frame(win, padding=10)
+        frm.pack(fill="both", expand=True)
+        fields = {}
+        for key, label, h in (("title", "Название (надпись на клипе)", 2), ("description", "Описание", 5),
+                              ("hashtags", "Хэштеги", 3)):
+            row = ttk.Frame(frm)
+            row.pack(fill="x", pady=(6, 0))
+            ttk.Label(row, text=label, font=("Segoe UI", 10, "bold")).pack(side="left")
+            ttk.Button(row, text="📋 Копировать",
+                       command=lambda k=key: self._copy_text(fields[k].get("1.0", "end-1c"), win)).pack(side="right")
+            t = tk.Text(frm, height=h, wrap="word", font=("Segoe UI", 10), undo=True)
+            t.pack(fill="x")
+            fields[key] = t
+        fields["title"].insert("1.0", c.get("caption") or "")
+        status = ttk.Label(frm, text="", foreground=self.muted)
+        status.pack(anchor="w", pady=(8, 0))
+        bar = ttk.Frame(frm)
+        bar.pack(fill="x", pady=(6, 0))
+
+        def fill(post):
+            for k in ("description", "hashtags"):
+                fields[k].delete("1.0", "end")
+                fields[k].insert("1.0", post[k])
+            status.config(text="Готово. Скопируй и вставь при публикации (Ctrl+V).")
+            data = {"description": post["description"], "hashtags": post["hashtags"]}
+            self.post_cache[c["path"]] = data
+
+        def generate():
+            status.config(text="Придумываю..." + (" (Claude)" if cap._api_key() else " (шаблон — без ключа Claude)"))
+
+            def work():
+                post = cap.make_post(c.get("channel", ""), fields["title"].get("1.0", "end-1c").strip(),
+                                     c.get("vod_title", ""), c.get("transcript", ""), lang, c.get("link", ""),
+                                     log=lambda m: None)
+                self.root.after(0, lambda: fill(post))
+            threading.Thread(target=work, daemon=True).start()
+
+        def copy_all():
+            text = "\n\n".join(fields[k].get("1.0", "end-1c").strip() for k in ("title", "description", "hashtags"))
+            self._copy_text(text, win)
+        ttk.Button(bar, text="✨  Придумать описание и хэштеги", style="Big.TButton", command=generate).pack(side="left")
+        ttk.Button(bar, text="📋  Копировать всё", command=copy_all).pack(side="left", padx=6)
+        ttk.Button(bar, text="Закрыть", command=win.destroy).pack(side="right")
+        if not hasattr(self, "post_cache"):
+            self.post_cache = {}
+        if c["path"] in self.post_cache:
+            fill(self.post_cache[c["path"]])
+        else:
+            generate()
+        self.post_window = win  # для проверок
+
+    def _copy_text(self, text: str, parent=None):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        self.clips_info.config(text="Скопировано — вставь при публикации (Ctrl+V).")
 
     def reveal_clip(self):
         for c in self._selected()[:1]:
@@ -1103,7 +1335,7 @@ class App:
                         os.remove(p)
                     except OSError:
                         pass
-                library.set_posted(c["path"], False)
+                library.forget(c["path"])
                 self.images.pop(c["path"], None)
             self.refresh_clips()
 

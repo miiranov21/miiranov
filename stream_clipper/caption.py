@@ -225,3 +225,63 @@ def _claude_caption(key: str, streamer: str, title: str, top_messages: list[str]
     if not out:
         raise RuntimeError("пустой ответ")
     return out[:90]
+
+
+# ---------- описание и хэштеги для публикации (YouTube Shorts / Instagram Reels / TikTok) ----------
+POST_PROMPT = """You write the publishing text for a short vertical clip from a livestream (YouTube Shorts, Instagram Reels, TikTok).
+Return exactly two parts in this format:
+DESCRIPTION: 1-3 short sentences that hook the viewer and say what the streamer does in the clip; may end with a call to action (subscribe/follow). No chat mentions.
+HASHTAGS: 10-15 hashtags separated by spaces: the streamer (nickname variants), the game, the genre/moment, plus platform tags like #shorts #reels #fyp; mix popular and specific tags; lowercase is fine.
+Write the description in the language you are told to use (hashtags may mix that language and English)."""
+
+
+def _game_tags(title: str, lang: str) -> list[str]:
+    t = title.lower()
+    if "gta" in t or "гта" in t:
+        return ["#gta6", "#gta", "#gtavi", "#gta6gameplay"] + (["#гта6", "#гта"] if lang == "ru" else [])
+    return ["#gaming", "#gameplay"] + (["#игры"] if lang == "ru" else [])
+
+
+def template_post(streamer: str, caption: str, title: str, lang: str, link: str = "") -> dict:
+    s = _nice_name(streamer)
+    tag = "#" + "".join(ch for ch in s.lower() if ch.isalnum())
+    if lang == "ru":
+        desc = f"{caption or s + ' на стриме'} 🔥 Лучшие моменты со стримов {s} — каждый день. Подписывайся!"
+        tags = [tag, "#стрим", "#нарезки", "#моментысостримов", "#twitch", "#shorts", "#reels", "#рекомендации"]
+    else:
+        desc = f"{caption or s + ' on stream'} 🔥 Daily best moments from {s}'s streams. Follow for more!"
+        tags = [tag, "#streamer", "#streamclips", "#twitch", "#shorts", "#reels", "#fyp", "#viral"]
+    tags[1:1] = _game_tags(title, lang)
+    seen, uniq = set(), []
+    for t in tags:
+        if t not in seen:
+            seen.add(t)
+            uniq.append(t)
+    return {"description": desc, "hashtags": " ".join(uniq[:15])}
+
+
+def make_post(streamer: str, caption: str, title: str, transcript: str, lang: str, link: str = "",
+              log=print) -> dict:
+    """Описание и хэштеги: через Claude (если есть ключ), иначе по шаблону."""
+    key = _api_key()
+    if key:
+        try:
+            import anthropic
+            language = "Russian" if lang == "ru" else "English (American)"
+            text = (f"Language: {language}\nStreamer: {streamer}\nStream title: {title}\n"
+                    f"On-screen caption of the clip: {caption}\n"
+                    f"What the streamer says (auto transcript, may be rough): {transcript[:800] or '(none)'}")
+            client = anthropic.Anthropic(api_key=key, max_retries=3)
+            response = client.beta.messages.create(
+                model="claude-opus-5-5", max_tokens=4000, output_config={"effort": "low"},
+                betas=["server-side-fallback-2026-07-01"], fallbacks="default",
+                system=POST_PROMPT, messages=[{"role": "user", "content": text}])
+            if response.stop_reason != "refusal":
+                out = next((b.text for b in response.content if b.type == "text"), "")
+                desc = out.split("DESCRIPTION:", 1)[-1].split("HASHTAGS:", 1)[0].strip()
+                tags = out.split("HASHTAGS:", 1)[-1].strip() if "HASHTAGS:" in out else ""
+                if desc and tags:
+                    return {"description": desc, "hashtags": " ".join(tags.split())}
+        except Exception as e:
+            log(f"описание от Claude не получилось ({e}) — делаю по шаблону")
+    return template_post(streamer, caption, title, lang, link)

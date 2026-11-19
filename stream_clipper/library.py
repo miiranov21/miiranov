@@ -67,9 +67,13 @@ def list_clips(date: str, out_dir: str | None = None) -> list[dict]:
         path = os.path.normpath(os.path.join(root, c.get("file", "")))
         if not os.path.exists(path):
             continue
-        res.append(dict(c, path=path, posted=posted.get(path, False)))
+        res.append(dict(c, path=path, posted=posted.get(path, {})))
     res.reverse()
     return res
+
+
+PLATFORMS = ("youtube", "instagram", "tiktok")
+PLATFORM_NAMES = {"youtube": "YouTube", "instagram": "Instagram", "tiktok": "TikTok"}
 
 
 def _posted_file() -> str:
@@ -77,18 +81,32 @@ def _posted_file() -> str:
 
 
 def load_posted() -> dict:
+    """{путь клипа: {"youtube": True, "instagram": False, ...}}. Старые отметки «выложен» считаем YouTube."""
     try:
         with open(_posted_file(), encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
     except Exception:
         return {}
+    return {k: (v if isinstance(v, dict) else {"youtube": bool(v)}) for k, v in data.items()}
 
 
-def set_posted(path: str, value: bool) -> None:
+def set_posted(path: str, value, platform: str = "youtube") -> None:
     data = load_posted()
+    entry = data.get(path, {})
     if value:
-        data[path] = True
+        entry[platform] = True
+    else:
+        entry.pop(platform, None)
+    if entry:
+        data[path] = entry
     else:
         data.pop(path, None)
     with open(_posted_file(), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=1)
+
+
+def forget(path: str) -> None:
+    data = load_posted()
+    if data.pop(path, None) is not None:
+        with open(_posted_file(), "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)

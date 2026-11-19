@@ -37,7 +37,8 @@ FORMAT_DOC = """# Обмен Stream Clipper ⇄ «Доктор шортсов» 
    "policy": {"issues": [{"kind": "profanity", "t0": 2.1, "t1": 2.6, "what": "...", "severity": "medium"}],
               "fixed": false},
    "posted": {"youtube": false, "tiktok": true, "instagram": false},
-   "edits": ["Подпись автора"]}
+   "edits": ["Подпись автора"],
+   "published": {"tiktok": {"title": "...", "description": "текст с хэштегами, как ушёл", "time": "2026-11-26T18:02:11"}}}
 ]}
 
 ## decisions.json — пишет «Доктор»
@@ -95,6 +96,7 @@ def export_catalog(path: str | None = None) -> str:
     scores = library.frozen_ratings(pool) if pool else {}
     pol = policy.load_results()
     ed = edits.load()
+    published = library.load_published()
     out = []
     for c in clips:
         p = os.path.normpath(c["path"])
@@ -113,6 +115,7 @@ def export_catalog(path: str | None = None) -> str:
             "posted": {pl: bool(c["posted"].get(pl)) for pl in PLATFORMS},
             "edits": [edits.label(o) for o in (ed.get(p) or {}).get("ops", [])],
             "credit": credit.state(c) in ("on", "burned"),
+            "published": published.get(p, {}),  # что реально ушло в публикацию: {площадка: {title, description, time}}
         })
     path = path or os.path.join(exchange_dir(), "catalog.json")
     tmp = path + ".tmp"

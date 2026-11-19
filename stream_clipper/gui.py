@@ -3269,6 +3269,13 @@ class App:
             def go_next(mark: bool):
                 if mark:
                     library.set_posted(c["path"], True, platform)
+                    try:  # запоминаем текст, который ушёл в публикацию — по нему «Доктор» найдёт видео в аналитике
+                        library.record_published(
+                            c["path"], platform, fields["title"].get("1.0", "end-1c").strip(),
+                            (fields["description"].get("1.0", "end-1c").strip() + "\n\n"
+                             + fields["hashtags"].get("1.0", "end-1c").strip()).strip())
+                    except Exception:
+                        pass
                 else:
                     skip.add(c["path"])
                 win.destroy()

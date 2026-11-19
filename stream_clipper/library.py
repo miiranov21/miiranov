@@ -292,3 +292,25 @@ def purge_trash(recs: list[dict]) -> int:
         if not os.path.exists(r.get("orig", "")):
             edits.forget(r.get("orig", ""))
     return freed
+
+
+# ---------- что реально ушло в публикацию (для «Доктора»: связать видео в аналитике с клипом) ----------
+def _published_file() -> str:
+    return os.path.join(_state(), "published.json")
+
+
+def load_published() -> dict:
+    try:
+        with open(_published_file(), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def record_published(path: str, platform: str, title: str, description: str) -> None:
+    import time
+    data = load_published()
+    data.setdefault(os.path.normpath(path), {})[platform] = {
+        "title": title, "description": description, "time": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    with open(_published_file(), "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1)

@@ -4,6 +4,8 @@
   "source": "Доктор шортсов (облако): аналитика Windsor.ai + исследование конкурентов. Обновляется в 9:42 и 20:42 МСК.",
   "autopilot": {
     "auto_publish": true,
+    "publish_mode": "telegram_assist",
+    "publish_mode_note": "Бесплатный режим: в момент слота Telegram-бот присылает готовое видео под площадку, текст в один тап и кнопку площадки; пользователь пересылает видео и жмёт «Опубликовать», потом «✅ Выложил». Когда появится платный Metricool или пройденный аудит TikTok, переключить на api.",
     "auto_delete": true,
     "delete_mode": "archive",
     "posts_per_day": {"tiktok": 3, "youtube": 3, "instagram": 2},

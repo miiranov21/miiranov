@@ -733,5 +733,21 @@
 "Аналитик советует удалить клипов: {0}.\n\n{1}\n\nПереложить их в корзину? Вернуть можно в любой момент.": "Analitik {0} klipi silməyi məsləhət görür.\n\n{1}\n\nOnlar səbətə atılsın? İstənilən vaxt qaytarmaq olar.",
 "{0}: в корзину по совету аналитика — {1}": "{0}: analitikin məsləhəti ilə səbətə — {1}",
 "Добавляю хук-надпись...": "Hook-yazını əlavə edirəm...",
-"Хук-надпись: «{0}»": "Hook-yazı: «{0}»"
+"Хук-надпись: «{0}»": "Hook-yazı: «{0}»",
+"Архив": "Arxiv",
+"Поиск:": "Axtarış:",
+"(ник стримера или слова из надписи и речи)": "(strimerin adı və ya yazıdan və danışıqdan sözlər)",
+"↩  Достать из архива": "↩  Arxivdən çıxar",
+"🗑  Удалить из архива навсегда": "🗑  Arxivdən həmişəlik sil",
+"В архиве с": "Arxivdə",
+"Оценка": "Qiymət",
+"Почему в архиве": "Niyə arxivdə",
+"В архиве: {0} клипов, занимают {1:.0f} МБ (освобождено {2:.0f} МБ). «Достать» заново нарежет клип из записи стрима в полном качестве; если запись уже удалена — вернёт сжатую копию.": "Arxivdə: {0} klip, {1:.0f} MB tutur ({2:.0f} MB boşaldılıb). «Çıxar» klipi strim qeydindən tam keyfiyyətdə yenidən kəsəcək; qeyd silinibsə — sıxılmış nüsxəni qaytaracaq.",
+"★ В трендах сейчас: {0} — совпало клипов в архиве: {1}. Их стоит достать.": "★ İndi trenddə: {0} — arxivdə uyğun klip: {1}. Onları çıxarmağa dəyər.",
+"{0}: достал из архива сжатую копию (записи стрима нет)": "{0}: arxivdən sıxılmış nüsxə çıxarıldı (strim qeydi yoxdur)",
+"Достаю из архива: {0} «{1}» — качаю кусок стрима...": "Arxivdən çıxarıram: {0} «{1}» — strimin hissəsini yükləyirəm...",
+"{0}: запись стрима недоступна — достал сжатую копию": "{0}: strim qeydi əlçatmazdır — sıxılmış nüsxə çıxarıldı",
+"{0}: достал из архива в полном качестве — «{1}»": "{0}: arxivdən tam keyfiyyətdə çıxarıldı — «{1}»",
+"Удалить из архива навсегда: {0}? Достать их будет нельзя (разве что заново из записи стрима вручную).": "Arxivdən həmişəlik silinsin: {0}? Onları çıxarmaq olmayacaq (yalnız strim qeydindən əllə yenidən).",
+"Монтаж для {0}: пропущено — {1}": "{0} üçün montaj: ötürüldü — {1}"
 }

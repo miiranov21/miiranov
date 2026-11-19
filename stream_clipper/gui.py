@@ -450,10 +450,13 @@ class App:
         streams = ttk.Frame(self.nb, padding=8)
         self.nb.add(clips, text=T("  Клипы  "))
         self.nb.add(streams, text=T("  Стримы  "))
+        arch = ttk.Frame(self.nb, padding=8)
+        self.nb.add(arch, text=T("  Архив  "))
         self.nb.add(sett, text=T("  Настройки  "))
         self.sett = sett
         self._build_clips(clips)
         self._build_streams(streams)
+        self._build_archive(arch)
         self.nb.bind("<<NotebookTabChanged>>", self._on_tab)
 
         top = ttk.Frame(main)
@@ -1539,6 +1542,8 @@ class App:
             self.refresh_clips()
         elif i == 2:
             self.refresh_streams()
+        elif i == 3:
+            self.refresh_archive()
 
     # ---------- вкладка «Стримы»: что уже разобрано и откуда продолжать ----------
     def _build_streams(self, parent):
@@ -2331,7 +2336,8 @@ class App:
             tree.delete(*tree.get_children())
             rows.clear()
             trash = library.load_trash()
-            in_trash = {t["orig"] for t in trash}
+            from . import archive as _arch
+            in_trash = {t["orig"] for t in trash} | _arch.archived_paths()
             dates = library.list_dates()
             pool = [x for d in dates for x in library.list_clips(d, include_missing=True)]
             scores = library.frozen_ratings(pool)
@@ -2562,6 +2568,133 @@ class App:
         buttons[1].pack(side="left", padx=6)
         ttk.Button(bar, text=T("Закрыть"), command=win.destroy).pack(side="right")
         fill()
+
+    # ---------- вкладка «Архив» ----------
+    def _build_archive(self, parent):
+        self.arch_rows: dict = {}
+        bar = ttk.Frame(parent)
+        bar.pack(fill="x")
+        ttk.Label(bar, text=T("Поиск:")).pack(side="left")
+        self.arch_q = tk.StringVar()
+        e = ttk.Entry(bar, textvariable=self.arch_q, width=30)
+        e.pack(side="left", padx=4)
+        self.arch_q.trace_add("write", lambda *a: self.refresh_archive())
+        ttk.Label(bar, text=T("(ник стримера или слова из надписи и речи)"), foreground=self.muted).pack(side="left")
+        ttk.Button(bar, text=T("⟳ Обновить"), command=self.refresh_archive).pack(side="right")
+        self.arch_trend = ttk.Label(parent, text="", foreground="#f0a020", wraplength=1100, justify="left")
+        self.arch_trend.pack(anchor="w", pady=(4, 0))
+        self.arch_info = ttk.Label(parent, text="", foreground=self.muted, wraplength=1100, justify="left")
+        self.arch_info.pack(side="bottom", fill="x", pady=(6, 0))
+        btns = ttk.Frame(parent)
+        btns.pack(side="bottom", fill="x")
+        ttk.Button(btns, text=T("↩  Достать из архива"), style="Big.TButton",
+                   command=self.restore_archived).pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text=T("🗑  Удалить из архива навсегда"), command=self.forget_archived).pack(side="left")
+        panes = ttk.Panedwindow(parent, orient="horizontal")
+        panes.pack(fill="both", expand=True, pady=6)
+        lf = ttk.Frame(panes)
+        self.arch_player = VideoPreview(panes, self)
+        panes.add(lf, weight=3)
+        panes.add(self.arch_player, weight=2)
+        cols = ("trend", "date", "streamer", "caption", "score", "reason")
+        self.arch_tree = ttk.Treeview(lf, columns=cols, show="headings", selectmode="extended")
+        for c, title, w in (("trend", "★", 30), ("date", T("В архиве с"), 100), ("streamer", T("Стример"), 110),
+                            ("caption", T("Надпись"), 260), ("score", T("Оценка"), 60), ("reason", T("Почему в архиве"), 260)):
+            self.arch_tree.heading(c, text=title)
+            self.arch_tree.column(c, width=w, stretch=c in ("caption", "reason"), anchor="w" if c in ("caption", "reason") else "center")
+        sb = ttk.Scrollbar(lf, orient="vertical", command=self.arch_tree.yview)
+        self.arch_tree.configure(yscrollcommand=sb.set)
+        self.arch_tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="left", fill="y")
+        self.arch_tree.bind("<<TreeviewSelect>>", self._arch_select)
+
+    def _arch_select(self, e=None):
+        sel = self.arch_tree.selection()
+        if len(sel) == 1 and sel[0] in self.arch_rows:
+            rec = self.arch_rows[sel[0]]
+            if rec.get("small") and os.path.exists(rec["small"]):
+                self.arch_player.load(rec["small"])
+
+    def refresh_archive(self):
+        from datetime import datetime
+        from . import archive, strategy
+        self.arch_tree.delete(*self.arch_tree.get_children())
+        self.arch_rows = {}
+        trends = dict((r["id"], hit) for r, hit in archive.trend_matches(strategy.get().get("trends") or []))
+        items = archive.search(self.arch_q.get())
+        for r in sorted(items, key=lambda r: (r["id"] not in trends, -(r.get("archived") or 0))):
+            sc = r.get("score")
+            iid = self.arch_tree.insert("", "end", values=(
+                "★" if r["id"] in trends else "", datetime.fromtimestamp(r.get("archived", 0)).strftime("%d.%m %H:%M"),
+                r.get("channel", ""), r.get("caption") or "—", "" if sc is None else f"{sc:.0f}" if isinstance(sc, (int, float)) else sc,
+                tr_line(r.get("reason") or "")))
+            self.arch_rows[iid] = r
+        allr = archive.search("")
+        size = sum(os.path.getsize(r["small"]) for r in allr if r.get("small") and os.path.exists(r["small"]))
+        freed = sum((r.get("size") or 0) for r in allr) - size
+        self.arch_info.config(text=T("В архиве: {0} клипов, занимают {1:.0f} МБ (освобождено {2:.0f} МБ). «Достать» заново "
+                                     "нарежет клип из записи стрима в полном качестве; если запись уже удалена — вернёт "
+                                     "сжатую копию.").format(len(allr), size / 1e6, max(0, freed) / 1e6))
+        self.arch_trend.config(text=T("★ В трендах сейчас: {0} — совпало клипов в архиве: {1}. Их стоит достать.").format(
+            ", ".join(sorted(set(trends.values()))), len(trends)) if trends else "")
+
+    def _arch_selected(self) -> list:
+        recs = [self.arch_rows[i] for i in self.arch_tree.selection() if i in self.arch_rows]
+        if not recs:
+            messagebox.showinfo(T("Архив"), T("Сначала выбери клип в списке."))
+        return recs
+
+    def restore_archived(self, recs: list | None = None, quiet: bool = False):
+        """Достать клипы из архива: перенарезать из записи стрима, а если её нет — вернуть сжатую копию."""
+        from . import archive, clipedit
+        recs = recs or self._arch_selected()
+        if not recs:
+            return
+        self.arch_player.release()
+        queue_ = list(recs)
+
+        def next_one():
+            if not queue_:
+                self.refresh_archive()
+                self.refresh_clips()
+                return
+            r = queue_.pop(0)
+            src = clipedit.source_range(r)
+            if not src:
+                archive.restore_from_small(r)
+                self.activity.event("↩", T("{0}: достал из архива сжатую копию (записи стрима нет)").format(r.get("channel", "")))
+                return next_one()
+            x = dict(r, path=r["orig"], _src_url=src[0])
+            self.arch_info.config(text=T("Достаю из архива: {0} «{1}» — качаю кусок стрима...").format(
+                r.get("channel", ""), (r.get("caption") or "")[:30]))
+
+            def done(res, err):
+                import shutil
+                if err:
+                    archive.restore_from_small(r)
+                    self.activity.event("↩", T("{0}: запись стрима недоступна — достал сжатую копию").format(r.get("channel", "")))
+                else:
+                    os.makedirs(os.path.dirname(r["orig"]), exist_ok=True)
+                    shutil.move(res["file"], r["orig"])
+                    library.make_thumb(r["orig"])
+                    library.update_clip(r["orig"], {"words": res.get("words") or [], "transcript": res.get("transcript", "")})
+                    archive.mark_restored(r)
+                    self.activity.event("↩", T("{0}: достал из архива в полном качестве — «{1}»").format(
+                        r.get("channel", ""), r.get("caption") or ""), r["orig"])
+                next_one()
+            self._run_recut(x, src[1], src[2], lambda m: self.arch_info.config(text=m), done)
+        next_one()
+
+    def forget_archived(self):
+        from . import archive
+        recs = self._arch_selected()
+        if not recs or not messagebox.askyesno(T("Архив"), T("Удалить из архива навсегда: {0}? Достать их будет нельзя "
+                                                            "(разве что заново из записи стрима вручную).").format(len(recs))):
+            return
+        self.arch_player.release()
+        for r in recs:
+            archive.forget(r)
+        self.refresh_archive()
 
     def _stream_rows(self) -> dict:
         """Все известные стримы по каналам: из памяти программы + загруженные с сайта."""

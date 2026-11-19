@@ -1472,11 +1472,13 @@ class App:
         self.clip_by_iid = {}
         missing = []
         shown = 0
-        from .caption import rate_clip
+        from .caption import display_ratings
+        # оценка — в сравнении со ВСЕМИ твоими клипами (а не только показанными), чтобы она не скакала
+        pool = clips if date == "Все дни" else [c for d in dates for c in library.list_clips(d)]
+        scores = display_ratings(pool or clips)
         for c in clips:
-            if c.get("rating") is None:  # клипы, сделанные до появления оценки
-                c["rating"] = rate_clip(c, c.get("transcript", ""))
-        ranked = sorted(clips, key=lambda c: -float(c.get("rating") or 0))
+            c["score10"] = scores.get(c["path"], 1)
+        ranked = sorted(clips, key=lambda c: -c["score10"])
         if self.sort_var.get() == "лучшие сверху":
             clips = ranked
         for c in clips:
@@ -1488,8 +1490,7 @@ class App:
             if img is None:
                 missing.append(c["path"])
             sec = int(c.get("moment", c.get("start", 0)))
-            score10 = max(1, min(10, round(float(c.get("rating") or 0))))
-            values = (f"{score10}/10", c.get("channel", ""),
+            values = (f"{c['score10']}/10", c.get("channel", ""),
                       f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}", c.get("caption", "") or "—",
                       *("✔" if c["posted"].get(p) else "—" for p in library.PLATFORMS))
             iid = self.tree.insert("", "end", text="", image=img or "", values=values)
@@ -1500,7 +1501,7 @@ class App:
         fresh = sum(1 for c in clips if not any(c["posted"].values()))
         where = "всего" if date == "Все дни" else f"за {date}"
         self.clips_info.config(text=f"Клипов {where}: {len(clips)}, нигде не выложено: {fresh}.  "
-                                    f"Интерес 1–10: чем выше, тем ярче момент.  Клик — посмотреть справа.")
+                                    f"Интерес 1–10 — в сравнении со всеми твоими клипами.  Клик — посмотреть справа.")
         self.nb.tab(1, text=f"  Клипы ({fresh} новых)  " if clips else "  Клипы  ")
         if missing:
             threading.Thread(target=self._make_thumbs, args=(missing,), daemon=True).start()

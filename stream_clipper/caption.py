@@ -305,17 +305,41 @@ def make_post(streamer: str, caption: str, title: str, transcript: str, lang: st
 
 # ---------- оценка клипа: насколько он яркий (0–10) ----------
 def rate_clip(d: dict, transcript: str = "") -> float:
-    """Чем больше настоящего действия (крик, взрыв, резкий поворот событий) и реакции — тем выше.
-    «Пустая болтовня» (много слов, но ни звука, ни картинки) получает штраф."""
-    chat = max(0.0, float(d.get("chat_z", 0)))
-    audio = max(0.0, float(d.get("audio_z", 0)))
-    jump = max(0.0, float(d.get("jump_z", 0)))
-    vis = max(0.0, float(d.get("vis_z", 0)))
-    action = jump + vis
-    r = 1.0 + 0.16 * min(chat, 20) + 0.22 * min(audio, 12) + 0.35 * min(jump, 10) + 0.4 * min(vis, 10)
-    words = len(transcript.split())
-    if words > 55 and action < 1.5:
-        r -= 2.0  # стример просто разговаривает, ничего не происходит
-    elif action < 0.5 and audio < 1:
-        r -= 1.0  # только чат шумит, а на экране и в звуке тихо
-    return round(max(0.0, min(10.0, r)), 1)
+    """«Сырая» яркость момента 0–10 (потом в окне она сравнивается со всеми клипами).
+    Чем больше настоящего действия (крик, взрыв, резкий поворот) и реакции — тем выше.
+    Штраф за «пустую болтовню» — только если звук и картинка реально измерялись и действия не было."""
+    chat = max(0.0, float(d.get("chat_z", 0) or 0))
+    audio = max(0.0, float(d.get("audio_z", 0) or 0))
+    jump = max(0.0, float(d.get("jump_z", 0) or 0))
+    vis = max(0.0, float(d.get("vis_z", 0) or 0))
+    score = max(0.0, float(d.get("score", 0) or 0))
+    r = (1.0 + 0.15 * min(score, 30) + 0.1 * min(chat, 20) + 0.2 * min(audio, 12)
+         + 0.35 * min(jump, 10) + 0.4 * min(vis, 10))
+    measured = bool(d.get("has_media"))  # звук/картинка для этого клипа реально анализировались
+    words = len((transcript or d.get("transcript", "") or "").split())
+    if measured and jump + vis < 1.0:
+        r -= 2.0 if words > 55 else 1.0  # стример просто разговаривает / на экране тихо
+    return round(max(0.0, min(10.0, r)), 2)
+
+
+def display_ratings(clips: list[dict]) -> dict:
+    """Итоговая оценка 1–10 для показа: сравниваем «сырую» яркость со всеми клипами
+    (лучшие получают 8–10, средние ~5, слабые 1–3) и добавляем оценку Claude, если она есть."""
+    raws = {c["path"]: rate_clip(c) for c in clips}
+    ordered = sorted(raws.values())
+    n = len(ordered)
+    out = {}
+    for path, raw in raws.items():
+        if n > 1:
+            below = sum(1 for v in ordered if v < raw)
+            equal = sum(1 for v in ordered if v == raw)
+            pct = (below + (equal - 1) / 2) / (n - 1)
+        else:
+            pct = 0.5
+        r = 1 + 9 * (0.65 * pct + 0.35 * raw / 10)
+        c = next(x for x in clips if x["path"] == path)
+        ai = c.get("ai_score")
+        if isinstance(ai, (int, float)) and 0 < ai <= 10:
+            r = (r + float(ai)) / 2
+        out[path] = max(1, min(10, round(r)))
+    return out

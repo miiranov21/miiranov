@@ -419,6 +419,7 @@ class LiveSession:
         new = []
         for i, h in enumerate(hl, 1):
             d = dict(h.to_dict(), vod_url=self.chat_url, vod_title=self.title)
+            d["has_media"] = visual is not None
             if self._link(h.start):
                 d["link"] = self._link(h.start)
             if self.stream_start:  # время от начала эфира, а не от запуска программы

@@ -387,6 +387,7 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                     break
                 refresh_live(cfg, log)
                 d = dict(h.to_dict(), vod_url=url, vod_title=title, link=link(h.start))
+                d["has_media"] = bool(media and np.isfinite(media.v).any())
                 if not cfg.dry_run:
                     name = f"{vid}_{_fmt(h.start)}"
                     log(f"  [{i}/{len(hl)}] качаю кусок {_fmt(h.start)}...")
@@ -423,13 +424,12 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
 
 
 def _final_rating(d: dict, meta: dict) -> float:
-    """Оценка клипа 0–10: по звуку/картинке/чату; если Claude тоже оценил кадры — среднее."""
+    """Сохраняем «сырую» яркость и оценку Claude отдельно — итог считается в окне, в сравнении со всеми клипами."""
     from .caption import rate_clip
-    r = rate_clip(d, meta.get("transcript", ""))
     ai = meta.get("ai_score")
     if isinstance(ai, (int, float)) and 0 < ai <= 10:
-        r = round((r + float(ai)) / 2, 1)
-    return r
+        d["ai_score"] = float(ai)
+    return rate_clip(d, meta.get("transcript", ""))
 
 
 def _clip_no(path: str) -> str:
@@ -469,6 +469,7 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
     clips = []
     for i, h in enumerate(hl, 1):
         d = dict(h.to_dict(), vod_title=name)
+        d["has_media"] = bool(cfg.audio)
         if not cfg.dry_run:
             base = f"{name}_{_fmt(h.start)}"
             seg = render.cut_segment(video, h.start, h.end, os.path.join(work, base + "_raw.mp4"))

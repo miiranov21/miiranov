@@ -71,7 +71,7 @@ def _get_model(name: str):
 
 
 def make_ass(media: str, ass_path: str, model: str = "small", language: str | None = None,
-             words_per_line: int = 3) -> str:
+             words_per_line: int = 3, censor: bool = True) -> str:
     """Распознаёт речь и пишет .ass файл. Возвращает распознанный текст ('' — речи нет)."""
     m = _get_model(model)
     audio = _load_audio(media)  # звук вынимаем сами через ffmpeg — без капризной библиотеки av
@@ -104,7 +104,11 @@ def make_ass(media: str, ass_path: str, model: str = "small", language: str | No
             end = ln[-1].end + 0.15
             if i + 1 < len(lines):
                 end = min(end, lines[i + 1][0].start)
-            text = " ".join(w.word.strip() for w in ln).upper()
+            text = " ".join(w.word.strip() for w in ln)
+            if censor:  # мат и оскорбления в субтитрах — звёздочками (платформы читают и текст на видео)
+                from .policy import censor_text
+                text = censor_text(text)
+            text = text.upper()
             text = text.replace("{", "(").replace("}", ")").replace("\n", " ")
             f.write(f"Dialogue: 0,{_ts(start)},{_ts(end)},Default,,0,0,0,,{text}\n")
     return " ".join(w.word.strip() for w in words)

@@ -440,7 +440,10 @@ class LiveSession:
                 d["transcript"], d["lang"] = meta.get("transcript", ""), lang
                 d["rating"] = _final_rating(d, meta)
                 os.remove(seg)
+                d["words"] = meta.get("words") or []
                 d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, self.channel)
+                from .pipeline import _quick_policy
+                _quick_policy(d, log)
                 log(f"  [{i}/{len(hl)}] готово -> {d['file']}")
                 from .pipeline import _clip_no
                 log(f"✅ {self.channel}: клип {_clip_no(d['file'])} готов — «{d.get('caption') or ''}»")

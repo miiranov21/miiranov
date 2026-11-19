@@ -36,7 +36,7 @@ DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
 CREDIT_POS = {T("внизу слева"): "bottom-left", T("вверху слева"): "top-left", T("вверху справа"): "top-right"}
 SHOW_ALL = T("все клипы")
 SHOW_FILTERS = {SHOW_ALL: "", T("ещё не на YouTube"): "youtube", T("ещё не в Instagram"): "instagram",
-                T("ещё не в TikTok"): "tiktok", T("нигде не выложенные"): "nowhere"}
+                T("ещё не в TikTok"): "tiktok", T("нигде не выложенные"): "nowhere", T("с нарушениями"): "violations"}
 SHOW_FOR = {"youtube": T("ещё не на YouTube"), "instagram": T("ещё не в Instagram"), "tiktok": T("ещё не в TikTok")}
 WM_POS = {T("плавает по экрану"): "moving", T("по центру"): "center", T("в углу"): "corner"}
 
@@ -139,7 +139,7 @@ class VideoPreview(ttk.Frame):
         self.frames_total = 0
         self.pos = 0
         self.job = None
-        self.wav = os.path.join(paths.default_work_dir(), "preview.wav")
+        self.wav = os.path.join(paths.default_work_dir(), f"preview_{id(self) % 100000}.wav")
         self.screen = tk.Label(self, bg="#000000", fg="#888888",
                                text=T("Нажми на клип\nв списке слева —\nон покажется здесь"), justify="center")
         self.screen.pack(fill="both", expand=True)
@@ -738,6 +738,7 @@ class App:
             m.add_command(label=T('🚀  Выложить в {0}').format(label), command=lambda k=key: self.publish(k))
         m.add_command(label=T("📋  Копировать надпись   Ctrl+C"), command=self.copy_caption)
         m.add_command(label=T("✍  Описание и хэштеги"), command=self.post_texts)
+        m.add_command(label=T("🛡  Проверить правила / исправить нарушение"), command=self.fix_violations)
         for key, label in library.PLATFORM_NAMES.items():
             m.add_command(label=T('✔  Выложено в {0} / снять').format(label), command=lambda k=key: self.toggle_posted(k))
         m.add_command(label=T("📂  Показать в папке"), command=self.reveal_clip)
@@ -1553,6 +1554,241 @@ class App:
         self.root.clipboard_append(url)
         self.st_info.config(text=T("Ссылка скопирована: ") + url)
 
+    # ---------- правила площадок: проверка и исправление нарушений ----------
+    def _policy_cell(self, c: dict) -> str:
+        res = c.get("policy")
+        if not res:
+            return "—"
+        if res.get("fixed") and not res.get("issues"):
+            return T("✔ испр.")
+        n = len(res.get("issues") or [])
+        return f"⚠ {n}" if n else "✔"
+
+    def fix_violations(self):
+        """Окно: что нарушает правила YouTube / TikTok / Instagram, исправление и сравнение «до / после»."""
+        from . import policy
+        sel = self._selected()
+        if not sel:
+            return
+        c = sel[0]
+        old = getattr(self, "policy_window", None)
+        if old is not None:
+            try:
+                old.destroy()
+            except tk.TclError:
+                pass
+        win = tk.Toplevel(self.root)
+        win.title(T("Нарушения правил — {0}").format(c.get("channel", "")))
+        win.transient(self.root)
+        win.geometry("980x720")
+        self.policy_window = win
+        frm = ttk.Frame(win, padding=10)
+        frm.pack(fill="both", expand=True)
+        sec = int(c.get("moment", c.get("start", 0)))
+        ttk.Label(frm, text=f"{c.get('channel', '')}  ·  {sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}  ·  "
+                            f"«{(c.get('caption') or '')[:60]}»", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        status = ttk.Label(frm, text="", foreground=self.muted, wraplength=940, justify="left")
+        status.pack(anchor="w", pady=(4, 6))
+        cols = ("on", "time", "title", "what", "risk", "fix")
+        tree = ttk.Treeview(frm, columns=cols, show="headings", height=8, selectmode="browse")
+        for col, title, w in (("on", "✔", 34), ("time", T("Время"), 90), ("title", T("Нарушение"), 170),
+                              ("what", T("Что именно"), 170), ("risk", T("Чем грозит"), 330),
+                              ("fix", T("Как исправить (клик — сменить)"), 170)):
+            tree.heading(col, text=title)
+            tree.column(col, width=w, stretch=col in ("risk", "what"), anchor="center" if col in ("on", "time") else "w")
+        tree.pack(fill="x")
+        detail = ttk.Label(frm, text="", wraplength=940, justify="left")
+        detail.pack(anchor="w", pady=(4, 0))
+
+        def show_detail(e=None):
+            sel_ = tree.selection()
+            i = state["rows"].get(sel_[0]) if sel_ else None
+            if i:
+                detail.config(text=T(i["title"]) + " — " + i["what"] + "\n" + "\n".join(
+                    f"   • {p}: {T(r)}" for p, r in i.get("platforms", {}).items()))
+        tree.bind("<<TreeviewSelect>>", show_detail)
+        fix_names = {"bleep": T("🔇 запикать"), "mute": T("🔈 заглушить звук"), "blur": T("🌫 размыть"),
+                     "skip": T("— не трогать")}
+        fix_cycle = {"speech": ["bleep", "mute", "skip"], "music": ["mute", "skip"], "video": ["blur", "skip"]}
+        state = {"issues": [], "rows": {}}
+
+        def fill(res):
+            if not win.winfo_exists():
+                return
+            tree.delete(*tree.get_children())
+            state["issues"] = [dict(i) for i in res.get("issues") or []]
+            state["rows"] = {}
+            for i in state["issues"]:
+                i.setdefault("on", i.get("severity") == "high" or i["kind"] in ("profanity",))
+                a, b = i["t0"], i["t1"]
+                when = T("весь клип") if b > 10 ** 5 else T("{0:.1f}–{1:.1f} с").format(a, b)
+                risk = "; ".join(f"{p}: {T(r)}" for p, r in i.get("platforms", {}).items())
+                iid = tree.insert("", "end", values=("☑" if i["on"] else "☐", when, T(i["title"]), i["what"],
+                                                     risk, fix_names.get(i["fix"], i["fix"])))
+                state["rows"][iid] = i
+            if state["rows"]:
+                tree.selection_set(next(iter(state["rows"])))
+                show_detail()
+            else:
+                detail.config(text="")
+            parts = []
+            if state["issues"]:
+                high = sum(1 for i in state["issues"] if i.get("severity") == "high")
+                parts.append(T("Найдено нарушений: {0} (серьёзных: {1}). Отметь, что исправить, и нажми «Исправить».")
+                             .format(len(state["issues"]), high))
+            else:
+                parts.append(T("✔ Нарушений не найдено — клип можно выкладывать."))
+            if res.get("fixed"):
+                parts.append(T("Этот клип уже исправлен."))
+            if res.get("note"):
+                parts.append(T("Не проверено: {0}").format("; ".join(tr_line(x) for x in res["note"].split("; "))))
+            if not res.get("visual"):
+                parts.append(T("Картинку проверяет Claude — нажми «Проверить заново», если есть ключ Claude."))
+            status.config(text="  ".join(parts))
+            b_fix.config(state="normal" if state["issues"] else "disabled")
+
+        def on_click(e):
+            iid = tree.identify_row(e.y)
+            i = state["rows"].get(iid)
+            if not i:
+                return
+            col = tree.identify_column(e.x)
+            if col == "#1":
+                i["on"] = not i["on"]
+                tree.set(iid, "on", "☑" if i["on"] else "☐")
+            elif col == "#6":
+                cyc = fix_cycle["music" if i["kind"] == "music" else i.get("source", "speech")]
+                i["fix"] = cyc[(cyc.index(i["fix"]) + 1) % len(cyc)] if i["fix"] in cyc else cyc[0]
+                i["on"] = i["fix"] != "skip"
+                tree.set(iid, "fix", fix_names[i["fix"]])
+                tree.set(iid, "on", "☑" if i["on"] else "☐")
+        tree.bind("<Button-1>", on_click)
+
+        def recheck():
+            status.config(text=T("Проверяю клип..."))
+            from .caption import _api_key
+
+            def work():
+                try:
+                    res = policy.check_clip(c, _api_key(), log=lambda m: self.root.after(0, lambda: status.config(text=tr_line(m))))
+                except Exception as e:
+                    res = {"issues": [], "note": f"{type(e).__name__}: {e}"}
+                c["policy"] = res
+                self.root.after(0, lambda: (fill(res), self.refresh_clips()))
+            threading.Thread(target=work, daemon=True).start()
+
+        # --- сравнение до / после ---
+        cmp_frame = ttk.Frame(frm)
+        players: list = []
+
+        def show_compare(fixed_path):
+            for w in cmp_frame.winfo_children():
+                w.destroy()
+            cmp_frame.pack(fill="both", expand=True, pady=(8, 0))
+            row = ttk.Frame(cmp_frame)
+            row.pack(fill="both", expand=True)
+            for title, path, sound in ((T("ДО (оригинал)"), c["path"], False), (T("ПОСЛЕ (исправлено)"), fixed_path, True)):
+                box = ttk.LabelFrame(row, text=f" {title} ", padding=4)
+                box.pack(side="left", fill="both", expand=True, padx=4)
+                p = VideoPreview(box, self, big=True)
+                p.sound.set(sound)
+                p.pack(fill="both", expand=True)
+                players.append(p)
+                win.after(300, lambda p=p, path=path: p.load(path))
+            choose = ttk.Frame(cmp_frame)
+            choose.pack(fill="x", pady=(6, 0))
+            ttk.Button(choose, text=T("✔  Выкладывать исправленную"), style="Big.TButton",
+                       command=lambda: keep(fixed_path)).pack(side="left")
+            ttk.Button(choose, text=T("↩  Оставить оригинал"), command=lambda: discard(fixed_path)).pack(side="left", padx=6)
+            ttk.Label(choose, foreground=self.muted, text=T("Звук включён у правой версии — послушай, где запикано.")
+                      ).pack(side="left", padx=6)
+
+        def release_players():
+            for p in players:
+                p.release()
+            players.clear()
+            if self.preview.path == c["path"]:
+                self.preview.release()
+
+        def keep(fixed_path):
+            import shutil
+            release_players()
+            os.makedirs(policy.originals_dir(), exist_ok=True)
+            backup = os.path.join(policy.originals_dir(), f"{int(time.time())}_{os.path.basename(c['path'])}")
+            try:
+                shutil.move(c["path"], backup)
+                shutil.move(fixed_path, c["path"])
+            except OSError as e:
+                messagebox.showerror(T("Нарушения"), T("Не получилось заменить файл: {0}").format(e), parent=win)
+                return
+            try:
+                os.remove(library.thumb_path(c["path"]))
+            except OSError:
+                pass
+            self.images.pop(c["path"], None)
+            left = [i for i in state["issues"] if not i.get("on")]
+            res = dict(c.get("policy") or {}, issues=left, fixed=True, original=backup)
+            policy.save_result(c["path"], res)
+            win.destroy()
+            self.policy_window = None
+            self.refresh_clips()
+            self.clips_info.config(text=T("Готово: в папке теперь исправленная версия. Оригинал сохранён: {0}").format(backup))
+
+        def discard(fixed_path):
+            release_players()
+            try:
+                os.remove(fixed_path)
+            except OSError:
+                pass
+            for w in cmp_frame.winfo_children():
+                w.destroy()
+            cmp_frame.pack_forget()
+            status.config(text=T("Оставлен оригинал."))
+
+        def do_fix():
+            chosen = [dict(i) for i in state["issues"] if i.get("on") and i.get("fix") != "skip"]
+            if not chosen:
+                messagebox.showinfo(T("Нарушения"), T("Отметь хотя бы одно нарушение (колонка ✔)."), parent=win)
+                return
+            status.config(text=T("Исправляю клип... (полминуты)"))
+            b_fix.config(state="disabled")
+            out_dir = os.path.join(paths.default_work_dir(), "fixed")
+            os.makedirs(out_dir, exist_ok=True)
+            out = os.path.join(out_dir, "fixed_" + os.path.basename(c["path"]))
+
+            def work():
+                try:
+                    policy.fix_clip(c["path"], out, chosen, subs_burned=bool(c.get("transcript") or c.get("words")))
+                    err = None
+                except Exception as e:
+                    err = e
+                self.root.after(0, lambda: done(err))
+
+            def done(err):
+                if not win.winfo_exists():
+                    return
+                b_fix.config(state="normal")
+                if err:
+                    status.config(text=T("Исправить не получилось: {0}").format(err))
+                    return
+                status.config(text=T("Готово. Сравни: слева как было, справа исправленная. Выбери, что выкладывать."))
+                show_compare(out)
+            threading.Thread(target=work, daemon=True).start()
+
+        bar = ttk.Frame(frm)
+        bar.pack(fill="x", pady=(8, 0))
+        b_fix = ttk.Button(bar, text=T("🛠  Исправить отмеченное"), style="Big.TButton", command=do_fix)
+        b_fix.pack(side="left")
+        ttk.Button(bar, text=T("🔎  Проверить заново"), command=recheck).pack(side="left", padx=6)
+        ttk.Button(bar, text=T("Закрыть"), command=lambda: (release_players(), win.destroy())).pack(side="right")
+        win.protocol("WM_DELETE_WINDOW", lambda: (release_players(), win.destroy()))
+        res = c.get("policy") or policy.load_results().get(os.path.normpath(c["path"]))
+        if res and (res.get("issues") or res.get("visual") or res.get("words")):
+            fill(res)
+        else:
+            fill({"issues": [], "note": ""})
+            recheck()
+
     def _stream_rows(self) -> dict:
         """Все известные стримы по каналам: из памяти программы + загруженные с сайта."""
         from . import progress
@@ -1800,6 +2036,7 @@ class App:
             pub.add_command(label=T('в {0}').format(label), command=lambda k=key: self.publish(k))
         pub_mb["menu"] = pub
         pub_mb.pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text=T("🛠  Исправить нарушение"), command=self.fix_violations).pack(side="left", padx=(0, 6))
         ttk.Button(btns, text=T("☑  Выбрать все"), command=self.select_all_clips).pack(side="left", padx=(0, 6))
 
         ttk.Button(btns, text=T("✍  Описание и хэштеги"),
@@ -1825,12 +2062,12 @@ class App:
         self.preview = VideoPreview(panes, self)  # просмотр клипа прямо в программе
         panes.add(frame, weight=3)
         panes.add(self.preview, weight=2)
-        cols = ("rating", "streamer", "moment", "caption", "youtube", "instagram", "tiktok")
+        cols = ("rating", "rules", "streamer", "moment", "caption", "youtube", "instagram", "tiktok")
         self.tree = ttk.Treeview(frame, columns=cols, show="tree headings", style="Clips.Treeview",
                                  selectmode="extended", height=3)
         self.tree.heading("#0", text=T("Превью"))
         self.tree.column("#0", width=66, stretch=False)
-        for c, title, w in (("rating", T("Интерес"), 70), ("streamer", T("Стример"), 96), ("moment", T("Момент"), 64),
+        for c, title, w in (("rating", T("Интерес"), 70), ("rules", T("Правила"), 64), ("streamer", T("Стример"), 96), ("moment", T("Момент"), 64),
                             ("caption", T("Надпись"), 220), ("youtube", "YT", 40), ("instagram", "Inst", 44),
                             ("tiktok", "TikTok", 50)):
             self.tree.heading(c, text=title)
@@ -1875,8 +2112,11 @@ class App:
         # оценка — в сравнении со ВСЕМИ твоими клипами (а не только показанными), чтобы она не скакала
         pool = clips if date == T("Все дни") else [c for d in dates for c in library.list_clips(d)]
         scores = display_ratings(pool or clips)
+        from . import policy
+        pol_results = policy.load_results()
         for c in clips:
             c["score10"] = scores.get(c["path"], 1)
+            c["policy"] = pol_results.get(os.path.normpath(c["path"]))
         ranked = sorted(clips, key=lambda c: -c["score10"])
         if self.sort_var.get() == T("лучшие сверху"):
             clips = ranked
@@ -1888,11 +2128,13 @@ class App:
                 continue
             if need in library.PLATFORMS and c["posted"].get(need):
                 continue
+            if need == "violations" and not (c.get("policy") or {}).get("issues"):
+                continue
             img = self._thumb(c["path"])
             if img is None:
                 missing.append(c["path"])
             sec = int(c.get("moment", c.get("start", 0)))
-            values = (f"{c['score10']}/10", c.get("channel", ""),
+            values = (f"{c['score10']}/10", self._policy_cell(c), c.get("channel", ""),
                       f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}", c.get("caption", "") or "—",
                       *("✔" if c["posted"].get(p) else "—" for p in library.PLATFORMS))
             iid = self.tree.insert("", "end", text="", image=img or "", values=values)

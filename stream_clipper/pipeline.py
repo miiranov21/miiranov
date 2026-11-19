@@ -137,6 +137,9 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
                          render.write_watermark_ass(base + ".wm.ass", cfg.watermark_text.strip(),
                                                     cfg.watermark_pos, cfg.watermark_opacity))
     meta["transcript"] = transcript[:800]
+    if transcript:
+        from . import subtitles as _subs
+        meta["words"] = [[round(a, 2), round(b, 2), w] for a, b, w in _subs.LAST_WORDS]
     if cfg.caption:
         from .caption import LAST_SCORE
         meta["ai_score"] = LAST_SCORE.get("value")
@@ -422,7 +425,9 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                         d["rating"] = _final_rating(d, meta)
                         if not cfg.keep_raw:
                             os.remove(seg)
+                        d["words"] = meta.get("words") or []
                         d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, channel)
+                        _quick_policy(d, log)
                         log(f"    готово -> {d['file']}")
                         log(f"✅ {channel}: клип {_clip_no(d['file'])} готов — «{d.get('caption') or ''}»")
                     except Exception as e:
@@ -448,6 +453,24 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
 
     _finish(cfg, new, work, done + new, title, link, log)
     return new
+
+
+def _quick_policy(d: dict, log=print) -> None:
+    """Быстрая проверка речи на мат/оскорбления/музыку сразу после нарезки (без Claude, мгновенно)."""
+    try:
+        from . import policy
+        issues = policy.check_words(d.get("words") or [])
+        policy.save_result(d["file"], {"issues": issues, "visual": False, "checked": __import__("time").time(),
+                                       "note": "" if d.get("words") else "речи нет или субтитры выключены",
+                                       "words": d.get("words") or []})
+        if issues:
+            kinds = {}
+            for i in issues:
+                kinds[i["title"]] = kinds.get(i["title"], 0) + 1
+            log(f"⚠ клип {_clip_no(d['file'])}: возможные нарушения правил — "
+                + ", ".join(f"{k} ×{v}" for k, v in kinds.items()) + " (вкладка «Клипы» → «Исправить нарушение»)")
+    except Exception as e:
+        log(f"    проверка правил не удалась: {e}")
 
 
 def _final_rating(d: dict, meta: dict) -> float:
@@ -507,7 +530,9 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
             d["rating"] = _final_rating(d, meta)
             if not cfg.keep_raw:
                 os.remove(seg)
+            d["words"] = meta.get("words") or []
             d["file"] = daily.deliver_clip(cfg.out_dir, tmp, d, name)
+            _quick_policy(d, log)
             log(f"  [{i}/{len(hl)}] готово -> {d['file']}")
             log(f"✅ {name}: клип {_clip_no(d['file'])} готов — «{d.get('caption') or ''}»")
         clips.append(d)

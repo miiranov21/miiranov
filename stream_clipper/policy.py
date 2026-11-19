@@ -1,0 +1,373 @@
+"""Проверка клипа на нарушения правил YouTube / TikTok / Instagram и исправление.
+
+Что ищем:
+  * мат и оскорбления в речи стримера — по распознанной речи (слова с точным временем);
+  * язык вражды (слюры) — самое опасное: за это удаляют ролик и дают страйк;
+  * чужая музыка — по пометкам распознавания речи («♪», «[музыка]»);
+  * с ключом Claude — ещё и картинку: обнажёнка, реальная жестокость, наркотики, личные данные на экране
+    (телефон, адрес, почта), символы ненависти. Насилие в самой игре (GTA) нарушением не считается.
+
+Как исправляем:
+  * мат/слюры — «запикиваем» (писк вместо слова) и размываем строку субтитров в этот момент;
+  * музыка — глушим звук на отрезке (по желанию: это заглушит и голос);
+  * картинка — размываем область (или весь кадр) на время нарушения.
+Исправленная версия делается отдельным файлом; оригинал не трогаем, пока человек не выберет.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import time
+
+from . import paths
+
+# --- слова. Корни, чтобы ловить все формы. Список нарочно короткий: только то, за что реально режут показы. ---
+SLURS = [
+    r"nigg(?:a|er|ah|as|ers|uh)?s?", r"faggot\w*", r"fag(?:s)?", r"retard(?:ed|s)?", r"tranny", r"chink\w*",
+    r"kike\w*", r"spic(?:s)?", r"coon(?:s)?", r"wetback\w*",
+    r"пидор\w*", r"пидар\w*", r"педик\w*", r"жид\w*", r"хач\w*", r"чурк\w*", r"ниггер\w*", r"негритос\w*",
+    r"даун(?:ы|ов)?", r"хохл\w*", r"кацап\w*",
+]
+PROFANITY = [
+    r"\w*fuck\w*", r"shit\w*", r"bullshit", r"bitch\w*", r"cunt\w*", r"motherf\w*", r"asshole\w*", r"dick(?:head)?s?",
+    r"puss(?:y|ies)", r"whore\w*", r"slut\w*",
+    r"\w*ху[йяеёию]\w*", r"\w*пизд\w*", r"\w*[её]б[аеиуоыё]\w*", r"\w*[её]бл\w*", r"бля\w*", r"сук[аиуеоё]\w*",
+    r"мудак\w*", r"мудил\w*", r"гандон\w*", r"залуп\w*", r"шлюх\w*", r"долба[её]б\w*", r"дроч\w*",
+]
+# слова, которые похожи на мат по корню, но им не являются
+NOT_BAD = {"себя", "небо", "небе", "неба", "ребят", "ребята", "ребенок", "ребёнок", "хлеба", "требую", "требует",
+           "требовать", "погиб", "гибель", "колеба", "колебания", "вебка", "вебку", "вебке", "dickens", "скипидар",
+           "застрахуй", "сукно", "dicks", "ебэй"}
+
+_SLUR_RX = re.compile(r"^(?:" + "|".join(SLURS) + r")$", re.I)
+_PROF_RX = re.compile(r"^(?:" + "|".join(PROFANITY) + r")$", re.I)
+_MUSIC_RX = re.compile(r"[♪♫]|\[(?:music|музыка)\]|\((?:music|музыка)\)", re.I)
+
+# что грозит на каждой площадке
+RULES = {
+    "slur": ("Оскорбление / язык вражды", "high",
+             {"YouTube": "удаление ролика и страйк", "TikTok": "удаление, бан аккаунта", "Instagram": "удаление"}),
+    "profanity": ("Мат", "medium",
+                  {"YouTube": "меньше рекламы (особенно мат в первые 7 секунд)", "TikTok": "могут урезать показы",
+                   "Instagram": "не попадёт в рекомендации"}),
+    "music": ("Возможно, чужая музыка", "medium",
+              {"YouTube": "блокировка или заявка по авторским правам", "TikTok": "звук заглушат",
+               "Instagram": "звук заглушат или ролик скроют"}),
+    "nudity": ("Обнажённое тело / откровенное", "high",
+               {"YouTube": "удаление", "TikTok": "удаление", "Instagram": "удаление"}),
+    "gore": ("Кровь, жестокость (реальная)", "high",
+             {"YouTube": "ограничение 18+ или удаление", "TikTok": "удаление", "Instagram": "скрытие (деликатный контент)"}),
+    "drugs": ("Наркотики / опасные действия", "medium",
+              {"YouTube": "ограничение 18+", "TikTok": "удаление", "Instagram": "не попадёт в рекомендации"}),
+    "personal_info": ("Личные данные на экране", "high",
+                      {"YouTube": "удаление (нарушение приватности)", "TikTok": "удаление", "Instagram": "удаление"}),
+    "hate_symbol": ("Символ ненависти", "high",
+                    {"YouTube": "удаление и страйк", "TikTok": "удаление", "Instagram": "удаление"}),
+    "other": ("Другое нарушение", "medium", {"YouTube": "риск ограничений", "TikTok": "риск ограничений",
+                                             "Instagram": "риск ограничений"}),
+}
+FIX_FOR = {"slur": "bleep", "profanity": "bleep", "music": "mute", "nudity": "blur", "gore": "blur",
+           "drugs": "blur", "personal_info": "blur", "hate_symbol": "blur", "other": "blur"}
+
+# строка субтитров в кадре 1080x1920 (стиль Default: внизу по центру, отступ 560) — размываем её на время писка
+SUBS_BOX = (40, 1150, 1000, 250)
+
+
+def _clean(word: str) -> str:
+    return re.sub(r"[^\w]", "", word.lower().replace("ё", "е")) if word else ""
+
+
+def word_kind(word: str) -> str | None:
+    w = _clean(word)
+    if not w or w in NOT_BAD:
+        return None
+    if _SLUR_RX.match(w):
+        return "slur"
+    if _PROF_RX.match(w):
+        return "profanity"
+    return None
+
+
+def censor_text(text: str) -> str:
+    """Для субтитров: мат и оскорбления заменяем звёздочками (первая буква остаётся)."""
+    def rep(m):
+        w = m.group(0)
+        return w[0] + "*" * (len(w) - 1) if word_kind(w) else w
+    return re.sub(r"[\w']+", rep, text)
+
+
+def _issue(kind: str, t0: float, t1: float, what: str, box=None, source: str = "speech") -> dict:
+    title, sev, plats = RULES.get(kind, RULES["other"])
+    return {"kind": kind, "t0": round(max(0.0, t0), 2), "t1": round(t1, 2), "what": what, "title": title,
+            "severity": sev, "platforms": plats, "fix": FIX_FOR.get(kind, "blur"), "box": box, "source": source}
+
+
+def check_words(words: list) -> list[dict]:
+    """words: [(начало, конец, слово), ...] → нарушения в речи."""
+    out = []
+    for item in words or []:
+        try:
+            s, e, w = float(item[0]), float(item[1]), str(item[2])
+        except (TypeError, ValueError, IndexError):
+            continue
+        if _MUSIC_RX.search(w):
+            out.append(_issue("music", s, e, "♪"))
+            continue
+        for token in re.findall(r"[\w']+", w):
+            kind = word_kind(token)
+            if kind:
+                out.append(_issue(kind, s - 0.05, e + 0.05, token))
+                break
+    return _merge_music(out)
+
+
+def _merge_music(issues: list) -> list:
+    music = sorted((i for i in issues if i["kind"] == "music"), key=lambda i: i["t0"])
+    rest = [i for i in issues if i["kind"] != "music"]
+    merged: list = []
+    for m in music:
+        if merged and m["t0"] - merged[-1]["t1"] < 3:
+            merged[-1]["t1"] = max(merged[-1]["t1"], m["t1"])
+        else:
+            merged.append(dict(m))
+    return sorted(rest + merged, key=lambda i: i["t0"])
+
+
+# ---------- распознавание речи для старых клипов (где слова не сохранены) ----------
+def transcribe_words(clip: str, model: str = "small") -> list:
+    from . import subtitles
+    m = subtitles._get_model(model)
+    audio = subtitles._load_audio(clip)
+    try:
+        segs, _ = m.transcribe(audio, word_timestamps=True, vad_filter=False)
+        segs = list(segs)
+    except Exception:
+        return []
+    return [(float(w.start), float(w.end), w.word) for s in segs for w in (s.words or []) if w.word.strip()]
+
+
+# ---------- картинка и смысл речи — через Claude (если есть ключ) ----------
+VISION_PROMPT = """You check a short vertical gaming-stream clip (1080x1920) against YouTube, TikTok and Instagram community guidelines before it is uploaded.
+You get frames taken at the listed times and the auto transcript of what the streamer says.
+
+Flag ONLY clear, real risks:
+- nudity: nudity or sexually explicit content (in the game or on camera)
+- gore: realistic graphic gore or real-world violence (NOT ordinary video-game shooting/fighting — GTA violence is allowed)
+- drugs: real drug use or clearly dangerous real-life acts
+- personal_info: readable phone numbers, home addresses, emails, passwords, ID documents on screen
+- hate_symbol: swastikas or other hate symbols
+- slur: hateful slurs or hate speech in the transcript (quote the exact words)
+Do not flag swearing (handled separately), game violence, guns in the game, or anything you are unsure about.
+
+Answer with JSON only, no other text:
+{"issues": [{"kind": "...", "frame": <index of the frame where it is visible, or null for speech>,
+  "box": [x, y, w, h] as fractions 0..1 of the frame covering the problem area (generous), or null for the whole frame,
+  "what": "short description in Russian"}]}
+Return {"issues": []} if the clip is fine."""
+
+
+def _frames(clip: str, work: str, every: float = 2.5, limit: int = 14) -> list[tuple[float, str]]:
+    flags = 0x08000000 if os.name == "nt" else 0
+    try:
+        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", clip],
+                           capture_output=True, text=True, creationflags=flags)
+        dur = float(r.stdout.strip())
+    except Exception:
+        dur = 30.0
+    n = max(1, min(limit, int(dur / every) + 1))
+    out = []
+    os.makedirs(work, exist_ok=True)
+    for i in range(n):
+        t = min(dur - 0.2, (i + 0.5) * dur / n)
+        p = os.path.join(work, f"pol_{i}.jpg")
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{max(0.0, t):.2f}", "-i", clip, "-frames:v", "1",
+                        "-vf", "scale=432:-2", "-q:v", "5", p], capture_output=True, creationflags=flags)
+        if os.path.exists(p):
+            out.append((t, p))
+    return out
+
+
+def check_visual(clip: str, words: list, key: str, log=print) -> list[dict]:
+    import base64
+    import anthropic
+    work = os.path.join(paths.default_work_dir(), "policy_frames")
+    frames = _frames(clip, work)
+    step = (frames[1][0] - frames[0][0]) if len(frames) > 1 else 3.0
+    content: list = []
+    for i, (t, p) in enumerate(frames):
+        with open(p, "rb") as f:
+            content.append({"type": "text", "text": f"Frame {i} at {t:.1f}s"})
+            content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
+                                                        "data": base64.standard_b64encode(f.read()).decode()}})
+    transcript = " ".join(f"[{float(s):.1f}s] {w.strip()}" for s, e, w in words)[:3000] if words else "(no speech)"
+    content.append({"type": "text", "text": "Transcript with times:\n" + transcript})
+    client = anthropic.Anthropic(api_key=key, max_retries=3)
+    resp = client.beta.messages.create(
+        model="claude-opus-5-5", max_tokens=3000, output_config={"effort": "low"},
+        betas=["server-side-fallback-2026-07-01"], fallbacks="default",
+        system=VISION_PROMPT, messages=[{"role": "user", "content": content}])
+    for _, p in frames:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+    text = next((b.text for b in resp.content if b.type == "text"), "")
+    m = re.search(r"\{.*\}", text, re.S)
+    try:
+        data = json.loads(m.group(0)) if m else {}
+    except ValueError:
+        data = {}
+    out = []
+    for it in data.get("issues") or []:
+        kind = it.get("kind") if it.get("kind") in RULES else "other"
+        fr = it.get("frame")
+        box = it.get("box")
+        if isinstance(box, list) and len(box) == 4:
+            try:
+                box = [max(0.0, min(1.0, float(v))) for v in box]
+            except (TypeError, ValueError):
+                box = None
+        else:
+            box = None
+        if isinstance(fr, int) and 0 <= fr < len(frames):
+            t = frames[fr][0]
+            out.append(_issue(kind, t - step, t + step, str(it.get("what") or ""), box, source="video"))
+        elif kind == "slur":
+            continue  # слюры в речи уже ловим по словам с точным временем
+        else:
+            out.append(_issue(kind, 0, 10 ** 6, str(it.get("what") or ""), box, source="video"))
+    return out
+
+
+# ---------- проверка целиком + память результатов ----------
+def _store() -> str:
+    return os.path.join(paths.default_work_dir(), "policy.json")
+
+
+def load_results() -> dict:
+    try:
+        with open(_store(), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_result(clip: str, result: dict) -> None:
+    data = load_results()
+    data[os.path.normpath(clip)] = result
+    os.makedirs(os.path.dirname(_store()), exist_ok=True)
+    with open(_store(), "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1)
+
+
+def check_clip(clip: dict, key: str | None = None, log=print, whisper_model: str = "small") -> dict:
+    """clip — запись клипа из библиотеки (path, words?, ...). Возвращает {'issues': [...], 'visual': bool, ...}."""
+    path = clip["path"]
+    words = clip.get("words")
+    note = ""
+    if not words:
+        from . import subtitles
+        if subtitles.available():
+            log("Распознаю речь клипа...")
+            words = transcribe_words(path, whisper_model)
+        else:
+            note = "речь не проверена: не установлено распознавание речи (install_subs.bat)"
+    issues = check_words(words or [])
+    visual = False
+    if key:
+        log("Claude смотрит картинку клипа...")
+        try:
+            issues += check_visual(path, words or [], key, log)
+            visual = True
+        except Exception as e:
+            note = (note + "; " if note else "") + f"картинка не проверена: {type(e).__name__}: {e}"
+    else:
+        note = (note + "; " if note else "") + "картинка не проверена: нет ключа Claude"
+    issues.sort(key=lambda i: i["t0"])
+    res = {"issues": issues, "visual": visual, "note": note, "checked": time.time(),
+           "fixed": bool(clip.get("_fixed")), "words": words or []}
+    save_result(path, res)
+    return res
+
+
+# ---------- исправление ----------
+def _between(spans) -> str:
+    return "+".join(f"between(t,{a:.2f},{b:.2f})" for a, b in spans)
+
+
+def _duration(path: str) -> float:
+    flags = 0x08000000 if os.name == "nt" else 0
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path],
+                       capture_output=True, text=True, creationflags=flags)
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        return 60.0
+
+
+def build_fix_filters(issues: list, size=(1080, 1920), subs_burned: bool = True, dur: float = 60.0):
+    """Фильтры ffmpeg для исправления: (видео-фильтр, аудио-фильтр) или None, если править нечего."""
+    W, H = size
+    bleep = [(i["t0"], min(i["t1"], dur)) for i in issues if i.get("fix") == "bleep"]
+    mute = [(i["t0"], min(i["t1"], dur)) for i in issues if i.get("fix") == "mute"]
+    blurs = []
+    for i in issues:
+        if i.get("fix") != "blur":
+            continue
+        box = i.get("box")
+        if box:
+            x, y, w, h = box
+            pad = 0.04  # с запасом: Claude указывает область примерно
+            x0, y0 = max(0.0, x - pad), max(0.0, y - pad)
+            x1, y1 = min(1.0, x + w + pad), min(1.0, y + h + pad)
+            rect = (int(x0 * W) // 2 * 2, int(y0 * H) // 2 * 2, max(16, int((x1 - x0) * W) // 2 * 2),
+                    max(16, int((y1 - y0) * H) // 2 * 2))
+        else:
+            rect = (0, 0, W, H)
+        blurs.append((rect, (i["t0"], min(i["t1"], dur))))
+    if subs_burned:
+        for span in bleep:  # писк + размытая строка субтитров, чтобы слово нельзя было прочитать
+            blurs.append((SUBS_BOX, span))
+    vf = None
+    if blurs:
+        chain, cur = [], "0:v"
+        for n, ((x, y, w, h), (a, b)) in enumerate(blurs):
+            chain.append(f"[{cur}]split[m{n}][c{n}];[c{n}]crop={w}:{h}:{x}:{y},boxblur=30:3[b{n}];"
+                         f"[m{n}][b{n}]overlay={x}:{y}:enable='between(t,{a:.2f},{b:.2f})'[v{n}]")
+            cur = f"v{n}"
+        vf = ";".join(chain).rsplit(f"[{cur}]", 1)[0] + "[v]"
+    af = None
+    if bleep or mute:
+        silent = _between(bleep + mute)
+        af = f"[0:a]volume=0:enable='{silent}'[a0]"
+        if bleep:
+            af += (f";sine=frequency=1000:sample_rate=48000,volume=0.35,"
+                   f"volume=0:enable='not({_between(bleep)})'[tone];[a0][tone]amix=inputs=2:duration=first:"
+                   f"normalize=0[a]")
+        else:
+            af = af.replace("[a0]", "[a]")
+    return vf, af
+
+
+def fix_clip(src: str, out: str, issues: list, subs_burned: bool = True) -> str:
+    dur = _duration(src)
+    vf, af = build_fix_filters(issues, subs_burned=subs_burned, dur=dur)
+    if not vf and not af:
+        raise ValueError("нечего исправлять")
+    graph = ";".join(x for x in (vf, af) if x)
+    cmd = ["ffmpeg", "-y", "-v", "error", "-i", src, "-filter_complex", graph,
+           "-map", "[v]" if vf else "0:v", "-map", "[a]" if af else "0:a?"]
+    cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p"] if vf else ["-c:v", "copy"]
+    cmd += ["-c:a", "aac", "-b:a", "160k"] if af else ["-c:a", "copy"]
+    cmd += ["-movflags", "+faststart", out]
+    flags = 0x08000000 if os.name == "nt" else 0
+    r = subprocess.run(cmd, capture_output=True, text=True, creationflags=flags)
+    if r.returncode != 0:
+        raise RuntimeError("ffmpeg: " + r.stderr[-600:])
+    return out
+
+
+def originals_dir() -> str:
+    return os.path.join(paths.default_work_dir(), "originals")

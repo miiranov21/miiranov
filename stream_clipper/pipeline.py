@@ -36,6 +36,7 @@ class Settings:
     caption: bool = True      # плашка с подписью к моменту
     game_view: str = "full"   # игра в кадре: full — целиком, wide — крупнее, center — только центр
     start_from: str | None = None  # с какого места стрима начать анализ: «1:30», «сейчас» или пусто — с начала
+    auto_length: bool = False  # длина под момент (12–45 с): клип идёт, пока длится реакция
     credit: bool = False      # сразу вшивать подпись автора «Twitch | KaiCenat» (иначе — галочкой на нужных клипах)
     credit_pos: str = "top-left"  # top-left | top-right | bottom-left (внизу её закрывает интерфейс площадок)
     watermark_text: str = ""  # водяной знак текстом, например "@мой_канал"
@@ -219,6 +220,10 @@ def refresh_live(cfg: Settings, log=print) -> None:
     if isinstance(fc, bool) and fc != (cfg.layout != "blur"):
         cfg.layout = "auto" if fc else "blur"
         changed.append(f"вебка сверху: {'вкл' if fc else 'выкл'}")
+    al = live.get("auto_length")
+    if isinstance(al, bool) and al != cfg.auto_length:
+        cfg.auto_length = al
+        changed.append(f"длина под момент: {'вкл' if al else 'выкл'}")
     gv = live.get("game_view")
     if gv in ("full", "wide", "center") and gv != cfg.game_view:
         cfg.game_view = gv
@@ -317,9 +322,43 @@ def _analyze(msgs: list[ChatMessage], duration: float, audio_db, cfg: Settings, 
         chat_lag=cfg.chat_lag, audio_weight=cfg.audio_weight, min_score=cfg.min_score,
         hype_words=cfg.hype_words, exclude=[(d["start"], d["end"]) for d in done], log=log)
     hl = [h for h in hl if not _overlaps(h, done)]
+    if cfg.auto_length:
+        _auto_length(hl, msgs, audio_db, duration)
     for h in hl:
         log(f"  * {_fmt(h.start)} – {_fmt(h.end)}  score={h.score}  ({' | '.join(h.top_messages[:3])})")
     return hl
+
+
+def _auto_length(hl, msgs, audio_db, duration: float, lo: float = 12.0, hi: float = 45.0) -> None:
+    """Длина под момент: продлеваем клип, пока чат ещё реагирует или стример громко говорит/кричит (но 12–45 с)."""
+    n = int(duration) + 6
+    counts = np.zeros(n, dtype=np.float32)
+    for m in msgs:
+        if 0 <= m.t < n:
+            counts[int(m.t)] += 1
+    base = float(np.median(counts[counts > 0])) if (counts > 0).any() else 0.0
+    thresh = max(1.0, base * 1.6)
+    loud = None
+    if audio_db is not None and len(audio_db):
+        a = np.asarray(audio_db, dtype=np.float32)
+        ok = np.isfinite(a)
+        if ok.any():
+            loud = (a, float(np.median(a[ok])) + 4.0)
+    for h in hl:
+        end = float(h.end)
+        while end - h.start < hi and end + 1 < duration:
+            i = int(end)
+            busy = counts[i:i + 5].mean() > thresh
+            if loud is not None and i + 5 <= len(loud[0]):
+                seg = loud[0][i:i + 5]
+                seg = seg[np.isfinite(seg)]
+                busy = busy or (len(seg) and float(seg.mean()) > loud[1])
+            if not busy:
+                break
+            end += 1.0
+        if end - h.start < lo:
+            end = min(duration, h.start + lo)
+        h.end = round(end, 1)
 
 
 def _finish(cfg: Settings, new: list[dict], work: str, all_clips: list[dict], title: str, link_fn, log) -> None:
@@ -430,6 +469,9 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                     stopped = True
                     break
                 refresh_live(cfg, log)
+                if daily.similar_moment(cfg.out_dir, channel, (h.start + h.end) / 2):
+                    log(f"  {_fmt(h.start)}: этот момент у {channel} уже нарезан — пропускаю")
+                    continue
                 d = dict(h.to_dict(), vod_url=url, vod_title=title, link=link(h.start))
                 d["has_media"] = bool(media and np.isfinite(media.v).any())
                 if not cfg.dry_run:

@@ -20,7 +20,7 @@ from datetime import datetime
 from . import library, paths
 
 PLATFORMS = ("youtube", "tiktok", "instagram")
-EDIT_TYPES = ("trim", "cut_silence", "speed", "layout", "crop_out", "blur", "zoom", "subtitles", "hook", "credit",
+EDIT_TYPES = ("trim", "cut_silence", "speed", "layout", "crop_out", "blur", "zoom", "subtitles", "replace_hook", "hook", "credit",
               "progress_bar", "mute", "bleep", "bleep_profanity", "replace_audio", "loudness", "loop_end", "cover")
 EDIT_KEYS = ("type", "cut_start", "cut_end", "text", "seconds", "pos", "style", "min_gap", "t0", "t1", "rate", "t",
              "scale", "dur", "box", "all", "sfx", "on", "lufs", "crossfade", "mode", "facecam_box")
@@ -63,7 +63,7 @@ FORMAT_DOC = """# Обмен Stream Clipper ⇄ «Доктор шортсов» 
 Порядок всегда такой (в каком порядке их прислать — неважно):
   trim (cut_start, cut_end) → cut_silence (min_gap=0.7) → speed (t0, t1, rate) → crop_out (box) → blur (t0, t1, box) →
   zoom (t, scale=1.2, dur=0.6) → subtitles (style: karaoke|plain, pos: center|lower_center) →
-  hook (text, seconds=3, style: plate|outline) → credit (pos: top-left|top-right|bottom-left, text) →
+  replace_hook (text) — заменить уже прожжённую надпись-плашку → hook (text, seconds=3, style: plate|outline) → credit (pos: top-left|top-right|bottom-left, text) →
   progress_bar (on) → mute (t0, t1) / bleep (t0, t1) / bleep_profanity (all) / replace_audio (t0, t1, sfx: silence|whoosh) →
   loudness (lufs=-14) → loop_end (crossfade=0.3) → cover (t, text)
 Время t/t0/t1 — по исходному клипу (как в каталоге); после вырезания пауз и ускорений пересчитывается само.

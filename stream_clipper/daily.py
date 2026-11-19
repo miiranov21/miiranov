@@ -159,3 +159,25 @@ def build_zip(folder: str) -> str | None:
         z.write(report, os.path.basename(report))
     os.replace(tmp, zpath)
     return zpath
+
+
+def similar_moment(root: str, channel: str, center: float, tol: float = 25.0) -> bool:
+    """Этот момент стрима у стримера уже нарезан (сегодня или вчера) — например, сначала из эфира, потом из записи."""
+    from datetime import datetime, timedelta
+    for day in (datetime.now(), datetime.now() - timedelta(days=1)):
+        folder = os.path.join(root, day.strftime("%d.%m.%Y"))  # без создания папки
+        try:
+            data = _load(folder)
+        except Exception:
+            continue
+        for c in data.get("clips", []):
+            if (c.get("channel") or "").lower() != (channel or "").lower():
+                continue
+            try:
+                dur = float(c["end"]) - float(c["start"])
+                mid = float(c.get("moment", c["start"])) + dur / 2
+            except (KeyError, TypeError, ValueError):
+                continue
+            if abs(mid - center) < tol:
+                return True
+    return False

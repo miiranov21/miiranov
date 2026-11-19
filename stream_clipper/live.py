@@ -419,6 +419,10 @@ class LiveSession:
 
         new = []
         for i, h in enumerate(hl, 1):
+            stream_mid = (self.rec_start + (h.start + h.end) / 2 - self.stream_start) if self.stream_start else None
+            if stream_mid is not None and daily.similar_moment(cfg.out_dir, self.channel, stream_mid):
+                log(f"[{self.channel}] этот момент уже нарезан — пропускаю")
+                continue
             d = dict(h.to_dict(), vod_url=self.chat_url, vod_title=self.title)
             d["has_media"] = visual is not None
             if self._link(h.start):

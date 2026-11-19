@@ -192,6 +192,8 @@ Decide for each platform whether to post, what must be edited, and write the tex
   no other platforms' tags; hashtag counts and title lengths from text_rules.
 Available edits (times in seconds of the original clip): trim{cut_start,cut_end}, cut_silence{min_gap}, speed{t0,t1,rate},
 crop_out{box}, blur{t0,t1,box}, zoom{t,scale,dur}, subtitles{style:karaoke|plain,pos:center|lower_center},
+replace_hook{text} (replace the caption plate already burned into the clip — use it when that caption is generic, repeats other
+clips, mentions the chat/viewers, or contains swearing),
 hook{text,seconds,style:plate|outline}, credit{pos,text}, progress_bar{on}, mute{t0,t1}, bleep{t0,t1}, bleep_profanity{all},
 replace_audio{t0,t1,sfx:silence|whoosh}, loudness{lufs}, loop_end{crossfade}, cover{t,text}. box = [x,y,w,h] fractions 0..1.
 Answer with JSON only:

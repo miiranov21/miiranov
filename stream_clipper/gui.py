@@ -489,11 +489,11 @@ class App:
         digits = (self.root.register(lambda p: p == "" or (p.isdigit() and len(p) <= 3)), "%P")
         for r, (key, text, values, editable) in enumerate((
                 ("top", T("Клипов за час стрима:"), ["1", "2", "3", "5", "10", "20", "50"], True),
-                ("length", T("Длина клипа, сек:"), ["10", "15", "25", "35", "45", "60"], True),
+                ("length", T("Длина клипа, сек:"), [T("авто"), "10", "15", "25", "35", "45", "60"], True),
                 ("quality", T("Качество:"), ["720", "1080"], False))):
             ttk.Label(grid, text=text).grid(row=r, column=0, sticky="w", pady=2)
             val = str(self.cfg.get(key))
-            ok = val.isdigit() if editable else val in values
+            ok = (val.isdigit() or val == T("авто")) if editable else val in values
             self.v[key] = tk.StringVar(value=val if ok else DEFAULTS[key])
             cb = ttk.Combobox(grid, textvariable=self.v[key], values=values, width=6,
                               state="normal" if editable else "readonly")
@@ -1081,6 +1081,8 @@ class App:
 
     def _clip_numbers(self) -> tuple[int, int, int]:
         top = self._num("top", 1, 500)
+        if self.v["length"].get() == T("авто"):  # длина под момент: старт 20 с, дальше программа продлевает до 45
+            return top, 12, 8
         length = self._num("length", 5, 180)
         pre = max(2, round(length * 0.57))
         return top, pre, max(2, length - pre)
@@ -1100,7 +1102,8 @@ class App:
                 "credit_pos": CREDIT_POS.get(self.v["credit_pos"].get(), "top-left"),
                 "subs": subs, "caption": bool(self.v["caption"].get()), "facecam": bool(self.v["facecam"].get()),
                 "audio": bool(self.v["audio"].get()), "game_view": GAME_VIEW.get(self.v["game_view"].get(), "full"),
-                "quality": int(self.v["quality"].get() or 1080)}
+                "quality": int(self.v["quality"].get() or 1080),
+                "auto_length": self.v["length"].get() == T("авто")}
 
     _LIVE_NAMES = {"subs": "Субтитры", "caption": "Надпись-плашка", "facecam": "Вебка сверху",
                    "audio": "Поиск по звуку и картинке"}
@@ -1173,6 +1176,8 @@ class App:
         browser = YT_BROWSERS.get(c.get("yt_browser"), "")
         if browser:
             f += ["--cookies-browser", browser]
+        if c.get("length") == T("авто"):
+            f.append("--auto-length")
         if c.get("credit_auto"):
             f += ["--credit", "--credit-pos", CREDIT_POS.get(c.get("credit_pos"), "top-left")]
         text, image = c.get("wm_text", "").strip(), c.get("wm_image", "")

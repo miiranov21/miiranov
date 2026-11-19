@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import time
 
-ORDER = ["trim", "cut_silence", "speed", "layout", "crop_out", "blur", "zoom", "subtitles", "hook", "credit",
+ORDER = ["trim", "cut_silence", "speed", "layout", "crop_out", "blur", "zoom", "subtitles", "replace_hook", "hook", "credit",
          "progress_bar", "mute", "bleep", "bleep_profanity", "replace_audio", "loudness", "loop_end", "cover"]
 AUDIO = ("mute", "bleep", "bleep_profanity", "replace_audio")
 W, H = 1080, 1920
@@ -298,6 +298,37 @@ def _hook(cur, out, op, tm, dur):
     _burn_ass(cur, out, ASS_HEAD.format(styles=style) + ev + "\n")
 
 
+def _replace_hook(cur, out, op, tm, dur):
+    """Заменить уже прожжённую надпись-плашку: закрашиваем старую белую плашку и пишем новый текст на её месте."""
+    from . import policy
+    from .policy import censor_text
+    text = censor_text((op.get("text") or "").strip()).replace("{", "(").replace("}", ")")
+    if not text:
+        raise _Skip("нет нового текста")
+    plates = policy.detect_text_plates(cur)
+    if not plates:
+        raise _Skip("надпись-плашка на клипе не найдена — используй hook")
+    x, y, w, h = min(plates, key=lambda r: r[1])  # верхняя плашка — это надпись к моменту
+    x, y = max(0, x), max(0, y)
+    w, h = min(W - x, w), min(H - y, h)
+    size = 68
+    while size > 34 and len(text) * size * 0.55 > (w - 40) * max(1, round(h / (size * 1.25))):
+        size -= 4  # длинный текст — шрифт поменьше, чтобы влез в ту же плашку
+    style = (f"Style: R,Arial,{size},&H00111111,&H00111111,&H00FFFFFF,&H00FFFFFF,-1,0,0,0,100,100,0,0,1,0,0,5,"
+             f"{x + 20},{W - x - w + 20},0,1")
+    ev = f"Dialogue: 1,{_ts(0)},{_ts(dur + 1)},R,,0,0,0,,{{\\an5\\pos({x + w // 2},{y + h // 2})}}{text}"
+    work = os.path.dirname(os.path.abspath(out))
+    name = f"m_{int(time.time() * 1000)}_rh.ass"
+    with open(os.path.join(work, name), "w", encoding="utf-8") as f:
+        f.write(ASS_HEAD.format(styles=style) + ev + "\n")
+    try:
+        _run(["ffmpeg", "-y", "-v", "error", "-i", os.path.abspath(cur), "-vf",
+              f"drawbox=x={x}:y={y}:w={w}:h={h}:color=white:t=fill,ass={name}", *_enc(False), os.path.abspath(out)],
+             cwd=work)
+    finally:
+        os.remove(os.path.join(work, name))
+
+
 def _credit(cur, out, op, tm, dur, clip):
     from . import credit, render
     work = os.path.dirname(os.path.abspath(out))
@@ -455,6 +486,8 @@ def render_plan(src: str, out: str, ops: list, words: list | None = None, clip: 
                 _subtitles(cur, dst, op, tm, dur, words, log)
             elif t == "hook":
                 _hook(cur, dst, op, tm, dur)
+            elif t == "replace_hook":
+                _replace_hook(cur, dst, op, tm, dur)
             elif t == "credit":
                 _credit(cur, dst, op, tm, dur, clip)
             elif t == "progress_bar":

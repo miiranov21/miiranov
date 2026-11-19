@@ -635,6 +635,13 @@ class App:
         logbar.pack(fill="x")
         self.log_detailed = tk.BooleanVar(value=False)
         self.log_lines: list = []  # (текст, важная ли строка)
+        self.v["autopilot"] = tk.BooleanVar(value=bool(self.cfg.get("autopilot", True)))
+        self.v["pub_paused"] = tk.BooleanVar(value=bool(self.cfg.get("pub_paused", False)))
+        ttk.Checkbutton(logbar, text=T("🤖 Автопилот"), variable=self.v["autopilot"],
+                        command=self._autopilot_toggled).pack(side="left")
+        ttk.Checkbutton(logbar, text=T("⏸ Пауза публикаций"), variable=self.v["pub_paused"],
+                        command=self._save_settings).pack(side="left", padx=(10, 0))
+        ttk.Button(logbar, text=T("⚡ Проход сейчас"), command=lambda: self._autopilot_tick(force=True)).pack(side="left", padx=8)
         self.b_hide_log = ttk.Button(logbar, text=T("Скрыть ▴"), command=self._toggle_log)
         self.b_hide_log.pack(side="right", padx=(6, 0))
         self.b_details = ttk.Button(logbar, text=T("📄 Подробный журнал"), command=self._toggle_details)
@@ -663,6 +670,7 @@ class App:
         self.updating = False
         self.job = None  # что сейчас делается: ("watch",) или ("vod", ссылка)
         self.root.after(1500, self._resume_after_update)
+        self.root.after(20000, self._autopilot_tick)
         self.root.after(2500, self.check_updates)
 
     # ---------- горячие клавиши и меню правой кнопки ----------
@@ -3095,6 +3103,70 @@ class App:
         self.clip_by_iid: dict = {}
         self.root.after(1000, self._auto_refresh)
         self.root.after(4000, self._exchange_tick)
+
+    # ---------- автопилот ----------
+    AUTOPILOT_EVERY = 5 * 60 * 1000
+
+    def _autopilot_toggled(self):
+        self._save_settings()
+        on = self.v["autopilot"].get()
+        self.activity.event("🤖", T("Автопилот включён — отбирает, монтирует и публикует по стратегии «Доктора»") if on
+                            else T("Автопилот выключен"))
+        if on:
+            self.root.after(500, lambda: self._autopilot_tick(force=True))
+
+    def _autopilot_tick(self, force: bool = False):
+        """Раз в 5 минут — проход автопилота в фоне (один за раз)."""
+        if not force:
+            self.root.after(self.AUTOPILOT_EVERY, self._autopilot_tick)
+        if not self.v["autopilot"].get() or getattr(self, "_autopilot_busy", False):
+            return
+        from .caption import _api_key
+        self._autopilot_busy = True
+        paused = bool(self.v["pub_paused"].get())
+
+        def say(msg):
+            self.root.after(0, lambda: self.status.config(text="🤖 " + tr_line(msg)[:140]))
+
+        def event(icon, text, path=None, kind="info"):
+            self.root.after(0, lambda: self.activity.event(icon, tr_line(text), path, kind))
+
+        def work():
+            from . import autopilot
+            try:
+                stats = autopilot.run_step(_api_key(), paused, say, event)
+                err = None
+            except Exception as e:
+                stats, err = {}, e
+            self.root.after(0, lambda: done(stats, err))
+
+        def done(stats, err):
+            self._autopilot_busy = False
+            if err:
+                self.activity.event("❌", T("Автопилот: {0}").format(err), kind="error")
+            elif any(stats.values()):
+                self.status.config(text=T("🤖 Проход автопилота: опубликовано {0}, в очередь {1}, проверено {2}, в архив {3}")
+                                   .format(stats["published"], stats["queued"], stats["reviewed"], stats["archived"]))
+                self.refresh_clips()
+            else:
+                self.status.config(text=T("🤖 Автопилот: новых клипов для отбора нет, жду"))
+            self._check_trends()
+        threading.Thread(target=work, daemon=True).start()
+
+    def _check_trends(self):
+        """Тема или стример из трендов совпали с клипом в архиве — подсказываем (или достаём сами)."""
+        from . import archive, strategy
+        hits = archive.trend_matches(strategy.get().get("trends") or [])
+        new = [(r, h) for r, h in hits if r["id"] not in getattr(self, "_trend_seen", set())]
+        if not new:
+            return
+        self._trend_seen = getattr(self, "_trend_seen", set()) | {r["id"] for r, _ in new}
+        if (strategy.get().get("autopilot") or {}).get("auto_restore"):
+            self.activity.event("★", T("Тренд «{0}» — достаю из архива клипов: {1}").format(new[0][1], len(new)))
+            self.restore_archived([r for r, _ in new], quiet=True)
+        else:
+            self.activity.event("★", T("Тренд «{0}»: в архиве есть подходящие клипы ({1}) — вкладка «Архив»").format(
+                new[0][1], len(new)))
 
     # ---------- обмен с «Доктором шортсов» ----------
     def _export_catalog(self):

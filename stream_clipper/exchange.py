@@ -269,3 +269,14 @@ def with_author(desc: str, clip: dict, platform: str | None) -> str:
         return desc
     line = author_line(clip, platform)
     return desc if line in desc else (desc.rstrip() + "\n\n" + line).strip()
+
+
+def set_decision(path: str, platforms: dict, source: str = "autopilot") -> None:
+    """Решение по клипу от автопилота (видно в колонке «Совет» и в «Выложить → По плану»)."""
+    store = load_decisions()
+    cid = clip_id(path)
+    old = store.get(cid) or {}
+    store[cid] = {"platforms": {pl: _clean_platform(p) for pl, p in platforms.items()}, "delete": False,
+                  "reason": old.get("reason", ""), "received": time.time(), "source": source}
+    with open(_store(), "w", encoding="utf-8") as f:
+        json.dump(store, f, ensure_ascii=False, indent=1)

@@ -760,5 +760,15 @@
 "{0} подключён для автопубликации": "{0} avtomatik paylaşım üçün qoşuldu",
 "Файл client_secret.json из Google Cloud": "Google Cloud-dan client_secret.json faylı",
 "Впиши ID аккаунта Instagram и токен доступа.": "Instagram hesab ID-sini və giriş tokenini yaz.",
-"Впиши Client key и Client secret своего приложения TikTok.": "Öz TikTok tətbiqinin Client key və Client secret-ini yaz."
+"Впиши Client key и Client secret своего приложения TikTok.": "Öz TikTok tətbiqinin Client key və Client secret-ini yaz.",
+"🤖 Автопилот": "🤖 Avtopilot",
+"⏸ Пауза публикаций": "⏸ Paylaşımlara fasilə",
+"⚡ Проход сейчас": "⚡ İndi keçid",
+"Автопилот включён — отбирает, монтирует и публикует по стратегии «Доктора»": "Avtopilot açıqdır — «Həkim»in strategiyası ilə seçir, montaj edir və paylaşır",
+"Автопилот выключен": "Avtopilot bağlıdır",
+"Автопилот: {0}": "Avtopilot: {0}",
+"🤖 Проход автопилота: опубликовано {0}, в очередь {1}, проверено {2}, в архив {3}": "🤖 Avtopilot keçidi: paylaşıldı {0}, növbəyə {1}, yoxlanıldı {2}, arxivə {3}",
+"🤖 Автопилот: новых клипов для отбора нет, жду": "🤖 Avtopilot: seçmək üçün yeni klip yoxdur, gözləyirəm",
+"Тренд «{0}» — достаю из архива клипов: {1}": "«{0}» trendi — arxivdən klip çıxarıram: {1}",
+"Тренд «{0}»: в архиве есть подходящие клипы ({1}) — вкладка «Архив»": "«{0}» trendi: arxivdə uyğun kliplər var ({1}) — «Arxiv» bölməsi"
 }

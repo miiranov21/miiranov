@@ -244,13 +244,21 @@ def check_visual(clip: str, words: list, key: str, log=print) -> list[dict]:
     return out
 
 
+NUDITY_NOTE: dict = {}  # последняя проблема поиска обнажёнки (например, не скачалась модель)
+
+
 def check_nudity(clip: str, log=print) -> list[dict]:
     """Обнажёнка в кадре — локальная модель, без интернета и без Claude (каждые полсекунды)."""
+    NUDITY_NOTE.pop("text", None)
     try:
         from . import nudity
+        if not nudity.ensure_model(log):
+            NUDITY_NOTE["text"] = "поиск обнажёнки не работает: не скачалась модель (проверь интернет/VPN)"
+            return []
         found = nudity.scan_clip(clip, log=log)
     except Exception as e:
-        log(f"поиск обнажёнки не удался: {e}")
+        NUDITY_NOTE["text"] = f"поиск обнажёнки не удался: {type(e).__name__}: {e}"
+        log(NUDITY_NOTE["text"])
         return []
     return [_issue("nudity", f["t0"], f["t1"], f["what"], f["box"], source="video") for f in found]
 
@@ -289,7 +297,10 @@ def check_clip(clip: dict, key: str | None = None, log=print, whisper_model: str
         else:
             note = "речь не проверена: не установлено распознавание речи (install_subs.bat)"
     issues = check_words(words or [])
+    log("Ищу обнажёнку в кадре...")
     issues += check_nudity(path, log)
+    if NUDITY_NOTE.get("text"):
+        note = (note + "; " if note else "") + NUDITY_NOTE["text"]
     visual = False
     if key:
         log("Claude смотрит картинку клипа...")
@@ -305,7 +316,7 @@ def check_clip(clip: dict, key: str | None = None, log=print, whisper_model: str
     else:
         note = (note + "; " if note else "") + "картинка не проверена: нет ключа Claude"
     issues.sort(key=lambda i: i["t0"])
-    res = {"issues": issues, "visual": visual, "note": note, "checked": time.time(),
+    res = {"issues": issues, "visual": visual, "note": note, "checked": time.time(), "nudity_v": 2,
            "fixed": bool(clip.get("_fixed")), "words": words or []}
     save_result(path, res)
     return res

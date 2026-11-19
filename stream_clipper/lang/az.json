@@ -612,5 +612,9 @@
 "клип получится короче секунды": "klip bir saniyədən qısa alınacaq",
 "Качаю кусок стрима {0}–{1}...": "Strimin {0}–{1} hissəsini yükləyirəm...",
 "Собираю клип...": "Klipi yığıram...",
-"Готово.": "Hazırdır."
+"Готово.": "Hazırdır.",
+"Выбрано клипов, удалённых до появления корзины: {0}. Их файлов уже нет — вернуть их можно, только нарезав заново из записи стрима (1–2 минуты на клип). Нарезать?": "Səbət olmamışdan əvvəl silinmiş seçilən kliplər: {0}. Onların faylları artıq yoxdur — yalnız strim qeydindən yenidən kəsməklə qaytarmaq olar (hər klipə 1–2 dəqiqə). Kəsilsin?",
+"Ищу обнажёнку в кадре...": "Kadrda çılpaqlıq axtarıram...",
+"поиск обнажёнки не работает: не скачалась модель (проверь интернет/VPN)": "çılpaqlıq axtarışı işləmir: model yüklənmədi (interneti/VPN-i yoxla)",
+"поиск обнажёнки не удался: {0}: {1}": "çılpaqlıq axtarışı alınmadı: {0}: {1}"
 }

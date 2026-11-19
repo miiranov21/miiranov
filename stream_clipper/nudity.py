@@ -24,8 +24,10 @@ LABELS = ["FEMALE_GENITALIA_COVERED", "FACE_FEMALE", "BUTTOCKS_EXPOSED", "FEMALE
 BAD = {"BUTTOCKS_EXPOSED": "голые ягодицы", "FEMALE_BREAST_EXPOSED": "голая грудь",
        "FEMALE_GENITALIA_EXPOSED": "половые органы", "MALE_GENITALIA_EXPOSED": "половые органы",
        "ANUS_EXPOSED": "половые органы"}
-MIN_SCORE = {"BUTTOCKS_EXPOSED": 0.35, "FEMALE_BREAST_EXPOSED": 0.35}
-DEFAULT_MIN = 0.3
+# пороги ниже обычных: игровая графика для модели «непривычна», уверенность у неё ниже, чем на фото.
+# Лишнее срабатывание не страшно — в окне исправления галочку можно снять.
+MIN_SCORE = {"BUTTOCKS_EXPOSED": 0.22, "FEMALE_BREAST_EXPOSED": 0.25}
+DEFAULT_MIN = 0.22
 SIZE = 320
 _net = None
 
@@ -195,15 +197,12 @@ def _decode(outs: list) -> np.ndarray:
     return np.concatenate(res, axis=1).T
 
 
-def detect_frame(frame: np.ndarray, log=print) -> list[dict]:
-    """Кадр BGR → [{'label', 'score', 'box': (x, y, w, h) в пикселях}] — только «голые» классы."""
+def _detect_square(net, img: np.ndarray, ox: int, oy: int) -> tuple[list, list, list]:
+    """Одна квадратная часть кадра → рамки (в координатах всего кадра), вероятности, классы."""
     import cv2
-    net = _get_net(log)
-    if net is None:
-        return []
-    h, w = frame.shape[:2]
+    h, w = img.shape[:2]
     side = max(h, w)
-    square = cv2.copyMakeBorder(frame, 0, side - h, 0, side - w, cv2.BORDER_CONSTANT)
+    square = cv2.copyMakeBorder(img, 0, side - h, 0, side - w, cv2.BORDER_CONSTANT)
     blob = cv2.dnn.blobFromImage(square, 1 / 255.0, (SIZE, SIZE), swapRB=True, crop=False)
     net.setInput(blob)
     out = _decode(net.forward(HEADS))  # (кандидаты, 4 + классы)
@@ -213,18 +212,50 @@ def detect_frame(frame: np.ndarray, log=print) -> list[dict]:
         cls = row[4:]
         k = int(np.argmax(cls))
         sc = float(cls[k])
-        if sc < 0.2:
+        if sc < 0.15:
             continue
         cx, cy, bw, bh = (float(v) * scale for v in row[:4])
         x, y = max(0.0, cx - bw / 2), max(0.0, cy - bh / 2)
-        boxes.append([x, y, min(bw, w - x), min(bh, h - y)])
+        boxes.append([ox + x, oy + y, min(bw, w - x), min(bh, h - y)])
         scores.append(sc)
         ids.append(k)
+    return boxes, scores, ids
+
+
+def tiles(w: int, h: int) -> list[tuple[int, int, int]]:
+    """Квадраты, которыми просматриваем кадр: весь кадр + крупные квадраты по длинной стороне + мелкие 2x2 в каждом.
+    Вертикальный клип 1080x1920 целиком сжимается в 320 px — человек в кадре игры выходит крошечным и теряется."""
+    side = min(w, h)
+    out = [(0, 0, max(w, h))]
+    long_ = max(w, h)
+    for off in sorted({0, (long_ - side) // 2, long_ - side}):
+        x, y = (0, off) if h >= w else (off, 0)
+        out.append((x, y, side))
+        half = side // 2
+        for dx in (0, half):  # мелкие квадраты (крупные квадраты сами перекрываются)
+            for dy in (0, half):
+                out.append((x + dx, y + dy, half))
+    return list(dict.fromkeys(out))
+
+
+def detect_frame(frame: np.ndarray, log=print, fine: bool = True) -> list[dict]:
+    """fine=False — только крупные квадраты (быстро), True — ещё и мелкие (видны далёкие/маленькие фигуры)."""
+    """Кадр BGR → [{'label', 'score', 'box': (x, y, w, h) в пикселях}]."""
+    import cv2
+    net = _get_net(log)
+    if net is None:
+        return []
+    h, w = frame.shape[:2]
+    boxes, scores, ids = [], [], []
+    for x, y, side in [t for t in tiles(w, h) if fine or t[2] >= min(w, h)]:
+        b, sc, k = _detect_square(net, frame[y:y + side, x:x + side], x, y)
+        boxes += b
+        scores += sc
+        ids += k
     res = []
-    for i in cv2.dnn.NMSBoxes(boxes, scores, 0.2, 0.45):
+    for i in cv2.dnn.NMSBoxes(boxes, scores, 0.15, 0.45) if boxes else []:
         i = int(np.array(i).flatten()[0])
-        label = LABELS[ids[i]]
-        res.append({"label": label, "score": scores[i], "box": tuple(int(v) for v in boxes[i])})
+        res.append({"label": LABELS[ids[i]], "score": scores[i], "box": tuple(int(v) for v in boxes[i])})
     return res
 
 
@@ -248,7 +279,8 @@ def scan_clip(clip: str, every: float = 0.5, log=print) -> list[dict]:
             ok, frame = cap.retrieve()
             if ok:
                 H, W = frame.shape[:2]
-                for d in detect_frame(frame, log):
+                fine = (idx // step) % 2 == 0  # мелкие квадраты — через раз (раз в секунду), крупные — каждые полсекунды
+                for d in detect_frame(frame, log, fine=fine):
                     if d["label"] in BAD and d["score"] >= MIN_SCORE.get(d["label"], DEFAULT_MIN):
                         x, y, w, h = d["box"]
                         hits.append((idx / fps, x / W, y / H, (x + w) / W, (y + h) / H, BAD[d["label"]]))

@@ -1859,8 +1859,11 @@ class App:
         ttk.Button(bar, text=T("Закрыть"), command=lambda: (release_players(), win.destroy())).pack(side="right")
         win.protocol("WM_DELETE_WINDOW", lambda: (release_players(), win.destroy()))
         res = c.get("policy") or policy.load_results().get(os.path.normpath(c["path"]))
-        if res and (res.get("issues") or res.get("visual") or res.get("words")):
+        if res and res.get("nudity_v") == 2 and (res.get("issues") or res.get("visual") or res.get("words")):
             fill(res)
+        elif res:  # клип проверяли старой версией (без поиска обнажёнки) — показываем, что есть, и проверяем заново
+            fill(res)
+            recheck()
         else:
             fill({"issues": [], "note": ""})
             recheck()
@@ -2261,8 +2264,15 @@ class App:
 
         def restore():
             sel = [x for k, x in selected() if k == "trash"]
+            gone = [x for k, x in selected() if k == "gone"]
+            if not sel and not gone:
+                messagebox.showinfo(T("Корзина"), T("Сначала выбери клип в списке."), parent=win)
+                return
+            if gone and messagebox.askyesno(T("Корзина"), T(
+                    "Выбрано клипов, удалённых до появления корзины: {0}. Их файлов уже нет — вернуть их можно, только "
+                    "нарезав заново из записи стрима (1–2 минуты на клип). Нарезать?").format(len(gone)), parent=win):
+                recut_again()
             if not sel:
-                messagebox.showinfo(T("Корзина"), T("Выбери клипы «в корзине»."), parent=win)
                 return
             player.release()
             for x in sel:

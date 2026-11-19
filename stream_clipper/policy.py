@@ -383,42 +383,81 @@ def _subs_cover(issues: list, words: list | None, dur: float) -> tuple[list, lis
     return spans, redraw
 
 
+def _rect(box, W, H, pad=0.04):
+    if not box:
+        return (0, 0, W, H)
+    x, y, w, h = box
+    x0, y0 = max(0.0, x - pad), max(0.0, y - pad)  # с запасом: модель и Claude указывают область примерно
+    x1, y1 = min(1.0, x + w + pad), min(1.0, y + h + pad)
+    return (int(x0 * W) // 2 * 2, int(y0 * H) // 2 * 2, max(16, int((x1 - x0) * W) // 2 * 2),
+            max(16, int((y1 - y0) * H) // 2 * 2))
+
+
+def _overlap(r1, r2) -> bool:
+    return r1[0] < r2[0] + r2[2] and r2[0] < r1[0] + r1[2] and r1[1] < r2[1] + r2[3] and r2[1] < r1[1] + r1[3]
+
+
+def detect_text_plates(path: str) -> list[tuple[int, int, int, int]]:
+    """Где в клипе белая плашка-надпись (она стоит весь клип): прямоугольники, которые нельзя размывать."""
+    import cv2
+    import numpy as np
+    cap = cv2.VideoCapture(path)
+    n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    found = []
+    for frac in (0.25, 0.5, 0.75):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, max(0, int(n * frac)))
+        ok, fr = cap.read()
+        if not ok:
+            continue
+        H, W = fr.shape[:2]
+        mask = (fr.min(axis=2) > 225).astype(np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
+        cnt, _, stats, _ = cv2.connectedComponentsWithStats(mask)
+        rects = []
+        for x, y, w, h, area in stats[1:cnt]:
+            if w > 0.2 * W and 25 < h < 0.2 * H and area > 0.55 * w * h:
+                rects.append((int(x), int(y), int(w), int(h)))
+        found.append(rects)
+    cap.release()
+    out = []
+    for r in (found[0] if found else []):  # плашка неподвижна: должна быть на всех проверенных кадрах
+        if all(any(abs(r[0] - q[0]) < 30 and abs(r[1] - q[1]) < 30 for q in other) for other in found[1:]):
+            out.append((max(0, r[0] - 8), max(0, r[1] - 8), r[2] + 16, r[3] + 16))
+    return out
+
+
 def build_fix_filters(issues: list, size=(1080, 1920), subs_burned: bool = True, dur: float = 60.0,
-                      words: list | None = None, redraw_ass: str | None = None):
-    """Фильтры ffmpeg для исправления: (видео-фильтр, аудио-фильтр) или None, если править нечего.
-    redraw_ass — имя .ass-файла с той же строкой субтитров, но со звёздочками (рисуется поверх размытой)."""
+                      words: list | None = None, redraw_ass: str | None = None, plates: list | None = None):
+    """Фильтры ffmpeg для исправления: (видео-фильтр, аудио-фильтр).
+    plates — плашки-надписи: после размытия картинки их возвращаем чёткими (надпись не должна размываться);
+    redraw_ass — строки субтитров, которые рисуются поверх заново (со звёздочками вместо мата)."""
     W, H = size
     bleep = [(i["t0"], min(i["t1"], dur)) for i in issues if i.get("fix") == "bleep"]
     mute = [(i["t0"], min(i["t1"], dur)) for i in issues if i.get("fix") == "mute"]
-    blurs = []
-    for i in issues:
-        if i.get("fix") != "blur":
-            continue
-        box = i.get("box")
-        if box:
-            x, y, w, h = box
-            pad = 0.04  # с запасом: Claude указывает область примерно
-            x0, y0 = max(0.0, x - pad), max(0.0, y - pad)
-            x1, y1 = min(1.0, x + w + pad), min(1.0, y + h + pad)
-            rect = (int(x0 * W) // 2 * 2, int(y0 * H) // 2 * 2, max(16, int((x1 - x0) * W) // 2 * 2),
-                    max(16, int((y1 - y0) * H) // 2 * 2))
-        else:
-            rect = (0, 0, W, H)
-        blurs.append((rect, (i["t0"], min(i["t1"], dur))))
-    if subs_burned:
-        # строка субтитров с матом висит на экране дольше самого слова — размываем ВСЮ строку на всё её время
-        spans, _ = _subs_cover(issues, words, dur)
-        for span in spans:
-            blurs.append((SUBS_BOX, span))
+    video = [(_rect(i.get("box"), W, H), (i["t0"], min(i["t1"], dur))) for i in issues if i.get("fix") == "blur"]
+    subs = [(SUBS_BOX, span) for span in (_subs_cover(issues, words, dur)[0] if subs_burned else [])]
+    plates = [p for p in (plates or []) if any(_overlap(p, r) for r, _ in video)]
     vf = None
-    if blurs:
-        chain, cur = [], "0:v"
-        for n, ((x, y, w, h), (a, b)) in enumerate(blurs):
+    if video or subs:
+        chain = []
+        cur = "0:v"
+        if plates:
+            chain.append(f"[0:v]split={len(plates) + 1}[src]" + "".join(f"[keep{k}]" for k in range(len(plates))))
+            cur = "src"
+        n = 0
+        for (x, y, w, h), (a, b) in video:
             r = max(2, min(40, min(w, h) // 4 - 1))
             chain.append(f"[{cur}]split[m{n}][c{n}];[c{n}]crop={w}:{h}:{x}:{y},boxblur={r}:4[b{n}];"
                          f"[m{n}][b{n}]overlay={x}:{y}:enable='between(t,{a:.2f},{b:.2f})'[v{n}]")
-            cur = f"v{n}"
-        if redraw_ass:  # поверх размытого — та же строка, но «б**» вместо мата, чтобы субтитры не пропадали
+            cur, n = f"v{n}", n + 1
+        for k, (x, y, w, h) in enumerate(plates):  # надпись-плашку возвращаем чёткой поверх размытия
+            chain.append(f"[keep{k}]crop={w}:{h}:{x}:{y}[p{k}];[{cur}][p{k}]overlay={x}:{y}[pv{k}]")
+            cur = f"pv{k}"
+        for (x, y, w, h), (a, b) in subs:  # строка субтитров с матом — размыта всё время показа
+            chain.append(f"[{cur}]split[m{n}][c{n}];[c{n}]crop={w}:{h}:{x}:{y},boxblur=40:4[b{n}];"
+                         f"[m{n}][b{n}]overlay={x}:{y}:enable='between(t,{a:.2f},{b:.2f})'[v{n}]")
+            cur, n = f"v{n}", n + 1
+        if redraw_ass:
             chain.append(f"[{cur}]ass={redraw_ass}[vr]")
             cur = "vr"
         vf = ";".join(chain).rsplit(f"[{cur}]", 1)[0] + "[v]"
@@ -437,20 +476,30 @@ def build_fix_filters(issues: list, size=(1080, 1920), subs_burned: bool = True,
 
 def fix_clip(src: str, out: str, issues: list, subs_burned: bool = True, words: list | None = None) -> str:
     dur = _duration(src)
+    W, H = 1080, 1920
     ass_name, cwd = None, None
+    redraw = []
+    video = [(_rect(i.get("box"), W, H), i["t0"], i["t1"]) for i in issues if i.get("fix") == "blur"]
     if subs_burned:
         _, redraw = _subs_cover(issues, words, dur)
-        if redraw:
-            from .subtitles import ASS_HEADER, _ts
-            cwd = os.path.join(paths.default_work_dir(), "fixed")
-            os.makedirs(cwd, exist_ok=True)
-            ass_name = "censor.ass"
-            with open(os.path.join(cwd, ass_name), "w", encoding="utf-8") as f:
-                f.write(ASS_HEADER)
-                for a, b, text in redraw:
-                    text = text.upper().replace("{", "(").replace("}", ")")
-                    f.write(f"Dialogue: 0,{_ts(a)},{_ts(b)},Default,,0,0,0,,{text}\n")
-    vf, af = build_fix_filters(issues, subs_burned=subs_burned, dur=dur, words=words, redraw_ass=ass_name)
+        # строки субтитров, на которые попало размытие картинки, рисуем заново поверх — текст остаётся чётким
+        for a, b, text in subtitle_lines(words or []):
+            if any(_overlap(r, SUBS_BOX) and a < t1 and b > t0 for r, t0, t1 in video) \
+                    and not any(abs(a - x[0]) < 0.01 for x in redraw):
+                redraw.append((a, b, censor_text(text)))
+    if redraw:
+        from .subtitles import ASS_HEADER, _ts
+        cwd = os.path.join(paths.default_work_dir(), "fixed")
+        os.makedirs(cwd, exist_ok=True)
+        ass_name = f"redraw_{int(time.time() * 1000)}.ass"
+        with open(os.path.join(cwd, ass_name), "w", encoding="utf-8") as f:
+            f.write(ASS_HEADER)
+            for a, b, text in sorted(redraw):
+                text = text.upper().replace("{", "(").replace("}", ")")
+                f.write(f"Dialogue: 0,{_ts(a)},{_ts(b)},Default,,0,0,0,,{text}\n")
+    plates = detect_text_plates(src) if video else []
+    vf, af = build_fix_filters(issues, subs_burned=subs_burned, dur=dur, words=words, redraw_ass=ass_name,
+                               plates=plates)
     if not vf and not af:
         raise ValueError("нечего исправлять")
     graph = ";".join(x for x in (vf, af) if x)
@@ -462,6 +511,11 @@ def fix_clip(src: str, out: str, issues: list, subs_burned: bool = True, words: 
     cmd += ["-movflags", "+faststart", out]
     flags = 0x08000000 if os.name == "nt" else 0
     r = subprocess.run(cmd, capture_output=True, text=True, creationflags=flags, cwd=cwd)
+    if ass_name:
+        try:
+            os.remove(os.path.join(cwd, ass_name))
+        except OSError:
+            pass
     if r.returncode != 0:
         raise RuntimeError("ffmpeg: " + r.stderr[-600:])
     return out

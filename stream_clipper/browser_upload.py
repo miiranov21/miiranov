@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -180,4 +181,104 @@ def youtube_upload(file: str, title: str, description: str, log=print, url: str 
             if ok:
                 _try(T("«Открытый доступ»"), lambda: page.locator(SEL_PUBLIC).first.click(timeout=20000), log)
         log(T("Готово: проверь и нажми «Опубликовать» в окне YouTube."))
+        return True
+
+
+# ---------- TikTok и Instagram: так же — программа вставляет файл и текст, человек жмёт «Опубликовать» ----------
+TIKTOK_URL = "https://www.tiktok.com/tiktokstudio/upload"
+INSTAGRAM_URL = "https://www.instagram.com/"
+SEL_TT_CAPTION = '.public-DraftEditor-content, div[contenteditable="true"]'
+SEL_IG_CREATE = ('svg[aria-label="New post"], svg[aria-label="Create"], svg[aria-label="Новая публикация"], '
+                 'svg[aria-label="Создать"], svg[aria-label="Yeni paylaşım"], svg[aria-label="Yarat"]')
+SEL_IG_CAPTION = ('div[role="dialog"] div[contenteditable="true"], textarea[aria-label*="caption" i], '
+                  'div[aria-label*="caption" i][contenteditable="true"], div[aria-label*="подпис" i][contenteditable="true"]')
+_IG_NEXT = re.compile(r"^(Next|Далее|Növbəti|İrəli)$", re.I)
+_IG_POST = re.compile(r"^(Post|Публикация|Пост|Paylaşım|Göndəriş)$", re.I)
+_IG_OK = re.compile(r"^(OK|ОК)$", re.I)
+
+
+def _open(pw, url: str, log):
+    browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{PORT}")
+    ctx = browser.contexts[0] if browser.contexts else browser.new_context()
+    blank = [p for p in ctx.pages if p.url in ("about:blank", "chrome://newtab/", "edge://newtab/")]
+    page = blank[0] if blank else ctx.new_page()
+    page.bring_to_front()
+    page.goto(url, wait_until="domcontentloaded")
+    return page
+
+
+def _wait_file_input(page, url: str, site: str, login_marks: tuple, log, hint: str = "") -> bool:
+    deadline = time.time() + LOGIN_WAIT
+    asked = hinted = False
+    start = time.time()
+    while not page.locator(SEL_FILE).count():
+        if not asked and any(m in page.url for m in login_marks):
+            log(T("Войди в {0} в открывшемся окне — это нужно только один раз.").format(site))
+            asked = True
+        if hint and not hinted and time.time() - start > 15:
+            log(hint)
+            hinted = True
+        if time.time() > deadline:
+            log(T("Не дождался страницы загрузки (не вошёл в аккаунт?). Попробуй ещё раз."))
+            return False
+        page.wait_for_timeout(1000)
+        if asked and not any(m in page.url for m in login_marks) and url.rstrip("/") not in page.url:
+            page.goto(url, wait_until="domcontentloaded")
+            asked = False
+    return True
+
+
+def tiktok_upload(file: str, caption: str, log=print, url: str | None = None) -> bool:
+    url = url or os.environ.get("STREAM_CLIPPER_TT_UPLOAD_URL") or TIKTOK_URL
+    if not have_playwright() and not install_playwright(log):
+        return False
+    if not ensure_browser(log):
+        return False
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = _open(pw, url, log)
+        log(T("Открываю страницу загрузки {0}...").format("TikTok"))
+        if not _wait_file_input(page, url, "TikTok", ("/login", "login?"), log):
+            return False
+        page.locator(SEL_FILE).first.set_input_files(file)
+        log(T("Файл вставлен, {0} начал загрузку.").format("TikTok"))
+        _try(T("описание"), lambda: _set_text(page, SEL_TT_CAPTION, caption[:2200]), log)
+        log(T("Готово: проверь и нажми «Опубликовать» в окне {0}.").format("TikTok"))
+        return True
+
+
+def instagram_upload(file: str, caption: str, log=print, url: str | None = None) -> bool:
+    url = url or os.environ.get("STREAM_CLIPPER_IG_URL") or INSTAGRAM_URL
+    if not have_playwright() and not install_playwright(log):
+        return False
+    if not ensure_browser(log):
+        return False
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        page = _open(pw, url, log)
+        log(T("Открываю страницу загрузки {0}...").format("Instagram"))
+
+        def open_create():
+            page.locator(SEL_IG_CREATE).first.click(timeout=15000)
+            page.wait_for_timeout(800)
+            post = page.get_by_role("link", name=_IG_POST).or_(page.get_by_role("button", name=_IG_POST))
+            if post.count():
+                post.first.click(timeout=3000)
+        if "accounts/login" not in page.url:
+            _try(T("«Создать»"), open_create, log)
+        if not _wait_file_input(page, url, "Instagram", ("accounts/login",), log,
+                                hint=T("Нажми «Создать» → «Публикация» в окне Instagram — дальше программа продолжит сама.")):
+            return False
+        page.locator(SEL_FILE).first.set_input_files(file)
+        log(T("Файл вставлен, {0} начал загрузку.").format("Instagram"))
+        page.wait_for_timeout(2500)
+        ok_btn = page.get_by_role("button", name=_IG_OK)  # «Видео теперь публикуются как Reels» — OK
+        if ok_btn.count():
+            _try("OK", lambda: ok_btn.first.click(timeout=3000), log)
+        for _ in range(2):  # «Далее»: обрезка → фильтры → подпись
+            if not _try(T("Далее"), lambda: (page.get_by_role("button", name=_IG_NEXT).first.click(timeout=20000),
+                                            page.wait_for_timeout(1500)), log):
+                break
+        _try(T("описание"), lambda: _set_text(page, SEL_IG_CAPTION, caption[:2200]), log)
+        log(T("Готово: проверь и нажми «Поделиться» в окне Instagram."))
         return True

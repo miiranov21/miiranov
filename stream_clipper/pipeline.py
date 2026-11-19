@@ -466,15 +466,27 @@ def recut(job: dict, cfg: Settings, log=print) -> dict:
     os.makedirs(work, exist_ok=True)
     start, end = max(0.0, float(job["start"])), float(job["end"])
     log(f"Качаю кусок стрима {_fmt(start)}–{_fmt(end)}...")
-    seg = twitch.download_section(job["url"], start, end, os.path.join(work, "recut_raw"), cfg.max_height)
+    # своё имя на каждую задачу: иначе «уже скачанный» кусок от ДРУГОГО клипа подхватывался вместо нужного
+    import glob
+    import time as _time
+    for old in glob.glob(os.path.join(work, "recut_raw*")):  # хвосты старой версии с общим именем файла
+        try:
+            os.remove(old)
+        except OSError:
+            pass
+    base = os.path.join(work, f"raw_{int(_time.time() * 1000)}_{int(start)}_{int(end)}")
+    seg = twitch.download_section(job["url"], start, end, base, cfg.max_height)
     meta = dict(job.get("meta") or {})
     cfg.clip_pre = min(cfg.clip_pre, max(1.0, (end - start) * 0.57))
     log("Собираю клип...")
-    _make_short(seg, job["out"], cfg, log, meta)
     try:
-        os.remove(seg)
-    except OSError:
-        pass
+        _make_short(seg, job["out"], cfg, log, meta)
+    finally:
+        for f in glob.glob(glob.escape(base) + "*"):
+            try:
+                os.remove(f)
+            except OSError:
+                pass
     return {"file": job["out"], "words": meta.get("words") or [], "transcript": meta.get("transcript", ""),
             "start": start, "end": end}
 

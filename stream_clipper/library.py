@@ -287,4 +287,8 @@ def purge_trash(recs: list[dict]) -> int:
         except OSError:
             pass
     _save_trash([t for t in load_trash() if t["file"] not in gone])
+    from . import edits
+    for r in recs:  # исходники для правок этих клипов больше не нужны
+        if not os.path.exists(r.get("orig", "")):
+            edits.forget(r.get("orig", ""))
     return freed

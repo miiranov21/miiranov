@@ -26,8 +26,8 @@ BAD = {"BUTTOCKS_EXPOSED": "голые ягодицы", "FEMALE_BREAST_EXPOSED":
        "ANUS_EXPOSED": "половые органы"}
 # пороги ниже обычных: игровая графика для модели «непривычна», уверенность у неё ниже, чем на фото.
 # Лишнее срабатывание не страшно — в окне исправления галочку можно снять.
-MIN_SCORE = {"BUTTOCKS_EXPOSED": 0.22, "FEMALE_BREAST_EXPOSED": 0.25}
-DEFAULT_MIN = 0.22
+MIN_SCORE = {"BUTTOCKS_EXPOSED": 0.3, "FEMALE_BREAST_EXPOSED": 0.3}
+DEFAULT_MIN = 0.35
 SIZE = 320
 _net = None
 
@@ -226,7 +226,7 @@ def tiles(w: int, h: int) -> list[tuple[int, int, int]]:
     """Квадраты, которыми просматриваем кадр: весь кадр + крупные квадраты по длинной стороне + мелкие 2x2 в каждом.
     Вертикальный клип 1080x1920 целиком сжимается в 320 px — человек в кадре игры выходит крошечным и теряется."""
     side = min(w, h)
-    out = [(0, 0, max(w, h))]
+    out = []
     long_ = max(w, h)
     for off in sorted({0, (long_ - side) // 2, long_ - side}):
         x, y = (0, off) if h >= w else (off, 0)
@@ -259,9 +259,27 @@ def detect_frame(frame: np.ndarray, log=print, fine: bool = True) -> list[dict]:
     return res
 
 
+def _iou(a, b) -> float:
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    inter = ix * iy
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _near(a, b) -> bool:
+    """Та же область на соседнем кадре: рамки пересекаются или центры близко (человек сдвинулся)."""
+    if _iou(a, b) > 0.05:
+        return True
+    ca, cb = ((a[0] + a[2]) / 2, (a[1] + a[3]) / 2), ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
+    return abs(ca[0] - cb[0]) < 0.12 and abs(ca[1] - cb[1]) < 0.08
+
+
 def scan_clip(clip: str, every: float = 0.5, log=print) -> list[dict]:
     """Проходит по клипу каждые every секунд. Возвращает куски с обнажёнкой:
-    [{'t0', 't1', 'box': [x, y, w, h] доли кадра, 'what'}] — область уже объединена по соседним кадрам."""
+    [{'t0', 't1', 'box': [x, y, w, h] доли кадра, 'what'}].
+    Против ложных срабатываний: рамка не больше ~1/5 кадра, и то же место должно найтись хотя бы на двух
+    соседних проверках (случайная «вспышка» на одном кадре не считается)."""
     import cv2
     if _get_net(log) is None:
         return []
@@ -269,7 +287,7 @@ def scan_clip(clip: str, every: float = 0.5, log=print) -> list[dict]:
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     step = max(1, int(round(fps * every)))
-    hits = []  # (время, x0, y0, x1, y1 в долях, что)
+    samples: list[tuple[float, list]] = []  # (время, [(x0, y0, x1, y1, что, уверенность)])
     idx = 0
     while True:
         ok = cap.grab()
@@ -279,30 +297,42 @@ def scan_clip(clip: str, every: float = 0.5, log=print) -> list[dict]:
             ok, frame = cap.retrieve()
             if ok:
                 H, W = frame.shape[:2]
-                fine = (idx // step) % 2 == 0  # мелкие квадраты — через раз (раз в секунду), крупные — каждые полсекунды
+                fine = (idx // step) % 2 == 0  # мелкие квадраты — раз в секунду, крупные — каждые полсекунды
+                found = []
                 for d in detect_frame(frame, log, fine=fine):
-                    if d["label"] in BAD and d["score"] >= MIN_SCORE.get(d["label"], DEFAULT_MIN):
-                        x, y, w, h = d["box"]
-                        hits.append((idx / fps, x / W, y / H, (x + w) / W, (y + h) / H, BAD[d["label"]]))
+                    if d["label"] not in BAD or d["score"] < MIN_SCORE.get(d["label"], DEFAULT_MIN):
+                        continue
+                    x, y, w, h = d["box"]
+                    if w * h > 0.2 * W * H or w > 0.6 * W or h > 0.45 * H:
+                        continue  # «обнажёнка» на полэкрана — почти всегда ошибка модели
+                    found.append((x / W, y / H, (x + w) / W, (y + h) / H, BAD[d["label"]], d["score"]))
+                samples.append((idx / fps, found))
         idx += 1
         if total and idx > total + 5:
             break
     cap.release()
-    # соседние попадания (разрыв ≤ 1.2 с) — один кусок; область — общая рамка
-    hits.sort()
+    # подтверждение: рядом (±1 проверка) должно быть похожее попадание; очень уверенные (≥0.6) — сразу
+    hits = []
+    for i, (t, found) in enumerate(samples):
+        neigh = [b for j in (i - 1, i + 1) if 0 <= j < len(samples) for b in samples[j][1]]
+        for b in found:
+            if b[5] >= 0.6 or any(_near(b, n) for n in neigh):
+                hits.append((t, b))
+    # куски: подряд идущие попадания по одному месту; у каждого куска своя тесная рамка (≤ 1.5 с)
     spans: list[dict] = []
-    for t, x0, y0, x1, y1, what in hits:
-        # длинные куски дробим по ~2 с: у каждого своя рамка, и размытие «едет» за человеком, а не закрывает пол-экрана
-        if spans and t - spans[-1]["_last"] <= 1.2 and t - spans[-1]["_first"] <= 2.0:
-            s = spans[-1]
+    for t, b in sorted(hits, key=lambda h: h[0]):
+        box = b[:4]
+        s = next((s for s in reversed(spans) if t - s["_last"] <= every * 2.5 and t - s["_first"] <= 1.5
+                  and _near(s["b"], box)), None)
+        if s:
             s["_last"] = t
-            s["b"] = [min(s["b"][0], x0), min(s["b"][1], y0), max(s["b"][2], x1), max(s["b"][3], y1)]
-            s["what"].add(what)
+            s["b"] = [min(s["b"][0], box[0]), min(s["b"][1], box[1]), max(s["b"][2], box[2]), max(s["b"][3], box[3])]
+            s["what"].add(b[4])
         else:
-            spans.append({"_first": t, "_last": t, "b": [x0, y0, x1, y1], "what": {what}})
+            spans.append({"_first": t, "_last": t, "b": list(box), "what": {b[4]}})
     out = []
     for s in spans:
         x0, y0, x1, y1 = s["b"]
-        out.append({"t0": max(0.0, s["_first"] - every), "t1": s["_last"] + every,
+        out.append({"t0": max(0.0, s["_first"] - every * 0.6), "t1": s["_last"] + every * 0.6,
                     "box": [x0, y0, x1 - x0, y1 - y0], "what": ", ".join(sorted(s["what"]))})
     return out

@@ -34,6 +34,11 @@ def _save(data: dict) -> None:
 def state(clip: dict, data: dict | None = None) -> str:
     """'on' — подписан (можно снять), 'burned' — вшита при нарезке (снять нельзя), 'off' — без подписи,
     'unknown' — старый клип, неизвестно."""
+    from . import edits
+    er = edits.load().get(os.path.normpath(clip["path"]))
+    if er is not None:
+        return "on" if any(o["type"] == "credit" for o in er.get("ops", [])) else (
+            "burned" if clip.get("credit_burned") else "off")
     rec = (data if data is not None else load()).get(os.path.normpath(clip["path"]))
     if rec and rec.get("on"):
         return "on"

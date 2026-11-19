@@ -741,6 +741,7 @@ class App:
         m.add_command(label=T("🛡  Проверить правила / исправить нарушение"), command=self.fix_violations)
         m.add_command(label=T("✍  Подписать автора / убрать подпись"), command=self.toggle_credit)
         m.add_command(label=T("✂  Обрезать / удлинить"), command=self.edit_clip)
+        m.add_command(label=T("🕘  Правки этого клипа (отменить размытие, обрезку...)"), command=self.clip_history)
         for key, label in library.PLATFORM_NAMES.items():
             m.add_command(label=T('✔  Выложено в {0} / снять').format(label), command=lambda k=key: self.toggle_posted(k))
         m.add_command(label=T("📂  Показать в папке"), command=self.reveal_clip)
@@ -1597,14 +1598,22 @@ class App:
 
         def work():
             errors = []
+            import copy
+            from . import edits
             for c in todo:
                 try:
-                    credit.add(c, pos) if turn_on else credit.remove(c)
-                    try:
-                        os.remove(library.thumb_path(c["path"]))
-                    except OSError:
-                        pass
-                    library.make_thumb(c["path"])
+                    rec = copy.deepcopy(edits.ensure(c))
+                    if turn_on:
+                        edits.add_op(rec, {"type": "credit", "pos": pos})
+                    else:
+                        ids = [o["id"] for o in rec["ops"] if o["type"] == "credit"]
+                        if not ids:
+                            raise ValueError(T("подпись вшита при нарезке — снять её нельзя"))
+                        for i in ids:
+                            edits.remove_op(rec, i)
+                    out = os.path.join(paths.default_work_dir(), "edits", f"cr_{int(time.time() * 1000)}.mp4")
+                    fields = edits.build(c, rec, out)
+                    edits.commit(c, rec, out, fields)
                 except Exception as ex:
                     errors.append(f"{c.get('channel', '')}: {ex}")
             self.root.after(0, lambda: done(errors))
@@ -1632,7 +1641,7 @@ class App:
 
     def fix_violations(self):
         """Окно: что нарушает правила YouTube / TikTok / Instagram, исправление и сравнение «до / после»."""
-        from . import policy
+        from . import edits, policy
         sel = self._selected()
         if not sel:
             return
@@ -1686,7 +1695,9 @@ class App:
             state["issues"] = [dict(i) for i in res.get("issues") or []]
             state["rows"] = {}
             for i in state["issues"]:
-                i.setdefault("on", i.get("severity") == "high" or i["kind"] in ("profanity",))
+                # сомнительное (Claude не указал место — пришлось бы размыть весь кадр) по умолчанию не отмечено
+                i.setdefault("on", (i.get("severity") == "high" or i["kind"] in ("profanity",))
+                             and not (i.get("source") == "video" and not i.get("box")))
                 a, b = i["t0"], i["t1"]
                 when = T("весь клип") if b > 10 ** 5 else T("{0:.1f}–{1:.1f} с").format(a, b)
                 risk = "; ".join(f"{p}: {T(r)}" for p, r in i.get("platforms", {}).items())
@@ -1778,28 +1789,17 @@ class App:
                 self.preview.release()
 
         def keep(fixed_path):
-            import shutil
             release_players()
-            os.makedirs(policy.originals_dir(), exist_ok=True)
-            backup = os.path.join(policy.originals_dir(), f"{int(time.time())}_{os.path.basename(c['path'])}")
             try:
-                shutil.move(c["path"], backup)
-                shutil.move(fixed_path, c["path"])
+                edits.commit(c, state["trial"], fixed_path, state["fields"])
             except OSError as e:
                 messagebox.showerror(T("Нарушения"), T("Не получилось заменить файл: {0}").format(e), parent=win)
                 return
-            try:
-                os.remove(library.thumb_path(c["path"]))
-            except OSError:
-                pass
-            self.images.pop(c["path"], None)
-            left = [i for i in state["issues"] if not i.get("on")]
-            res = dict(c.get("policy") or {}, issues=left, fixed=True, original=backup)
-            policy.save_result(c["path"], res)
             win.destroy()
             self.policy_window = None
+            self.images.pop(c["path"], None)
             self.refresh_clips()
-            self.clips_info.config(text=T("Готово: в папке теперь исправленная версия. Оригинал сохранён: {0}").format(backup))
+            self.clips_info.config(text=T("Готово: размытие/запикивание сохранено как правка — убрать его можно в «🕘 Правки»."))
 
         def discard(fixed_path):
             release_players()
@@ -1821,13 +1821,21 @@ class App:
             b_fix.config(state="disabled")
             out_dir = os.path.join(paths.default_work_dir(), "fixed")
             os.makedirs(out_dir, exist_ok=True)
-            out = os.path.join(out_dir, "fixed_" + os.path.basename(c["path"]))
+            out = os.path.join(out_dir, f"fixed_{int(time.time())}_" + os.path.basename(c["path"]))
 
             def work():
+                import copy
                 try:
-                    words = c.get("words") or (c.get("policy") or {}).get("words") or []
-                    policy.fix_clip(c["path"], out, chosen, subs_burned=bool(c.get("transcript") or words),
-                                    words=words)
+                    if not c.get("words") and (c.get("policy") or {}).get("words"):
+                        c["words"] = c["policy"]["words"]
+                    rec = copy.deepcopy(edits.ensure(c))
+                    _, shift = edits.source(rec)
+                    a0 = edits.total_cut(rec)[0] - shift  # время в клипе → время в исходнике
+                    issues = [dict(i, t0=i["t0"] + a0, t1=i["t1"] + a0 if i["t1"] < 10 ** 5 else i["t1"])
+                              for i in chosen]
+                    edits.add_op(rec, {"type": "fix", "issues": issues})
+                    state["fields"] = edits.build(c, rec, out)
+                    state["trial"] = rec
                     err = None
                 except Exception as e:
                     err = e
@@ -2016,7 +2024,7 @@ class App:
 
     def edit_clip(self):
         """Окно «Изменить длину»: обрезать начало/конец или удлинить (если есть запись стрима)."""
-        from . import clipedit
+        from . import clipedit, edits
         sel = self._selected()
         if not sel:
             return
@@ -2101,14 +2109,17 @@ class App:
 
         def keep():
             player.release()
+            if self.preview.path == c["path"]:
+                self.preview.release()
             try:
-                self._replace_clip(c, state["new"], state["fields"])
+                edits.commit(c, state["trial"], state["new"], state["fields"])
             except OSError as e:
                 messagebox.showerror(T("Изменить длину"), str(e), parent=win)
                 return
             win.destroy()
+            self.images.pop(c["path"], None)
             self.refresh_clips()
-            self.clips_info.config(text=T("Готово: клип заменён. Прежняя версия лежит в корзине."))
+            self.clips_info.config(text=T("Готово: клип изменён. Отменить — «🕘 Правки»."))
 
         def discard():
             player.release()
@@ -2137,23 +2148,22 @@ class App:
                 os.makedirs(os.path.dirname(out), exist_ok=True)
 
                 def work_():
+                    import copy
                     try:
-                        clipedit.trim_local(c["path"], out, -a, -b)
+                        rec = copy.deepcopy(edits.ensure(c))
+                        edits.add_op(rec, {"type": "trim", "cut_start": -a, "cut_end": -b})
+                        fields = edits.build(c, rec, out)
+                        state["trial"] = rec
                         err = None
                     except Exception as e:
-                        err = e
-                    self.root.after(0, lambda: done_trim(err))
+                        err, fields = e, None
+                    self.root.after(0, lambda: done_trim(err, fields))
 
-                def done_trim(err):
+                def done_trim(err, fields):
                     b_apply.config(state="normal")
                     if err:
                         status.config(text=T("Не получилось: {0}").format(err))
                         return
-                    new_len = L + a + b
-                    fields = {"start": float(c.get("start", 0)) - a, "end": float(c.get("end", 0)) + b,
-                              "words": clipedit.shift_words(c.get("words"), -a, new_len)}
-                    if "moment" in c:
-                        fields["moment"] = float(c["moment"]) - a
                     status.config(text="")
                     show_new(out, fields)
                 threading.Thread(target=work_, daemon=True).start()
@@ -2167,16 +2177,32 @@ class App:
             status.config(text=T("Качаю кусок стрима и собираю клип... (1–2 минуты)"))
 
             def done_recut(res, err):
-                b_apply.config(state="normal")
                 if err:
+                    b_apply.config(state="normal")
                     status.config(text=T("Не получилось: {0}").format(tr_line(err)))
                     return
-                fields = {"start": ns, "end": ne, "words": res.get("words") or [],
-                          "transcript": res.get("transcript", ""), "credit_burned": bool(self.cfg.get("credit_auto"))}
-                if "moment" in c:
-                    fields["moment"] = ns
-                status.config(text="")
-                show_new(res["file"], fields)
+                status.config(text=T("Собираю клип с правками..."))
+
+                def work_():
+                    import copy
+                    import shutil
+                    try:
+                        rec = copy.deepcopy(edits.ensure(c))
+                        keep_file = os.path.join(paths.default_work_dir(), "edits", f"recut_{int(time.time() * 1000)}.mp4")
+                        shutil.move(res["file"], keep_file)
+                        orig0 = rec["moment"] if rec.get("moment") is not None else (rec.get("range") or [0])[0] or 0
+                        edits.add_op(rec, {"type": "recut", "file": keep_file, "range": [ns, ne],
+                                           "shift": float(orig0) - ns, "words": res.get("words") or []})
+                        out = os.path.join(paths.default_work_dir(), "edits", f"ext_{int(time.time() * 1000)}.mp4")
+                        fields = edits.build(c, rec, out)
+                        fields["transcript"] = res.get("transcript", "")
+                        state["trial"] = rec
+                        self.root.after(0, lambda: (b_apply.config(state="normal"), status.config(text=""),
+                                                    show_new(out, fields)))
+                    except Exception as e:
+                        self.root.after(0, lambda: (b_apply.config(state="normal"),
+                                                    status.config(text=T("Не получилось: {0}").format(e))))
+                threading.Thread(target=work_, daemon=True).start()
             self._run_recut(c, ns, ne, lambda m: status.config(text=m), done_recut)
         b_apply = ttk.Button(right, text=T("✔  Применить"), style="Big.TButton", command=apply)
         b_apply.pack(fill="x", pady=(10, 0))
@@ -2356,6 +2382,101 @@ class App:
         n = len(library.load_trash())
         if hasattr(self, "b_trash"):
             self.b_trash.config(text=T("♻  Корзина ({0})").format(n) if n else T("♻  Корзина"))
+
+    def clip_history(self):
+        """Окно «Правки»: что сделано с клипом (размытие, обрезка, подпись...) — любую правку можно убрать."""
+        from . import edits
+        sel = self._selected()
+        if not sel:
+            return
+        c = sel[0]
+        win = tk.Toplevel(self.root)
+        win.title(T("Правки — {0}").format(c.get("channel", "")))
+        win.transient(self.root)
+        win.geometry("640x420")
+        self.history_window = win
+        frm = ttk.Frame(win, padding=10)
+        frm.pack(fill="both", expand=True)
+        ttk.Label(frm, text=f"«{(c.get('caption') or '')[:60]}»", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        ttk.Label(frm, foreground=self.muted, wraplength=600, justify="left", text=T(
+            "Программа хранит исходный клип и собирает готовый заново из правок. Убери ненужную правку — "
+            "остальные останутся.")).pack(anchor="w", pady=(2, 8))
+        pal = self.pal or {}
+        lb = tk.Listbox(frm, height=10, font=("Segoe UI", 11), activestyle="none", bg=pal.get("field", "#ffffff"),
+                        fg=pal.get("fg", "#000000"), selectbackground=pal.get("accent", "#3b82f6"),
+                        highlightthickness=0, relief="flat")
+        lb.pack(fill="both", expand=True)
+        status = ttk.Label(frm, text="", foreground=self.muted, wraplength=600, justify="left")
+        status.pack(anchor="w", pady=(6, 0))
+        ids: list = []
+
+        def fill():
+            lb.delete(0, "end")
+            ids.clear()
+            rec = edits.get(c)
+            ops = (rec or {}).get("ops") or []
+            if not ops:
+                lb.insert("end", T("Правок нет — клип такой, каким его нарезала программа."))
+            for o in ops:
+                lb.insert("end", f"  {len(ids) + 1}.  " + edits.label(o))
+                ids.append(o["id"])
+
+        def rebuild(change, done_text):
+            import copy
+            rec = edits.get(c)
+            if not rec:
+                return
+            trial = copy.deepcopy(rec)
+            change(trial)
+            for b in buttons:
+                b.config(state="disabled")
+            status.config(text=T("Собираю клип заново... (до минуты)"))
+            if self.preview.path == c["path"]:
+                self.preview.release()
+
+            def work():
+                try:
+                    out = os.path.join(paths.default_work_dir(), "edits", f"undo_{int(time.time() * 1000)}.mp4")
+                    fields = edits.build(c, trial, out)
+                    edits.commit(c, trial, out, fields)
+                    err = None
+                except Exception as e:
+                    err = e
+                self.root.after(0, lambda: done(err))
+
+            def done(err):
+                if not win.winfo_exists():
+                    return
+                for b in buttons:
+                    b.config(state="normal")
+                status.config(text=T("Не получилось: {0}").format(err) if err else done_text)
+                self.images.pop(c["path"], None)
+                fill()
+                self.refresh_clips()
+            threading.Thread(target=work, daemon=True).start()
+
+        def remove_selected():
+            s_ = lb.curselection()
+            if not s_ or s_[0] >= len(ids):
+                status.config(text=T("Выбери правку в списке."))
+                return
+            op_id = ids[s_[0]]
+            rebuild(lambda r: edits.remove_op(r, op_id), T("Правка убрана."))
+
+        def remove_all():
+            if not ids:
+                return
+            if messagebox.askyesno(T("Правки"), T("Убрать все правки и вернуть клип, каким его нарезала программа?"),
+                                   parent=win):
+                rebuild(lambda r: [edits.remove_op(r, i) for i in list(ids)], T("Клип возвращён к исходному."))
+        bar = ttk.Frame(frm)
+        bar.pack(fill="x", pady=(8, 0))
+        buttons = [ttk.Button(bar, text=T("✖  Убрать выбранную правку"), style="Big.TButton", command=remove_selected),
+                   ttk.Button(bar, text=T("↩  Вернуть исходный клип"), command=remove_all)]
+        buttons[0].pack(side="left")
+        buttons[1].pack(side="left", padx=6)
+        ttk.Button(bar, text=T("Закрыть"), command=win.destroy).pack(side="right")
+        fill()
 
     def _stream_rows(self) -> dict:
         """Все известные стримы по каналам: из памяти программы + загруженные с сайта."""
@@ -2605,7 +2726,8 @@ class App:
         pub_mb["menu"] = pub
         pub_mb.pack(side="left", padx=(0, 6))
         ttk.Button(btns, text=T("✂  Длина"), command=self.edit_clip).pack(side="left", padx=(0, 6))
-        ttk.Button(btns, text=T("🛠  Исправить нарушение"), command=self.fix_violations).pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text=T("🛠  Нарушения"), command=self.fix_violations).pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text=T("🕘  Правки"), command=self.clip_history).pack(side="left", padx=(0, 6))
         posted_mb = ttk.Menubutton(btns, text=T("✔  Выложено в…"))
         pm = tk.Menu(posted_mb, tearoff=0)
         for key, label in library.PLATFORM_NAMES.items():
@@ -2811,7 +2933,7 @@ class App:
             return
         opened = getattr(self, "_publish_opened", set())
         self._publish_opened = opened
-        auto = platform == "youtube" and self.cfg.get("yt_auto", True)
+        auto = platform in ("youtube", "tiktok", "instagram") and self.cfg.get("yt_auto", True)
         if not auto:
             self._open_manual_upload(platform)
         self.post_texts(clip, platform, staged, auto=auto)
@@ -2856,9 +2978,9 @@ class App:
             ttk.Label(frm, text=T('{0}  ·  интерес {1}/10  ·  момент {2}:{3:02d}:{4:02d}').format(c.get('channel', ''), c.get('score10', '?'), sec // 3600, sec % 3600 // 60, sec % 60),
                       font=("Segoe UI", 12, "bold")).pack(anchor="w")
             ttk.Label(frm, wraplength=620, justify="left", text=(
-                T("Программа сама откроет YouTube в отдельном окне браузера и вставит туда файл, название, описание "
-                "и хэштеги. Тебе останется проверить и нажать «Опубликовать».\n"
-                "В первый раз войди в этом окне в свой Google-аккаунт — дальше он запомнится.")) if auto else (
+                T("Программа сама откроет {0} в отдельном окне браузера и вставит туда файл, название, описание "
+                  "и хэштеги. Тебе останется проверить и нажать «Опубликовать».\n"
+                  "В первый раз войди в этом окне в свой аккаунт {0} — дальше он запомнится.").format(pname)) if auto else (
                 T('Файл уже лежит в папке «К загрузке» (Рабочий стол → YouTube → К загрузке), кроме него там ничего нет.\nНа сайте {0} нажми «Выбрать файл» и открой эту папку — или перетащи файл из открытого окна папки.\n').format(pname)
                 + (T("Имя файла = название ролика, YouTube подставит его сам.") if platform == "youtube" else "")
             )).pack(anchor="w", pady=(4, 4))
@@ -2871,7 +2993,7 @@ class App:
             ttk.Button(tools, text=T("📋  Путь к файлу"),
                        command=lambda: self._copy_text(staged, win)).pack(side="left")
             if auto:
-                ttk.Button(tools, text=T("▶  Вставить в YouTube ещё раз"),
+                ttk.Button(tools, text=T("▶  Вставить в {0} ещё раз").format(pname),
                            command=lambda: start_upload()).pack(side="left", padx=6)
         fields = {}
         for key, label, h in (("title", T("Название (надпись на клипе)"), 2), ("description", T("Описание"), 5),
@@ -2961,7 +3083,12 @@ class App:
 
             def work():
                 try:
-                    ok = browser_upload.youtube_upload(staged, title, desc, log=say)
+                    if platform == "youtube":
+                        ok = browser_upload.youtube_upload(staged, title, desc, log=say)
+                    else:  # TikTok / Instagram: одно поле — название, описание и хэштеги вместе
+                        text = "\n\n".join(x for x in (title, desc) if x)
+                        ok = (browser_upload.tiktok_upload if platform == "tiktok"
+                              else browser_upload.instagram_upload)(staged, text, log=say)
                 except Exception as e:
                     say(T('Не получилось заполнить YouTube автоматически: {0}: {1}').format(type(e).__name__, e))
                     ok = False

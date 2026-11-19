@@ -570,6 +570,10 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
             media.cover(max(start_at, boundary - 60), duration)
         if not lang and len(msgs) > 200 or (finished and not lang):
             lang = detect_language([m.text for m in msgs], title)
+        if lang and not cfg.language:
+            from .caption import lang_allowed
+            if not lang_allowed(channel, lang, log):
+                break
         skip = done + new
         if boundary > 0:
             # уже разобранную часть стрима не трогаем — смотрим только новый кусок
@@ -738,6 +742,9 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
                   visual=visual_local if cfg.audio else None)
     from .caption import detect_language
     lang = cfg.language or detect_language([m.text for m in msgs], name)
+    from .caption import lang_allowed
+    if not cfg.language and not lang_allowed(name, lang, log):
+        return []
     clips = []
     for i, h in enumerate(hl, 1):
         d = dict(h.to_dict(), vod_title=name)

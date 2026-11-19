@@ -274,16 +274,21 @@ def review(c: dict, strat: dict, key: str | None) -> dict:
 
 def rule_plan(c: dict, strat: dict, info: dict) -> dict:
     """Без Claude: обязательный монтаж из EDIT_STYLE и тексты по шаблону."""
-    from .caption import make_post
+    from .caption import free_post
     d = info["duration"]
     spots = (strat.get("scoring") or {}).get("duration_sweet_spot_sec") or {}
+    prules = strat.get("platform_rules") or {}
     swear = any(i["kind"] in ("profanity", "slur") for i in info["policy_issues"])
     nude = any(i["kind"] == "nudity" for i in info["policy_issues"])
-    post = make_post(c.get("channel", ""), c.get("caption", ""), c.get("vod_title", ""), c.get("transcript", ""),
-                     c.get("lang") or "ru", log=lambda m: None)
+    peak = None
+    if c.get("peak") is not None and c.get("start") is not None:
+        peak = float(c["peak"]) - float(c["start"])
     plats = {}
     for pl in PLATFORMS:
-        lo, hi = spots.get(pl, [8, 60])
+        lo, hi = (prules.get(pl) or {}).get("length_sec") or spots.get(pl, [8, 60])
+        post = free_post(pl, c.get("channel", ""), c.get("caption", ""), c.get("vod_title", ""), c.get("transcript", ""),
+                         c.get("top_messages") or [], c.get("lang") or "en", c.get("words") or [], peak,
+                         display=c.get("credit_name") or "")
         edits = [{"type": "cut_silence", "min_gap": 0.7}]
         if not info["has_hook"] and c.get("caption"):
             edits.append({"type": "hook", "text": c["caption"], "seconds": 3})
@@ -294,10 +299,14 @@ def rule_plan(c: dict, strat: dict, info: dict) -> dict:
             edits.append({"type": "progress_bar", "on": True})
         if swear and pl in ("youtube", "instagram"):
             edits.append({"type": "bleep_profanity", "all": True})
-        ok = (lo - 3 <= d <= hi + 15) and not nude and not (pl == "instagram" and swear and d > 30)
+        if pl == "instagram" and c.get("caption"):  # обложка с крупным текстом — видна в сетке профиля
+            edits.append({"type": "cover", "text": " ".join(c["caption"].split()[:4]),
+                          "t": max(0.0, (peak or 3.0))})
+        # длиннее, чем любит площадка, — не беда: ensure_mandatory сделает версию короче (trim)
+        ok = d >= lo - 3 and not nude
         plats[pl] = {"post": ok, "why": "по правилам (без ключа Claude)" if ok else "не подходит по длине или рискам",
-                     "title": c.get("caption") or "", "description": post["description"],
-                     "hashtags": post["hashtags"].split(), "edits": edits}
+                     "title": post["title"], "description": post["description"],
+                     "hashtags": post["hashtags"], "edits": edits}
     return {"archive": not any(p["post"] for p in plats.values()), "reason": "ни одна площадка не подходит",
             "platforms": plats}
 
@@ -327,6 +336,9 @@ def next_slot(platform: str, st: dict, strat: dict, now: datetime | None = None)
     сдвиг между площадками (чтобы не выходить везде одновременно)."""
     ap = strat.get("autopilot") or {}
     now = now or datetime.now()
+    slots = (ap.get("target_slots_msk") or {}).get(platform)
+    if slots:  # расписание под США: слоты по московскому времени из стратегии «Доктора»
+        return _target_slot(platform, slots, st, ap, now)
     win = ap.get("post_window_local") or {"from": 12, "to": 23}
     gap = timedelta(hours=float(ap.get("min_gap_hours", 4)))
     stagger = timedelta(minutes=float(ap.get("platform_stagger_minutes", 20)))
@@ -359,10 +371,36 @@ def next_slot(platform: str, st: dict, strat: dict, now: datetime | None = None)
     return t
 
 
+def _target_slot(platform: str, slots: list, st: dict, ap: dict, now: datetime) -> datetime:
+    """Первый свободный слот площадки. Если публикацию планируют в приложении (schedule_in_app), слот должен быть
+    позже следующей дневной отправки пачки в Telegram (+30 мин) — иначе его не успеют запланировать."""
+    from . import schedule
+    per_day = int((ap.get("posts_per_day") or {}).get(platform, len(slots)))
+    slots = list(slots)[:max(1, per_day)]
+    earliest = now + timedelta(minutes=2)
+    if ap.get("schedule_in_app") and ap.get("telegram_delivery_msk"):
+        _, nxt = schedule.deliveries(ap["telegram_delivery_msk"], now)
+        if nxt:
+            earliest = max(earliest, nxt + timedelta(minutes=30))
+    mine = set()
+    for c in st["clips"].values():
+        q = (c.get("queue") or {}).get(platform)
+        t = _parse((q or {}).get("when"))
+        if t and (q or {}).get("status") not in ("skipped", "error"):
+            mine.add(t.replace(second=0, microsecond=0))
+    for t in schedule.slot_instances(slots, now, days=30):
+        if t >= earliest and t.replace(second=0, microsecond=0) not in mine:
+            return t.replace(second=0, microsecond=0)
+    return earliest.replace(second=0, microsecond=0)
+
+
 # ---------- один проход ----------
 def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEWS_PER_RUN) -> dict:
     """Один проход автопилота. say(текст) — что делаю сейчас; event(значок, текст, путь|None, вид) — в ленту."""
     strategy.refresh(log=lambda m: None)
+    from .caption import claude_allowed
+    if not claude_allowed():  # стратегия: бесплатный режим, Claude не трогаем даже при наличии ключа
+        key = None
     strat = strategy.get()
     ap = strat.get("autopilot") or {}
     st = load_state()

@@ -1166,6 +1166,10 @@ class App:
         self.logo_label.config(text=T("логотип выбран ✔") if p and os.path.exists(p) else T("без логотипа"))
 
     def _update_key_status(self):
+        from .caption import claude_allowed
+        if not claude_allowed():
+            self.key_status.config(text=T("бесплатный режим: Доктор выключил Claude — надписи и тексты по шаблонам"))
+            return
         ok = bool(self.key.get().strip())
         self.key_status.config(text=T("✔ ключ есть") if ok else T("нет ключа — надписи по шаблону"))
 
@@ -1341,8 +1345,23 @@ class App:
             self._live_sent = None
         threading.Thread(target=self._reader, args=(self.proc,), daemon=True).start()
 
+    def _lang_warning(self, names: list) -> None:
+        """Канал английский, а в списке стример на другом языке (программа уже видела его чат) — предупреждаем."""
+        from . import caption, strategy
+        acc = strategy.get().get("account") or {}
+        need = (acc.get("streamers_language") or acc.get("language") or "").lower()
+        if not need:
+            return
+        langs = caption.streamer_langs()
+        bad = [n for n in names if langs.get(n.lower().lstrip("@")) not in (None, need)]
+        if bad:
+            messagebox.showwarning(T("Язык стримера"), T(
+                "Канал английский — для этих стримеров нужен отдельный канал: {0}.\n\n"
+                "Программа их не будет нарезать и выкладывать.").format(", ".join(bad)))
+
     def apply_streamers(self):
         names = self._save_streamers()
+        self._lang_warning(names)
         if self.proc:
             self._append(T("Список стримеров обновлён: ") + (", ".join(names) or T("пусто"))
                          + T(". Программа подхватит его через несколько секунд.\n"))
@@ -1351,6 +1370,7 @@ class App:
 
     def start_watch(self):
         names = self._save_streamers()
+        self._lang_warning(names)
         if not names:
             messagebox.showwarning(T("Нет стримеров"), T("Впиши хотя бы одного стримера во вкладку Twitch или YouTube."))
             return

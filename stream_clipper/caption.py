@@ -33,7 +33,74 @@ def detect_language(texts: list[str], title: str = "") -> str:
     return "ru" if cyr > 0.35 * (cyr + lat) and cyr > 20 else "en"
 
 
+def claude_allowed() -> bool:
+    """Стратегия может выключить Claude целиком (ai_mode.claude_key = false — пока нет дохода): всё бесплатно."""
+    try:
+        from . import strategy
+        return (strategy.get().get("ai_mode") or {}).get("claude_key", True) is not False
+    except Exception:
+        return True
+
+
+def account_lang(default: str | None = None) -> str | None:
+    """Язык канала из стратегии (account.language): надписи и тексты — только на нём."""
+    try:
+        from . import strategy
+        lang = ((strategy.get().get("account") or {}).get("language") or "").strip().lower()
+        return lang if lang in ("ru", "en") else default
+    except Exception:
+        return default
+
+
+def _langs_path() -> str:
+    return os.path.join(paths.default_work_dir(), "streamer_langs.json")
+
+
+def streamer_langs() -> dict:
+    """{ник: язык} — какой язык программа увидела у стримера (по чату)."""
+    try:
+        import json
+        with open(_langs_path(), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+LANG_NAMES = {"ru": "русскоязычный", "en": "англоязычный"}
+_warned: set = set()
+
+
+def lang_allowed(channel: str, lang: str, log=print) -> bool:
+    """Канал под один язык (account.streamers_language): стримера на другом языке не режем и предупреждаем."""
+    import json
+    key = (channel or "").lower().lstrip("@")
+    data = streamer_langs()
+    if key and data.get(key) != lang:
+        data[key] = lang
+        try:
+            os.makedirs(os.path.dirname(_langs_path()), exist_ok=True)
+            with open(_langs_path(), "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=1)
+        except OSError:
+            pass
+    try:
+        from . import strategy
+        acc = strategy.get().get("account") or {}
+        need = (acc.get("streamers_language") or acc.get("language") or "").strip().lower()
+    except Exception:
+        need = ""
+    if not need or lang == need:
+        return True
+    if key not in _warned:
+        _warned.add(key)
+        log(f"🌐 {channel}: стример {LANG_NAMES.get(lang, lang)}, а канал {LANG_NAMES.get(need, need)} — "
+            f"для этого стримера нужен отдельный канал. Не нарезаю.")
+    return False
+
+
 def _api_key() -> str | None:
+    if not claude_allowed():
+        return None
     if os.environ.get("ANTHROPIC_API_KEY"):
         return os.environ["ANTHROPIC_API_KEY"]
     p = os.path.join(paths.program_dir(), "claude_key.txt")
@@ -275,6 +342,7 @@ LAST_SCORE: dict = {"value": None}  # оценка Claude для последн�
 
 def make_caption(streamer: str, title: str, top_messages: list[str], transcript: str, lang: str,
                  log=print, frames: list[str] | None = None, quote: str | None = None) -> str:
+    lang = account_lang(lang) or lang
     key = _api_key()
     text = None
     LAST_SCORE["value"] = None
@@ -407,9 +475,103 @@ def template_post(streamer: str, caption: str, title: str, lang: str, link: str 
     return {"description": desc, "hashtags": " ".join(uniq[:5])}
 
 
+# ---------- тексты публикаций без Claude: из ника, надписи-хука, расшифровки и правил «Доктора» ----------
+_EMOJI = {"laugh": "😂", "shock": "😳", "hype": "🔥", "fail": "💀", "talk": "🎙", "clip": "🎬", "general": "🎬"}
+_MOMENT_TAGS = {"laugh": ["#funny", "#funnymoments"], "shock": ["#reaction", "#shocking"], "hype": ["#clutch", "#insane"],
+                "fail": ["#fail", "#funnyfails"], "talk": ["#storytime", "#podcastclips"],
+                "clip": ["#streamclips"], "general": ["#streamclips"]}
+_CTA = {"en": {"tiktok": "Follow for daily {s} clips 🔔", "youtube": "Subscribe for daily {s} moments 🔔",
+               "instagram": "Send this to a friend who needs to see it 👀 Follow for daily {s} clips"},
+        "ru": {"tiktok": "Подписывайся — {s} каждый день 🔔", "youtube": "Подписывайся на лучшие моменты {s} 🔔",
+               "instagram": "Перешли другу, который должен это увидеть 👀"}}
+
+
+def _game(title: str) -> str:
+    t = (title or "").lower()
+    if "gta" in t or "гта" in t:
+        return "GTA 6" if ("6" in t or "vi" in t.split()) else "GTA"
+    return ""
+
+
+def _sentence(hook: str, nick: str) -> str:
+    """«SPEED CAN'T STOP LAUGHING» → «Speed can't stop laughing» (ник с большой буквы)."""
+    h = re.sub(r"\s+", " ", (hook or "").strip())
+    if not h:
+        return ""
+    if h.isupper() or sum(ch.isupper() for ch in h) > len(h) * 0.6:
+        h = h.lower()
+        h = h[:1].upper() + h[1:]
+        if nick:
+            h = re.sub(re.escape(nick.lower()), nick, h, flags=re.I)
+    return h
+
+
+def free_post(platform: str, streamer: str, hook: str, title: str, transcript: str = "",
+              top_messages: list | None = None, lang: str = "en", words: list | None = None,
+              peak: float | None = None, display: str = "") -> dict:
+    """{title, description, hashtags[]} под площадку — по шаблонам и правилам text_rules (без Claude)."""
+    from .policy import censor_text, word_kind
+    lang = account_lang(lang) or ("ru" if lang == "ru" else "en")
+    bank = hook_bank()
+    nick_caps = short_nick(streamer, bank)
+    nick = nick_caps.title() if nick_caps.isupper() else nick_caps  # SPEED → Speed (как зовут фанаты)
+    full = (display or "").lstrip("@") or _nice_name(streamer)  # как ник пишется на канале (KaiCenat)
+    cat = _category(top_messages or [])
+    game = _game(title)
+    sent = _sentence(hook, nick) or (f"{nick} on stream" if lang == "en" else f"{nick} на стриме")
+    if nick.lower() not in sent.lower() and full.lower() not in sent.lower():
+        sent = f"{full}: {sent}"
+    # цитата стримера (цензурная) — то, что ищут и что цепляет в тексте
+    quote = None
+    if words and peak is not None:
+        q = streamer_quote(words, peak, window=6.0)
+        if q and not any(word_kind(w) for w in q.split()):
+            quote = q
+    if not quote and transcript:
+        for part in re.split(r"(?<=[.!?])\s+", transcript.strip()):
+            part = part.strip(" -,")
+            if 3 <= len(part.split()) <= 12 and not any(word_kind(w) for w in part.split()):
+                quote = part
+                break
+    tmax = int(((strategy_rules().get("title_max") or {}).get(platform)) or (60 if platform == "youtube" else 100))
+    if platform == "youtube":  # ник и игра в начале, до 60 символов
+        t = sent if not game else f"{sent} | {game}"
+        if len(t) > tmax:
+            t = sent
+    else:
+        t = sent
+    t = t[:tmax].rstrip()
+    lines = [f"{sent} {_EMOJI.get(cat, '')}".strip()]
+    if quote:
+        lines.append(f"“{censor_text(quote)}” — {nick}")
+    src = "Twitch"
+    if lang == "en":
+        lines.append(f"{full} {'playing ' + game if game else 'live'} on {src}")
+    else:
+        lines.append(f"{full} {'в ' + game if game else 'на стриме'} ({src})")
+    lines.append(_CTA["en" if lang == "en" else "ru"][platform if platform in _CTA["en"] else "tiktok"].format(s=nick))
+    desc = "\n".join(dict.fromkeys(l for l in lines if l))
+    tag_nick = "#" + "".join(ch for ch in full.lower() if ch.isalnum())
+    tags = [tag_nick]
+    if game:
+        tags += ["#gta6", "#gta"] if "6" in game else ["#gta"]
+    tags += _MOMENT_TAGS.get(cat, ["#streamclips"])
+    tags += ["#twitchclips" if lang == "en" else "#стрим", "#streamer"]
+    return {"title": t, "description": desc, "hashtags": list(dict.fromkeys(tags))}
+
+
+def strategy_rules() -> dict:
+    try:
+        from . import strategy
+        return strategy.get().get("text_rules") or {}
+    except Exception:
+        return {}
+
+
 def make_post(streamer: str, caption: str, title: str, transcript: str, lang: str, link: str = "",
-              log=print) -> dict:
-    """Описание и хэштеги: через Claude (если есть ключ), иначе по шаблону."""
+              log=print, platform: str = "tiktok", top_messages: list | None = None) -> dict:
+    """Описание и хэштеги: через Claude (если есть ключ), иначе по шаблонам и правилам «Доктора»."""
+    lang = account_lang(lang) or lang
     key = _api_key()
     if key:
         try:
@@ -431,7 +593,8 @@ def make_post(streamer: str, caption: str, title: str, transcript: str, lang: st
                     return {"description": desc, "hashtags": " ".join(tags.split())}
         except Exception as e:
             log(f"описание от Claude не получилось ({e}) — делаю по шаблону")
-    return template_post(streamer, caption, title, lang, link)
+    p = free_post(platform, streamer, caption, title, transcript, top_messages, lang)
+    return {"description": p["description"], "hashtags": " ".join(p["hashtags"][:5]), "title": p["title"]}
 
 
 

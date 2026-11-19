@@ -260,7 +260,12 @@ def author_line(clip: dict, platform: str) -> str:
         url = clip.get("vod_url") or ""
         if not url or "twitch.tv/" not in url and "youtu" not in url:
             url = f"https://www.twitch.tv/{name}" if src == "Twitch" else f"https://www.youtube.com/@{name}"
-        return f"Стрим: {url}"
+        try:
+            from .caption import account_lang
+            word = "Stream" if account_lang("ru") == "en" else "Стрим"
+        except Exception:
+            word = "Стрим"
+        return f"{word}: {url}"
     return f"🎥 {name} ({src})"
 
 

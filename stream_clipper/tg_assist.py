@@ -26,6 +26,19 @@ NAMES = {"tiktok": "TikTok", "youtube": "YouTube", "instagram": "Instagram"}
 MAX_PENDING = 2
 REMIND_AFTER = 30 * 60
 FLAGS = 0x08000000 if os.name == "nt" else 0
+HINT_SCHEDULE = (
+    "📌 Как планировать публикации (аудитория — США, поэтому время ночное по Москве — вставать не нужно).\n"
+    "Бот присылает пачку видео в 12:00 и 18:00 МСК. У каждого видео написано, на какое время его запланировать.\n\n"
+    "1) Сохрани видео (нажми на него → «Сохранить» / «⋯ → Сохранить в галерею»).\n"
+    "2) Скопируй текст (нажми на блок с текстом — он скопируется).\n"
+    "3) Запланируй в приложении:\n"
+    "• TikTok: «+» → загрузи видео → «Далее» → вставь текст → «Ещё параметры» → «Запланировать публикацию» → "
+    "выбери дату и время → «Запланировать».\n"
+    "• YouTube: «+» → «Создать Short» → загрузи видео → «Далее» → вставь название и описание → «Видимость» → "
+    "«Запланировать» → дата и время → «Загрузить Short».\n"
+    "• Instagram: «+» → «Reels» → выбери видео → «Далее» → вставь подпись → «Дополнительные настройки» → "
+    "«Запланировать» → дата и время → «Запланировать». Если написано «🧪 пробный Reels» — включи «Пробный Reels».\n\n"
+    "Время в приложении — московское (как на телефоне). Потом нажми здесь «✅ Запланировал».")
 HINT = ("📌 Как выкладывать: нажми на видео → «Поделиться» → TikTok / Instagram / YouTube → вставь текст "
         "(нажми на блок с текстом — он скопируется) → «Опубликовать». Потом нажми здесь «✅ Выложил».")
 
@@ -53,6 +66,13 @@ def mode() -> str:
     from . import strategy
     s = strategy.get()
     return s.get("publish_mode") or (s.get("autopilot") or {}).get("publish_mode") or "telegram_assist"
+
+
+def schedule_mode() -> bool:
+    """Публикацию планируют в приложениях заранее: бот шлёт пачку днём (telegram_delivery_msk), без ночных подъёмов."""
+    from . import strategy
+    ap = strategy.get().get("autopilot") or {}
+    return bool(ap.get("schedule_in_app") and ap.get("telegram_delivery_msk"))
 
 
 def _job_id(path: str, platform: str) -> str:
@@ -88,17 +108,13 @@ def sync_jobs(st: dict) -> None:
 
 
 def _fit_size(path: str) -> str:
-    """Больше 49 МБ — сжимаем (CRF), а не отправляем ссылкой."""
+    """Больше 49 МБ (лимит бота) — та же 1080p, только битрейт ниже; иначе отправляем как есть, без пересжатия."""
     if os.path.getsize(path) <= telegram.LIMIT:
         return path
-    out = os.path.join(paths.default_work_dir(), "tg_assist_small.mp4")
-    for scale, crf in (("-2:1920", 24), ("-2:1920", 28), ("-2:1280", 28), ("-2:1280", 32)):
-        subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", path, "-vf", f"scale={scale}", "-c:v", "libx264",
-                        "-preset", "medium", "-crf", str(crf), "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart",
-                        out], capture_output=True, creationflags=FLAGS)
-        if os.path.exists(out) and os.path.getsize(out) <= telegram.LIMIT:
-            return out
-    raise RuntimeError("видео не ужимается до 49 МБ")
+    out = telegram.fit_1080(path, os.path.join(paths.default_work_dir(), "tg_assist_small.mp4"))
+    if not out:
+        raise RuntimeError("видео не ужимается до 49 МБ")
+    return out
 
 
 def _render_for(job: dict) -> str:
@@ -119,6 +135,15 @@ def _render_for(job: dict) -> str:
     return out
 
 
+def _cover_for(job: dict) -> str | None:
+    if job["platform"] != "instagram":
+        return None
+    from . import edits
+    rec = (edits.load_renders().get(os.path.normpath(job["path"])) or {}).get("instagram") or {}
+    p = rec.get("cover")
+    return p if p and os.path.exists(p) else None
+
+
 def _target(c: dict) -> dict:
     """Группа с темами — отдельная тема «📤 К публикации»; личный чат — просто сообщения."""
     if not c.get("forum"):
@@ -135,6 +160,13 @@ def _text(job: dict, channel: str) -> str:
     e = lambda s: html.escape(s or "", quote=False)
     tags = " ".join(job.get("hashtags") or [])
     head = f"🎬 <b>{NAMES[job['platform']]} · {when} · {e(channel)}</b>"
+    if job.get("schedule"):
+        from . import schedule
+        t = datetime.fromisoformat(job["when"])
+        head = (f"🗓 <b>{NAMES[job['platform']]} · {e(channel)}</b>\n"
+                f"Запланировать на <b>{schedule.day_label(t)} {schedule.label(t)}</b>")
+        if job.get("trial"):
+            head += "\n🧪 Можно как «Пробный Reels» (покажут не подписчикам)"
     if job["platform"] == "youtube":
         body = (f"Название:\n<code>{e(job.get('title'))}</code>\n\nОписание:\n<code>{e(job.get('description'))}"
                 f"{chr(10) * 2 + e(tags) if tags else ''}</code>")
@@ -145,9 +177,10 @@ def _text(job: dict, channel: str) -> str:
 
 
 def _buttons(job: dict, jid: str) -> str:
+    done = "✅ Запланировал" if job.get("schedule") else "✅ Выложил"
     return json.dumps({"inline_keyboard": [
         [{"text": f"📲 Открыть {NAMES[job['platform']]}", "url": OPEN_URL[job["platform"]]}],
-        [{"text": "✅ Выложил", "callback_data": f"ok:{jid}"}, {"text": "⏭ Пропустить", "callback_data": f"skip:{jid}"}]]},
+        [{"text": done, "callback_data": f"ok:{jid}"}, {"text": "⏭ Пропустить", "callback_data": f"skip:{jid}"}]]},
         ensure_ascii=False)
 
 
@@ -163,10 +196,12 @@ def recipients(c: dict) -> list[dict]:
 def _send(c: dict, jid: str, job: dict, channel: str) -> None:
     """Видео и текст с кнопками — каждому получателю (видео загружается один раз, остальным уходит по file_id)."""
     target = _target(c)
-    if not c.get("assist_hint"):
+    hint_v = "schedule" if job.get("schedule") else True
+    if c.get("assist_hint") != hint_v:
         for r in recipients(c):
             try:
-                m = telegram._call(c["token"], "sendMessage", data={"chat_id": r["id"], "text": HINT,
+                m = telegram._call(c["token"], "sendMessage", data={"chat_id": r["id"],
+                                                                    "text": HINT_SCHEDULE if job.get("schedule") else HINT,
                                                                     **(target if r.get("main") else {})})
                 try:
                     telegram._call(c["token"], "pinChatMessage", data={"chat_id": r["id"], "message_id": m["message_id"],
@@ -175,7 +210,7 @@ def _send(c: dict, jid: str, job: dict, channel: str) -> None:
                     pass
             except Exception:
                 pass
-        c["assist_hint"] = True
+        c["assist_hint"] = hint_v
         telegram.save(c)
     video = _fit_size(_render_for(job))
     msgs, file_id = [], None
@@ -196,6 +231,16 @@ def _send(c: dict, jid: str, job: dict, channel: str) -> None:
                                                                     "parse_mode": "HTML", "reply_markup": _buttons(job, jid),
                                                                     "reply_to_message_id": v["message_id"], **extra})
                 msgs.append({"chat": r["id"], "msg": m["message_id"], "video": v["message_id"]})
+                cover = _cover_for(job)
+                if cover:  # обложка с крупным текстом (Instagram показывает её в сетке профиля)
+                    try:
+                        with open(cover, "rb") as f:
+                            telegram._call(c["token"], "sendPhoto", timeout=120,
+                                           data={"chat_id": r["id"], "caption": "🖼 Обложка для Reels: «Изменить обложку» → "
+                                                 "«Добавить из галереи»", "reply_to_message_id": v["message_id"], **extra},
+                                           files={"photo": ("cover.jpg", f, "image/jpeg")})
+                    except Exception:
+                        pass
             except Exception:
                 if r.get("main"):
                     raise  # основной чат обязателен; у друга может быть, например, бот на паузе — не мешаем остальным
@@ -273,13 +318,22 @@ def handle_updates(st: dict, c: dict, event) -> int:
         if job and act == "ok" and job["status"] != "posted":
             library.set_posted(job["path"], True, job["platform"])
             library.record_published(job["path"], job["platform"], job.get("title", ""),
-                                     (job.get("description", "") + "\n\n" + " ".join(job.get("hashtags") or [])).strip())
+                                     (job.get("description", "") + "\n\n" + " ".join(job.get("hashtags") or [])).strip(),
+                                     when=job.get("when", "") if job.get("schedule") else "")
             job["status"] = "posted"
             job["posted_by"] = who
             _sync_autopilot(job, "published")
-            note = f"✅ Выложил{': ' + who if who else ''}"
-            event("✅", f"{os.path.basename(job['path'])[:-4]}: выложено в {NAMES[job['platform']]}"
-                       f"{' (' + who + ')' if who else ''}", job["path"], "clip")
+            if job.get("schedule"):
+                from . import schedule
+                t = datetime.fromisoformat(job["when"])
+                note = f"✅ Запланировал{': ' + who if who else ''} на {schedule.day_label(t)} {schedule.label(t)}"
+                event("🗓", f"{os.path.basename(job['path'])[:-4]}: {NAMES[job['platform']]} запланирован на "
+                           f"{schedule.day_label(t)} {schedule.label(t)}{' (' + who + ')' if who else ''}",
+                      job["path"], "clip")
+            else:
+                note = f"✅ Выложил{': ' + who if who else ''}"
+                event("✅", f"{os.path.basename(job['path'])[:-4]}: выложено в {NAMES[job['platform']]}"
+                           f"{' (' + who + ')' if who else ''}", job["path"], "clip")
             n += 1
         elif job and act == "ok":
             note = f"Уже выложено{': ' + job.get('posted_by') if job.get('posted_by') else ''}"
@@ -288,7 +342,13 @@ def handle_updates(st: dict, c: dict, event) -> int:
             job["status"] = "pending"
             job.pop("reminded", None)
             _sync_autopilot(job, "waiting", job["when"])
-            note = f"⏭ {who + ' перенёс' if who else 'Перенёс'} на {job['when'][8:10]}.{job['when'][5:7]} {job['when'][11:16]}"
+            if schedule_mode():
+                from . import schedule
+                t = datetime.fromisoformat(job["when"])
+                note = (f"⏭ {who + ' перенёс' if who else 'Перенёс'} на {schedule.day_label(t)} {schedule.label(t)} — "
+                        f"придёт в следующей пачке")
+            else:
+                note = f"⏭ {who + ' перенёс' if who else 'Перенёс'} на {job['when'][8:10]}.{job['when'][5:7]} {job['when'][11:16]}"
             event("⏭", f"{os.path.basename(job['path'])[:-4]}: {NAMES[job['platform']]} — {note}", None, "info")
         try:
             telegram._call(c["token"], "answerCallbackQuery", data={"callback_query_id": cq["id"], "text": note})
@@ -319,6 +379,11 @@ def tick(paused: bool, event) -> dict:
         event("❌", f"Telegram: не смог прочитать нажатия кнопок — {e}", None, "error")
     sync_jobs(st)
     now = datetime.now()
+    if schedule_mode():
+        if not paused:
+            _deliver_batch(st, c, event, stats, now)
+        save(st)
+        return stats
     if not paused:
         from . import policy
         for jid, job in sorted(st["jobs"].items(), key=lambda kv: kv[1].get("when") or ""):
@@ -364,6 +429,86 @@ def tick(paused: bool, event) -> dict:
             stats["reminded"] += 1
     save(st)
     return stats
+
+
+def _channel_of(path: str) -> str:
+    return next((cc.get("channel", "") for d in library.list_dates() for cc in library.list_clips(d)
+                 if os.path.normpath(cc["path"]) == os.path.normpath(path)), "")
+
+
+def _deliver_batch(st: dict, c: dict, event, stats: dict, now: datetime) -> None:
+    """Дневная пачка: в 12:00 и 18:00 МСК (из стратегии) — все видео с будущими слотами, у каждого — на какое время
+    запланировать. Слот, который уже прошёл, а видео так и не ушло, — переносим на следующий свободный."""
+    from . import policy, schedule, strategy
+    ap = strategy.get().get("autopilot") or {}
+    last, _ = schedule.deliveries(ap.get("telegram_delivery_msk") or [], now)
+    if not last:
+        return
+    stamp = last.isoformat(timespec="minutes")
+    now_s = now.isoformat(timespec="minutes")
+    for job in st["jobs"].values():  # прошедшие слоты, которые так и не отправили, — на новое время
+        if job["status"] == "pending" and job.get("when") and job["when"] <= now_s:
+            job["when"] = _next_when(st, job["platform"])
+            _sync_autopilot(job, "waiting", job["when"])
+    if st.get("last_delivery") == stamp:
+        return
+    todo = sorted(((jid, j) for jid, j in st["jobs"].items() if j["status"] == "pending" and j.get("when")),
+                  key=lambda kv: kv[1]["when"])
+    unconfirmed = [j for j in st["jobs"].values() if j["status"] == "sent" and (j.get("when") or "") > now_s]
+    if not todo and not unconfirmed:
+        st["last_delivery"] = stamp
+        return
+    # «Пробный Reels» — первые 2 Reels за день (по времени США)
+    per_day: dict = {}
+    for jid, j in sorted(st["jobs"].items(), key=lambda kv: kv[1].get("when") or ""):
+        if j["platform"] == "instagram" and j.get("when") and j["status"] in ("pending", "sent", "posted"):
+            d = schedule.et(datetime.fromisoformat(j["when"])).date().isoformat()
+            per_day[d] = per_day.get(d, 0) + 1
+            j["trial"] = per_day[d] <= 2
+    try:
+        telegram._call(c["token"], "sendMessage", data={
+            "chat_id": c["chat_id"], **_target(c),
+            "text": f"📦 Пачка на публикацию: {len(todo)} видео. У каждого написано, на какое время его запланировать "
+                    "в приложении." + (f" Ещё не запланированы из прошлой пачки: {len(unconfirmed)}." if unconfirmed else "")})
+        for r in recipients(c)[1:]:
+            telegram._call(c["token"], "sendMessage", data={"chat_id": r["id"], "text": f"📦 Пачка на публикацию: {len(todo)} видео."})
+    except Exception:
+        pass
+    for jid, job in todo:
+        clip_posted = (library.load_posted().get(os.path.normpath(job["path"])) or {}).get(job["platform"])
+        if clip_posted:
+            job["status"] = "posted"
+            continue
+        block = policy.publish_block(job["path"], job.get("applied") or job.get("edits"))
+        if block:
+            job["status"] = "blocked"
+            event("⛔", f"{os.path.basename(job['path'])[:-4]}: {NAMES[job['platform']]} — не отправляю: {block}",
+                  job["path"], "error")
+            continue
+        job["schedule"] = True
+        channel = _channel_of(job["path"])
+        try:
+            _send(c, jid, job, channel)
+            stats["sent"] += 1
+        except Exception as e:
+            job["errors"] = job.get("errors", 0) + 1
+            if job["errors"] >= 3:
+                job["status"] = "error"
+            event("❌", f"Telegram: не отправилось ({NAMES[job['platform']]}) — {e}"[:220], None, "error")
+    for job in unconfirmed:  # напоминание: слот ещё впереди, а «Запланировал» не нажали
+        for m in job.get("msgs") or []:
+            try:
+                telegram._call(c["token"], "sendMessage", data={
+                    "chat_id": m["chat"], "reply_to_message_id": m["msg"],
+                    "text": "⏰ Это видео ещё не запланировано — успей до времени слота и нажми «✅ Запланировал».",
+                    **(_target(c) if m["chat"] == c["chat_id"] else {})})
+            except Exception:
+                pass
+        stats["reminded"] += 1
+    st["last_delivery"] = stamp
+    if stats["sent"]:
+        event("📦", f"Telegram: пачка на публикацию — {stats['sent']} видео, у каждого время для «Запланировать»",
+              None, "info")
 
 
 def overview() -> list[dict]:

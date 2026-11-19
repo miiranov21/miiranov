@@ -141,8 +141,8 @@ def send_clip(path: str, clip: dict, channel: str) -> str:
     send_path, note = path, T("отправлен в Telegram файлом")
     if os.path.getsize(path) > LIMIT:
         send_path = _light_copy(path)  # боты не могут отправлять файлы больше 50 МБ
-        note = T("в Telegram — облегчённая копия 720p (клип больше 50 МБ; оригинал в папке на компьютере)")
-        caption += T("\n(облегчённая копия: оригинал больше 50 МБ и лежит в папке на компьютере)")
+        note = T("в Telegram — копия 1080p с меньшим битрейтом (клип больше 50 МБ; оригинал в папке на компьютере)")
+        caption += T("\n(копия под лимит Telegram 50 МБ: оригинал лежит в папке на компьютере)")
         if not send_path or os.path.getsize(send_path) > LIMIT:
             _call(c["token"], "sendMessage",
                   data={"chat_id": c["chat_id"], "text": caption + T("\n\n(клип слишком большой для Telegram)"), **target})
@@ -172,11 +172,30 @@ def send_clip(path: str, clip: dict, channel: str) -> str:
     return note
 
 
-def _light_copy(path: str) -> str | None:
+def fit_1080(path: str, out: str) -> str | None:
+    """Файл больше лимита бота (50 МБ) — ужимаем ТОЛЬКО битрейт под ~47 МБ, разрешение 1080×1920 сохраняем.
+    Если и так не влезает (очень длинный клип) — в последнюю очередь 720p."""
     import subprocess
-    out = os.path.join(paths.default_work_dir(), "tg_upload.mp4")
     flags = 0x08000000 if os.name == "nt" else 0
-    r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", path, "-vf", "scale=720:-2:flags=lanczos",
-                        "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-c:a", "aac", "-b:a", "128k",
-                        "-movflags", "+faststart", out], capture_output=True, creationflags=flags)
-    return out if r.returncode == 0 and os.path.exists(out) else None
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path],
+                       capture_output=True, text=True, creationflags=flags)
+    try:
+        dur = max(1.0, float(r.stdout.strip()))
+    except ValueError:
+        dur = 60.0
+    kbps = int((47 * 1024 * 1024 * 8) / dur / 1000) - 160
+    for k, scale in ((1.0, None), (0.88, None), (0.75, None), (0.75, "720:-2")):
+        vb = max(800, int(kbps * k))
+        cmd = ["ffmpeg", "-y", "-v", "error", "-i", path]
+        if scale:
+            cmd += ["-vf", f"scale={scale}:flags=lanczos"]
+        cmd += ["-c:v", "libx264", "-preset", "slow", "-b:v", f"{vb}k", "-maxrate", f"{int(vb * 1.3)}k",
+                "-bufsize", f"{vb * 2}k", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", out]
+        r = subprocess.run(cmd, capture_output=True, creationflags=flags)
+        if r.returncode == 0 and os.path.exists(out) and os.path.getsize(out) <= LIMIT:
+            return out
+    return None
+
+
+def _light_copy(path: str) -> str | None:
+    return fit_1080(path, os.path.join(paths.default_work_dir(), "tg_upload.mp4"))

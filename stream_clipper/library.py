@@ -374,10 +374,14 @@ def load_published() -> dict:
         return {}
 
 
-def record_published(path: str, platform: str, title: str, description: str, post_id: str = "", url: str = "") -> None:
+def record_published(path: str, platform: str, title: str, description: str, post_id: str = "", url: str = "",
+                     when: str = "") -> None:
+    """when — время, на которое публикацию запланировали в приложении (иначе — сейчас)."""
     import time
     data = load_published()
-    rec = {"title": title, "description": description, "time": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    rec = {"title": title, "description": description, "time": when or time.strftime("%Y-%m-%dT%H:%M:%S")}
+    if when:
+        rec["scheduled"] = True
     if post_id:
         rec["id"] = post_id
     if url:

@@ -237,6 +237,12 @@ class ActivityPanel(ttk.Frame):
         if m:
             self.last_path = m.group(1).strip()
             return False
+        m = re.match(r"^🌐 (.+?): (.+)$", line)
+        if m:
+            c = self.card(m.group(1))
+            self._set(c, "error", "")
+            self.event("🌐", f"{c['name']}: {tr_line(m.group(2))}", kind="warn")
+            return True
         m = re.match(r"^📐 длина (\d+) с, кадр: (.+)$", line)
         if m:  # форма клипа — допишем к строке «клип готов»
             self.last_shape = T("длина {0} с, кадр: {1}").format(m.group(1), T(m.group(2)))

@@ -416,6 +416,10 @@ class LiveSession:
         hl = _analyze(msgs, duration, audio_db, cfg, skip, log, top=allowed, visual=visual)
         from .caption import detect_language
         lang = cfg.language or detect_language([m.text for m in msgs], self.title)
+        from .caption import lang_allowed
+        if not cfg.language and len(msgs) > 100 and not lang_allowed(self.channel, lang, log):
+            self._save_chat()
+            return []
 
         new = []
         for i, h in enumerate(hl, 1):

@@ -243,6 +243,11 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                 if paths.stop_requested():
                     log("Останавливаюсь аккуратно: дорезаю начатое...")
                     raise KeyboardInterrupt
+                if not cfg.language:  # канал под один язык: уже известный «чужой» стример — не тратим время
+                    from .caption import lang_allowed, streamer_langs
+                    known = streamer_langs().get(src.name.lower().lstrip("@"))
+                    if known and not lang_allowed(src.name, known, log):
+                        continue
                 try:
                     live = twitch.youtube_is_live(src.target) if src.kind == "youtube" else twitch.is_live(src.target)
                 except Exception as e:

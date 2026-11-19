@@ -3134,7 +3134,10 @@ class App:
                             pass
                     title = advice.get("title") or clip.get("caption") or os.path.basename(clip["path"])[:-4]
                     out = os.path.join(d, library._safe_name(title) + ".mp4")
-                    edits.build_variant(clip, advice["edits"], out, log=lambda m: None)
+                    res = edits.build_variant(clip, advice["edits"], out, log=lambda m: None, platform=platform)
+                    if res.get("skipped"):
+                        self.root.after(0, lambda r=res: self.activity.event("✂", T("Монтаж для {0}: пропущено — {1}").format(
+                            name, "; ".join(f"{x['type']}: {tr_line(x['why'])}" for x in r["skipped"])), kind="warn"))
                     err = None
                 except Exception as e:
                     out, err = None, e

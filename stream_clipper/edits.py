@@ -270,16 +270,56 @@ def forget(path: str) -> None:
         _save(data)
 
 
-def build_variant(clip: dict, extra_ops: list, out: str, log=print) -> str:
-    """Копия клипа под конкретную площадку: правки клипа + монтаж, который посоветовал «Доктор».
-    Сам клип в папке не меняется."""
-    import copy
-    rec = copy.deepcopy(ensure(clip))
-    for e in extra_ops:
-        op = {k: v for k, v in e.items() if k in ("type", "cut_start", "cut_end", "text", "seconds", "pos", "style")}
-        if op.get("type") == "trim":
-            op["cut_start"], op["cut_end"] = float(op.get("cut_start") or 0), float(op.get("cut_end") or 0)
-        if op.get("type") in ("trim", "credit", "hook"):
-            add_op(rec, op)
-    build(clip, rec, out, log)
-    return out
+def build_variant(clip: dict, extra_ops: list, out: str, log=print, platform: str | None = None) -> dict:
+    """Копия клипа под конкретную площадку: правки клипа + монтаж, который заказали «Доктор» или автопилот.
+    Сам клип в папке не меняется. Возвращает, что применено и что пропущено (пишется в каталог для проверки)."""
+    from . import montage
+    work = os.path.join(_dir(), "build")
+    os.makedirs(work, exist_ok=True)
+    tmp = os.path.join(work, f"{int(time.time() * 1000)}_var_src.mp4")
+    rec = get(clip)
+    if rec and rec.get("ops"):
+        build(clip, rec, tmp, log)
+    else:
+        shutil.copy2(clip["path"], tmp)
+    try:
+        res = montage.render_plan(tmp, out, list(extra_ops or []), words=clip.get("words") or [], clip=clip, log=log)
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    if platform:
+        save_render(clip, platform, out, res)
+    return res
+
+
+def _renders_file() -> str:
+    return os.path.join(paths.default_work_dir(), "renders.json")
+
+
+def load_renders() -> dict:
+    try:
+        with open(_renders_file(), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_render(clip: dict, platform: str, out: str, res: dict) -> None:
+    """Версия клипа под площадку — для каталога («Доктор» и автопилот проверяют результат)."""
+    from . import library
+    data = load_renders()
+    thumb = os.path.splitext(out)[0] + "_thumb.png"
+    try:
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "1", "-i", out, "-frames:v", "1", "-vf", "scale=-2:256",
+                        thumb], capture_output=True, timeout=60,
+                       creationflags=0x08000000 if os.name == "nt" else 0)
+    except Exception:
+        thumb = ""
+    data.setdefault(os.path.normpath(clip["path"]), {})[platform] = {
+        "path": out.replace("\\", "/"), "thumb": thumb.replace("\\", "/") if thumb and os.path.exists(thumb) else "",
+        "applied": res.get("applied", []), "skipped": res.get("skipped", []), "cover": res.get("cover"),
+        "duration": res.get("duration"), "time": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    with open(_renders_file(), "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1)

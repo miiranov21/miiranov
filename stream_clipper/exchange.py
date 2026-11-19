@@ -20,7 +20,10 @@ from datetime import datetime
 from . import library, paths
 
 PLATFORMS = ("youtube", "tiktok", "instagram")
-EDIT_TYPES = ("trim", "credit", "hook")
+EDIT_TYPES = ("trim", "cut_silence", "speed", "layout", "crop_out", "blur", "zoom", "subtitles", "hook", "credit",
+              "progress_bar", "mute", "bleep", "bleep_profanity", "replace_audio", "loudness", "loop_end", "cover")
+EDIT_KEYS = ("type", "cut_start", "cut_end", "text", "seconds", "pos", "style", "min_gap", "t0", "t1", "rate", "t",
+             "scale", "dur", "box", "all", "sfx", "on", "lufs", "crossfade", "mode", "facecam_box")
 
 FORMAT_DOC = """# Обмен Stream Clipper ⇄ «Доктор шортсов» (версия 1)
 
@@ -56,10 +59,18 @@ FORMAT_DOC = """# Обмен Stream Clipper ⇄ «Доктор шортсов» 
    "posted": {"tiktok": true}}                                      // видео уже выложено (видно по аналитике)
 ]}
 
-Монтаж под площадку (edits) применяется к копии клипа для этой площадки, сам клип в папке не меняется:
-  trim   — cut_start / cut_end: сколько секунд отрезать в начале / в конце;
-  hook   — text, seconds (по умолчанию 3): крупная надпись-хук вверху кадра в первые секунды;
-  credit — pos: bottom-left | top-left | top-right: подпись автора «Twitch | ник».
+Монтаж под площадку (edits) применяется к копии клипа для этой площадки, сам клип в папке не меняется.
+Порядок всегда такой (в каком порядке их прислать — неважно):
+  trim (cut_start, cut_end) → cut_silence (min_gap=0.7) → speed (t0, t1, rate) → crop_out (box) → blur (t0, t1, box) →
+  zoom (t, scale=1.2, dur=0.6) → subtitles (style: karaoke|plain, pos: center|lower_center) →
+  hook (text, seconds=3, style: plate|outline) → credit (pos: top-left|top-right|bottom-left, text) →
+  progress_bar (on) → mute (t0, t1) / bleep (t0, t1) / bleep_profanity (all) / replace_audio (t0, t1, sfx: silence|whoosh) →
+  loudness (lufs=-14) → loop_end (crossfade=0.3) → cover (t, text)
+Время t/t0/t1 — по исходному клипу (как в каталоге); после вырезания пауз и ускорений пересчитывается само.
+box — [x, y, w, h] в долях кадра 0..1. layout пока не поддерживается (нужна перенарезка из записи) — пропускается.
+Неизвестные приёмы пропускаются и пишутся в журнал. Для площадки можно прислать
+"credit": {"on_video": true, "pos": "top-left", "text": "..."} — это то же, что приём credit.
+Готовые версии видны в catalog.json → "renders": {площадка: {path, thumb, applied, skipped, cover, duration, time}}.
 «delete» — только совет: человек подтверждает удаление (клип уходит в корзину).
 Галочки «выложено» из «posted» ставятся сразу.
 """
@@ -97,6 +108,7 @@ def export_catalog(path: str | None = None) -> str:
     pol = policy.load_results()
     ed = edits.load()
     published = library.load_published()
+    renders = edits.load_renders()
     out = []
     for c in clips:
         p = os.path.normpath(c["path"])
@@ -115,7 +127,8 @@ def export_catalog(path: str | None = None) -> str:
             "posted": {pl: bool(c["posted"].get(pl)) for pl in PLATFORMS},
             "edits": [edits.label(o) for o in (ed.get(p) or {}).get("ops", [])],
             "credit": credit.state(c) in ("on", "burned"),
-            "published": published.get(p, {}),  # что реально ушло в публикацию: {площадка: {title, description, time}}
+            "published": published.get(p, {}),
+            "renders": renders.get(p, {}),  # версии под площадки: {площадка: {path, thumb, applied, skipped, cover}}  # что реально ушло в публикацию: {площадка: {title, description, time}}
         })
     path = path or os.path.join(exchange_dir(), "catalog.json")
     tmp = path + ".tmp"
@@ -152,8 +165,13 @@ def _clean_platform(p: dict) -> dict:
         out["hashtags"] = [("#" + str(t).lstrip("#")).strip() for t in tags if str(t).strip()][:30]
     eds = []
     for e in p.get("edits") or []:
-        if isinstance(e, dict) and e.get("type") in EDIT_TYPES:
-            eds.append({k: e[k] for k in e if k in ("type", "cut_start", "cut_end", "text", "seconds", "pos")})
+        if isinstance(e, dict) and e.get("type"):  # неизвестные типы монтаж сам пропустит и запишет в журнал
+            eds.append({k: e[k] for k in e if k in EDIT_KEYS})
+    if isinstance(p.get("credit"), dict):  # "credit": {"on_video": true, "pos": "top-left", "text": "..."}
+        cr = p["credit"]
+        if cr.get("on_video") and not any(e["type"] == "credit" for e in eds):
+            eds.append({"type": "credit", "pos": cr.get("pos") or "top-left", "text": cr.get("text") or ""})
+        out["credit_text"] = cr.get("text") or ""
     if eds:
         out["edits"] = eds
     return out

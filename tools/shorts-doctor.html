@@ -754,6 +754,7 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
     <div><h4>Что проверить и сделать</h4><ul>${s[2].map(x => `<li>${x}</li>`).join("")}</ul></div></div></details>`).join("");
 
   /* ---------- new video: frames + Claude ---------- */
+  let srcFile = null;       // the original video file, for re-editing
   let frames = [];          // [{blob, url, label}]
   let videoMeta = null;     // {dur, w, h}
   $("niche").value = store.get("sd_niche", "");
@@ -794,6 +795,7 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
   }
   $("vfile").addEventListener("change", async () => {
     const file = $("vfile").files[0]; if (!file) return;
+    srcFile = file;
     frames.forEach(f => URL.revokeObjectURL(f.url)); frames = []; renderFrames();
     $("genNote").textContent = "Вырезаю кадры…";
     const v = $("vprev");
@@ -893,7 +895,153 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
     out.append(card("Instagram Reels", [["Подпись + хэштеги", [ig.caption, tags(ig.hashtags)].filter(Boolean).join("\n\n"), true]]));
     out.append(card("YouTube Shorts", [["Название", yt.title, true], ["Описание", [yt.description, tags(yt.hashtags)].filter(Boolean).join("\n\n"), true]]));
     if (r.pinned_comment) out.append(card("Закреплённый комментарий", [["Для всех платформ", r.pinned_comment, true]]));
+    if (srcFile) out.insertBefore(editCard(r), out.children[1] || null);
     out.append(publishCard([ig.caption, tags(ig.hashtags)].filter(Boolean).join("\n\n")));
+  }
+
+  /* ---------- automatic re-edit: hook overlay, trims, 9:16 ---------- */
+  function editCard(r) {
+    const e = r.edit || {};
+    const hookWeak = (r.hook || {}).verdict !== "ok";
+    const hookText = e.hook_text || (hookWeak ? ((r.hook && r.hook.better) || [])[0] || r.on_screen_text || "" : "");
+    const not916 = videoMeta && videoMeta.w && Math.abs(videoMeta.h / videoMeta.w - 16 / 9) > 0.05;
+    const fixes = [];
+    if (hookText) fixes.push("крупный хук на первые 3 секунды");
+    if (+e.trim_start > 0) fixes.push(`вырезать ${e.trim_start} с в начале`);
+    if (+e.trim_end > 0) fixes.push(`вырезать ${e.trim_end} с в конце`);
+    if (not916) fixes.push("перевести в вертикаль 9:16");
+    const c = document.createElement("div"); c.className = "out-card";
+    c.innerHTML = `<h3>Переделать видео <span class="pill ${fixes.length ? "warn" : "good"}">${fixes.length ? "есть что исправить" : "правки не нужны"}</span></h3>
+      <p class="note" style="margin:0">${fixes.length ? "Claude предлагает: " + esc(fixes.join(", ")) + ". Проверьте и поправьте значения, затем соберите видео." : "Хук и формат в порядке. Можно всё равно добавить текст-хук."}</p>
+      <div class="field"><label for="edHook">Текст хука на первые 3 секунды (пусто — без текста)</label><input type="text" id="edHook" maxlength="80"></div>
+      <div class="row">
+        <div class="field"><label for="edTs">Вырезать в начале, сек</label><input id="edTs" type="number" min="0" step="0.1"></div>
+        <div class="field"><label for="edTe">Вырезать в конце, сек</label><input id="edTe" type="number" min="0" step="0.1"></div>
+      </div>
+      <label class="check" for="ed916" style="border:0;padding:0"><input type="checkbox" id="ed916"><span>Вертикаль 9:16 с размытым фоном<em>Для горизонтальных и квадратных видео</em></span></label>
+      <div class="btns"><button class="btn" type="button" id="edGo">Собрать видео</button></div>
+      <p class="note" id="edNote" style="margin:0">Сборка идёт в реальном времени: 30-секундное видео собирается около 30 секунд. Не переключайте вкладку, пока идёт запись.</p>
+      <video id="edOut" controls playsinline hidden style="max-height:360px;border-radius:8px;background:#000"></video>
+      <div class="btns"><button class="btn" type="button" id="edSave" hidden>Сохранить видео</button></div>`;
+    c.querySelector("#edHook").value = hookText;
+    c.querySelector("#edTs").value = Math.max(0, +e.trim_start || 0);
+    c.querySelector("#edTe").value = Math.max(0, +e.trim_end || 0);
+    c.querySelector("#ed916").checked = !!not916;
+    let outBlob = null, outExt = "mp4";
+    c.querySelector("#edGo").addEventListener("click", async () => {
+      const go = c.querySelector("#edGo"); go.disabled = true;
+      const note = c.querySelector("#edNote");
+      try {
+        const res = await renderEdited(srcFile, {
+          hook: c.querySelector("#edHook").value.trim(),
+          ts: Math.max(0, +c.querySelector("#edTs").value || 0),
+          te: Math.max(0, +c.querySelector("#edTe").value || 0),
+          force916: c.querySelector("#ed916").checked
+        }, (p) => note.textContent = `Собираю видео: ${Math.round(p * 100)}%`);
+        outBlob = res.blob; outExt = res.ext;
+        const ov = c.querySelector("#edOut"); ov.src = URL.createObjectURL(outBlob); ov.hidden = false;
+        c.querySelector("#edSave").hidden = false;
+        note.textContent = `Готово: ${(outBlob.size / 1048576).toFixed(1)} МБ, формат ${outExt.toUpperCase()}. Посмотрите результат и сохраните.` +
+          (outExt === "webm" ? " Ваш браузер записал WebM: TikTok и YouTube его принимают, для Instagram откройте страницу в свежем Chrome, он пишет MP4." : "");
+      } catch (err) {
+        note.textContent = "Не получилось собрать видео в этом браузере: " + (err && err.message ? err.message : "неизвестная ошибка") + ". Попробуйте в Chrome на компьютере.";
+      } finally { go.disabled = false; }
+    });
+    c.querySelector("#edSave").addEventListener("click", async () => {
+      const note = c.querySelector("#edNote");
+      const dl = await claude.use("downloads");
+      if (!dl) { note.textContent = "Сохранение недоступно в этом окне. Откройте страницу на claude.ai."; return; }
+      try { await dl.save({ filename: "video-s-hukom." + outExt, data: outBlob }); note.textContent = "Сохранено."; }
+      catch (err) { if (err && err.code !== "declined") note.textContent = "Не удалось сохранить файл (" + (err && err.code) + ")."; }
+    });
+    return c;
+  }
+
+  function wrapLines(ctx, text, maxW) {
+    const words = text.split(/\s+/), lines = []; let line = "";
+    for (const w of words) {
+      const t = line ? line + " " + w : w;
+      if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t;
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  async function renderEdited(file, o, onProgress) {
+    if (typeof MediaRecorder === "undefined") throw new Error("браузер не умеет записывать видео");
+    const v = document.createElement("video");
+    v.src = URL.createObjectURL(file); v.playsInline = true; v.preload = "auto";
+    await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error("видео не открылось")); });
+    const W = 1080, H = 1920;
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const ctx = cv.getContext("2d");
+    try { await document.fonts.load('700 80px "Unbounded"'); } catch (e) {}
+    const vw = v.videoWidth, vh = v.videoHeight;
+    const is916 = Math.abs(vh / vw - 16 / 9) < 0.05;
+    const blurBg = o.force916 && !is916;
+    const start = Math.min(o.ts, Math.max(0, v.duration - 1));
+    const end = Math.max(start + 1, v.duration - o.te);
+
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const dest = ac.createMediaStreamDestination();
+    try { ac.createMediaElementSource(v).connect(dest); } catch (e) {}
+    const stream = cv.captureStream(30);
+    dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+    const types = ['video/mp4;codecs="avc1.42E01E,mp4a.40.2"', "video/mp4", "video/webm;codecs=vp9,opus", "video/webm"];
+    const mime = types.find(t => MediaRecorder.isTypeSupported(t)) || "";
+    const rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8000000 } : undefined);
+    const chunks = []; rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+
+    function draw() {
+      const t = v.currentTime - start;
+      ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+      if (blurBg) {
+        const s = Math.max(W / vw, H / vh);
+        ctx.save(); ctx.filter = "blur(40px) brightness(0.55)";
+        ctx.drawImage(v, (W - vw * s) / 2, (H - vh * s) / 2, vw * s, vh * s); ctx.restore();
+        const f = Math.min(W / vw, H / vh);
+        ctx.drawImage(v, (W - vw * f) / 2, (H - vh * f) / 2, vw * f, vh * f);
+      } else {
+        const s = Math.max(W / vw, H / vh);
+        ctx.drawImage(v, (W - vw * s) / 2, (H - vh * s) / 2, vw * s, vh * s);
+      }
+      if (o.hook && t < 3) {
+        const fade = Math.min(1, t / 0.15, (3 - t) / 0.25);
+        ctx.save(); ctx.globalAlpha = Math.max(0, fade);
+        let size = 92; ctx.font = `700 ${size}px "Unbounded", "Segoe UI", sans-serif`;
+        let lines = wrapLines(ctx, o.hook.toUpperCase(), W * 0.84);
+        while (lines.length > 4 && size > 56) { size -= 8; ctx.font = `700 ${size}px "Unbounded", "Segoe UI", sans-serif`; lines = wrapLines(ctx, o.hook.toUpperCase(), W * 0.84); }
+        const lh = size * 1.18, top = H * 0.2;
+        ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.lineJoin = "round";
+        lines.forEach((ln, i) => {
+          const y = top + i * lh;
+          const w = ctx.measureText(ln).width;
+          ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(W / 2 - w / 2 - 22, y - 10, w + 44, lh);
+          ctx.fillStyle = "#ffffff"; ctx.fillText(ln, W / 2, y);
+        });
+        ctx.restore();
+      }
+    }
+
+    await new Promise((res) => { v.onseeked = res; v.currentTime = start; });
+    draw();
+    await ac.resume();
+    rec.start(250);
+    await v.play();
+    await new Promise((res) => {
+      const tick = () => {
+        draw();
+        onProgress(Math.min(1, (v.currentTime - start) / (end - start)));
+        if (v.currentTime >= end || v.ended) { v.pause(); res(); return; }
+        if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(tick); else requestAnimationFrame(tick);
+      };
+      tick();
+    });
+    await new Promise((res) => { rec.onstop = res; rec.stop(); });
+    ac.close();
+    URL.revokeObjectURL(v.src);
+    const type = rec.mimeType || mime || "video/webm";
+    return { blob: new Blob(chunks, { type }), ext: /mp4/.test(type) ? "mp4" : "webm" };
   }
 
   $("stopBtn").addEventListener("click", () => ctl?.abort());
@@ -924,9 +1072,10 @@ ${imgs.length ? `Прикреплены кадры из видео по поря
    Пиши живым языком, без канцелярита и без эмодзи в каждом слове (максимум 1–2).
 4. Текст для первого кадра (до 7 слов) и надпись на обложку (до 5 слов).
 5. Закреплённый комментарий, который провоцирует ответы.
+6. План автоматического перемонтажа: hook_text — текст, который будет наложен крупно на первые 3 секунды (до 7 слов; пустая строка, если хук уже сильный и текст на экране есть); trim_start — сколько секунд вырезать в начале, если по кадрам видно пустое или скучное вступление (0, если не уверен); trim_end — сколько секунд вырезать в конце, если там прощание, заставка или пустой кадр (0, если не уверен). Будь осторожен с обрезкой: лучше 0, чем вырезать важное.
 
 Ответь только JSON такого вида:
-{"summary":"одна фраза: о чём видео и главный совет","hook":{"verdict":"ok" или "weak","why":"1–2 предложения","better":["...","...","..."]},"issues":[{"problem":"...","fix":"..."}],"on_screen_text":"...","cover_text":"...","tiktok":{"description":"...","hashtags":["..."]},"reels":{"caption":"...","hashtags":["..."]},"shorts":{"title":"...","description":"...","hashtags":["..."]},"pinned_comment":"..."}`;
+{"summary":"одна фраза: о чём видео и главный совет","hook":{"verdict":"ok" или "weak","why":"1–2 предложения","better":["...","...","..."]},"issues":[{"problem":"...","fix":"..."}],"on_screen_text":"...","cover_text":"...","tiktok":{"description":"...","hashtags":["..."]},"reels":{"caption":"...","hashtags":["..."]},"shorts":{"title":"...","description":"...","hashtags":["..."]},"pinned_comment":"...","edit":{"hook_text":"...","trim_start":0,"trim_end":0}}`;
 
     ctl = new AbortController();
     $("genBtn").disabled = true; $("stopBtn").hidden = false;

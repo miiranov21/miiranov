@@ -740,6 +740,7 @@ class App:
         m.add_command(label=T("✍  Описание и хэштеги"), command=self.post_texts)
         m.add_command(label=T("🛡  Проверить правила / исправить нарушение"), command=self.fix_violations)
         m.add_command(label=T("✍  Подписать автора / убрать подпись"), command=self.toggle_credit)
+        m.add_command(label=T("✂  Обрезать / удлинить"), command=self.edit_clip)
         for key, label in library.PLATFORM_NAMES.items():
             m.add_command(label=T('✔  Выложено в {0} / снять').format(label), command=lambda k=key: self.toggle_posted(k))
         m.add_command(label=T("📂  Показать в папке"), command=self.reveal_clip)
@@ -1956,6 +1957,396 @@ class App:
         self.manual_window = win  # для проверок
         win.after(100, show)
 
+    # ---------- перерезка клипа (удлинение) в отдельном процессе ----------
+    def _run_recut(self, c: dict, start: float, end: float, say, on_done):
+        """Качает кусок записи стрима [start, end] и собирает клип с той же надписью. on_done(result | None, error)."""
+        work = os.path.join(paths.default_work_dir(), "recut")
+        os.makedirs(work, exist_ok=True)
+        stamp = str(int(time.time() * 1000))
+        job = {"url": c["_src_url"], "start": start, "end": end, "out": os.path.join(work, f"new_{stamp}.mp4"),
+               "result": os.path.join(work, f"result_{stamp}.json"),
+               "meta": {"streamer": c.get("channel", ""), "title": c.get("vod_title", ""), "lang": c.get("lang", "en"),
+                        "platform": c.get("platform") or ("YouTube" if "youtu" in c["_src_url"] else "Twitch"),
+                        "credit_name": c.get("credit_name") or c.get("channel", ""),
+                        "caption_text": c.get("caption") or "", "top_messages": []}}
+        job_path = os.path.join(work, f"job_{stamp}.json")
+        with open(job_path, "w", encoding="utf-8") as f:
+            json.dump(job, f, ensure_ascii=False)
+        cmd = [_python_exe(), "-m", "stream_clipper", "recut", job_path, *self._flags()]
+        env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
+        flags = 0x08000000 if os.name == "nt" else 0
+
+        def work_():
+            try:
+                p = subprocess.Popen(cmd, cwd=PROG, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                     stdin=subprocess.DEVNULL, creationflags=flags)
+                for raw in iter(p.stdout.readline, b""):
+                    line = raw.decode("utf-8", errors="replace").strip()
+                    if line:
+                        self.root.after(0, lambda l=line: say(tr_line(l)))
+                p.wait()
+                with open(job["result"], encoding="utf-8") as f:
+                    res = json.load(f)
+                err = res.get("error")
+            except Exception as e:
+                res, err = None, f"{type(e).__name__}: {e}"
+            self.root.after(0, lambda: on_done(None if err else res, err))
+        threading.Thread(target=work_, daemon=True).start()
+
+    def _replace_clip(self, c: dict, new_file: str, fields: dict):
+        """Ставит новую версию клипа на место старой; старая уходит в корзину (её можно вернуть)."""
+        import shutil
+        from . import credit, policy
+        if self.preview.path == c["path"]:
+            self.preview.release()
+        library.move_to_trash(c, c.get("score10"))
+        shutil.move(new_file, c["path"])
+        library.make_thumb(c["path"])
+        self.images.pop(c["path"], None)
+        library.update_clip(c["path"], fields)
+        data = credit.load()  # прежняя подпись автора к новому файлу не относится
+        if data.pop(os.path.normpath(c["path"]), None) is not None:
+            credit._save(data)
+        words = fields.get("words") or []
+        policy.save_result(c["path"], {"issues": policy.check_words(words), "visual": False, "words": words,
+                                       "note": "", "checked": time.time()})
+
+    def edit_clip(self):
+        """Окно «Изменить длину»: обрезать начало/конец или удлинить (если есть запись стрима)."""
+        from . import clipedit
+        sel = self._selected()
+        if not sel:
+            return
+        c = dict(sel[0])
+        src = clipedit.source_range(c)
+        if src:
+            c["_src_url"] = src[0]
+        L = clipedit.duration(c["path"]) or float(c.get("end", 0)) - float(c.get("start", 0))
+        win = tk.Toplevel(self.root)
+        win.title(T("Изменить длину — {0}").format(c.get("channel", "")))
+        win.transient(self.root)
+        win.geometry("900x760")
+        self.edit_window = win
+        body = ttk.Frame(win, padding=10)
+        body.pack(fill="both", expand=True)
+        left = ttk.Frame(body)
+        left.pack(side="left", fill="both", expand=True)
+        right = ttk.Frame(body, padding=(12, 0))
+        right.pack(side="left", fill="y")
+        player = VideoPreview(left, self, big=True)
+        player.pack(fill="both", expand=True)
+        win.after(300, lambda: player.load(c["path"]))
+        ttk.Label(right, text=f"«{(c.get('caption') or '')[:40]}»", font=("Segoe UI", 11, "bold"),
+                  wraplength=330).pack(anchor="w")
+        ttk.Label(right, text=T("Сейчас клип длится {0:.0f} с").format(L)).pack(anchor="w", pady=(4, 10))
+        add_start, add_end = tk.DoubleVar(value=0), tk.DoubleVar(value=0)
+        for title, var in ((T("В начале, сек:"), add_start), (T("В конце, сек:"), add_end)):
+            row = ttk.Frame(right)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=title, width=16).pack(side="left")
+            ttk.Spinbox(row, from_=-int(L) + 1, to=60, increment=1, textvariable=var, width=7).pack(side="left")
+        ttk.Label(right, foreground=self.muted, wraplength=330, justify="left",
+                  text=T("+5 — добавить 5 секунд, −3 — отрезать 3 секунды.")).pack(anchor="w", pady=(2, 8))
+
+        def cut_here(which):
+            t = player.pos / (player.fps or 30.0) if player.path else 0.0
+            if which == "start":
+                add_start.set(-round(t, 1))
+            else:
+                add_end.set(-round(max(0.0, L - t), 1))
+        ttk.Button(right, text=T("✂ Отрезать всё ДО текущего кадра"), command=lambda: cut_here("start")).pack(fill="x")
+        ttk.Button(right, text=T("✂ Отрезать всё ПОСЛЕ текущего кадра"), command=lambda: cut_here("end")).pack(fill="x",
+                                                                                                         pady=4)
+        result_lbl = ttk.Label(right, text="", font=("Segoe UI", 10, "bold"))
+        result_lbl.pack(anchor="w", pady=(8, 0))
+        ttk.Label(right, foreground=self.muted, wraplength=330, justify="left",
+                  text=T("Удлинять можно: программа заново скачает кусок записи стрима.") if src else
+                  T("Удлинить нельзя: у этого эфира нет сохранённой записи. Обрезать — можно.")).pack(anchor="w", pady=4)
+        status = ttk.Label(right, text="", foreground=self.muted, wraplength=330, justify="left")
+        status.pack(anchor="w", pady=(6, 0))
+
+        def values():
+            try:
+                return float(add_start.get()), float(add_end.get())
+            except (tk.TclError, ValueError):
+                return 0.0, 0.0
+
+        def upd(*_):
+            a, b = values()
+            result_lbl.config(text=T("Будет: {0:.0f} с (было {1:.0f} с)").format(max(0.0, L + a + b), L))
+        add_start.trace_add("write", upd)
+        add_end.trace_add("write", upd)
+        upd()
+        cmp_box = ttk.Frame(right)
+        state = {"new": None}
+
+        def show_new(new_file, fields):
+            state["new"], state["fields"] = new_file, fields
+            player.release()
+            for w in cmp_box.winfo_children():
+                w.destroy()
+            cmp_box.pack(fill="x", pady=(10, 0))
+            ttk.Label(cmp_box, text=T("Слева — НОВАЯ версия. Сравни и выбери:"), font=("Segoe UI", 10, "bold")).pack(anchor="w")
+            row = ttk.Frame(cmp_box)
+            row.pack(fill="x", pady=4)
+            ttk.Button(row, text=T("👁 Новая"), command=lambda: (player.load(new_file), player.toggle())).pack(side="left")
+            ttk.Button(row, text=T("👁 Как было"), command=lambda: (player.load(c["path"]), player.toggle())).pack(side="left",
+                                                                                                           padx=4)
+            ttk.Button(cmp_box, text=T("✔  Оставить новую"), style="Big.TButton", command=keep).pack(fill="x", pady=(4, 2))
+            ttk.Button(cmp_box, text=T("↩  Оставить как было"), command=discard).pack(fill="x")
+            win.after(200, lambda: (player.load(new_file), player.toggle()))
+
+        def keep():
+            player.release()
+            try:
+                self._replace_clip(c, state["new"], state["fields"])
+            except OSError as e:
+                messagebox.showerror(T("Изменить длину"), str(e), parent=win)
+                return
+            win.destroy()
+            self.refresh_clips()
+            self.clips_info.config(text=T("Готово: клип заменён. Прежняя версия лежит в корзине."))
+
+        def discard():
+            player.release()
+            try:
+                os.remove(state["new"])
+            except (OSError, TypeError):
+                pass
+            for w in cmp_box.winfo_children():
+                w.destroy()
+            cmp_box.pack_forget()
+            player.load(c["path"])
+            status.config(text=T("Оставлено как было."))
+
+        def apply():
+            a, b = values()
+            if a == 0 and b == 0:
+                status.config(text=T("Сначала укажи, сколько добавить или отрезать."))
+                return
+            if L + a + b < 2:
+                status.config(text=T("Клип получится слишком коротким."))
+                return
+            b_apply.config(state="disabled")
+            if a <= 0 and b <= 0:  # только обрезка — быстро, из готового файла
+                status.config(text=T("Обрезаю..."))
+                out = os.path.join(paths.default_work_dir(), "recut", f"trim_{int(time.time())}.mp4")
+                os.makedirs(os.path.dirname(out), exist_ok=True)
+
+                def work_():
+                    try:
+                        clipedit.trim_local(c["path"], out, -a, -b)
+                        err = None
+                    except Exception as e:
+                        err = e
+                    self.root.after(0, lambda: done_trim(err))
+
+                def done_trim(err):
+                    b_apply.config(state="normal")
+                    if err:
+                        status.config(text=T("Не получилось: {0}").format(err))
+                        return
+                    new_len = L + a + b
+                    fields = {"start": float(c.get("start", 0)) - a, "end": float(c.get("end", 0)) + b,
+                              "words": clipedit.shift_words(c.get("words"), -a, new_len)}
+                    if "moment" in c:
+                        fields["moment"] = float(c["moment"]) - a
+                    status.config(text="")
+                    show_new(out, fields)
+                threading.Thread(target=work_, daemon=True).start()
+                return
+            if not src:
+                b_apply.config(state="normal")
+                status.config(text=T("Удлинить нельзя: у этого эфира нет сохранённой записи. Обрезать — можно."))
+                return
+            url, s0, e0 = src
+            ns, ne = max(0.0, s0 - a), e0 + b
+            status.config(text=T("Качаю кусок стрима и собираю клип... (1–2 минуты)"))
+
+            def done_recut(res, err):
+                b_apply.config(state="normal")
+                if err:
+                    status.config(text=T("Не получилось: {0}").format(tr_line(err)))
+                    return
+                fields = {"start": ns, "end": ne, "words": res.get("words") or [],
+                          "transcript": res.get("transcript", ""), "credit_burned": bool(self.cfg.get("credit_auto"))}
+                if "moment" in c:
+                    fields["moment"] = ns
+                status.config(text="")
+                show_new(res["file"], fields)
+            self._run_recut(c, ns, ne, lambda m: status.config(text=m), done_recut)
+        b_apply = ttk.Button(right, text=T("✔  Применить"), style="Big.TButton", command=apply)
+        b_apply.pack(fill="x", pady=(10, 0))
+        ttk.Button(right, text=T("Закрыть"), command=lambda: (player.release(), discard() if state["new"] else None,
+                                                              win.destroy())).pack(fill="x", pady=(4, 0))
+        win.protocol("WM_DELETE_WINDOW", lambda: (player.release(), win.destroy()))
+
+    # ---------- корзина ----------
+    def open_trash(self):
+        """Корзина: удалённые клипы с их оценками — вернуть, нарезать заново (если файл удалён раньше) или стереть."""
+        from . import clipedit
+        win = tk.Toplevel(self.root)
+        win.title(T("Корзина"))
+        win.transient(self.root)
+        win.geometry("1150x720")
+        self.trash_window = win
+        frm = ttk.Frame(win, padding=10)
+        frm.pack(fill="both", expand=True)
+        info = ttk.Label(frm, text="", foreground=self.muted, wraplength=1100, justify="left")
+        info.pack(anchor="w")
+        panes = ttk.Panedwindow(frm, orient="horizontal")
+        panes.pack(fill="both", expand=True, pady=6)
+        lf = ttk.Frame(panes)
+        player = VideoPreview(panes, self)
+        panes.add(lf, weight=3)
+        panes.add(player, weight=2)
+        cols = ("rating", "streamer", "moment", "caption", "where", "when")
+        tree = ttk.Treeview(lf, columns=cols, show="headings", selectmode="extended")
+        for col, title, w in (("rating", T("Интерес"), 70), ("streamer", T("Стример"), 110), ("moment", T("Момент"), 70),
+                              ("caption", T("Надпись"), 260), ("where", T("Где"), 230), ("when", T("Удалён"), 90)):
+            tree.heading(col, text=title)
+            tree.column(col, width=w, stretch=col == "caption", anchor="w" if col in ("caption", "where") else "center")
+        sb = ttk.Scrollbar(lf, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=sb.set)
+        tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="left", fill="y")
+        rows: dict = {}
+
+        def fill():
+            from datetime import datetime
+            tree.delete(*tree.get_children())
+            rows.clear()
+            trash = library.load_trash()
+            in_trash = {t["orig"] for t in trash}
+            dates = library.list_dates()
+            pool = [x for d in dates for x in library.list_clips(d, include_missing=True)]
+            scores = library.frozen_ratings(pool)
+            items = []
+            for t in trash:
+                size = os.path.getsize(t["file"]) / 1e6 if os.path.exists(t["file"]) else 0
+                items.append(("trash", t, t.get("score10") or scores.get(t["orig"], 1),
+                              T("в корзине · {0:.0f} МБ").format(size),
+                              datetime.fromtimestamp(t.get("trashed", 0)).strftime("%d.%m %H:%M")))
+            for x in pool:
+                if x.get("missing") and not x.get("dismissed") and x["path"] not in in_trash:
+                    can = clipedit.source_range(x) is not None
+                    items.append(("gone", x, scores.get(x["path"], 1),
+                                  T("файл удалён — можно нарезать заново") if can else T("файл удалён, записи стрима нет"),
+                                  x.get("date", "")))
+            items.sort(key=lambda it: -(it[2] or 0))
+            total = 0.0
+            for kind, x, score, where, when in items:
+                sec = int(x.get("moment", x.get("start", 0)) or 0)
+                iid = tree.insert("", "end", values=(f"{score}/10", x.get("channel", ""),
+                                                     f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}",
+                                                     x.get("caption") or "—", where, when))
+                rows[iid] = (kind, x)
+                if kind == "trash" and os.path.exists(x["file"]):
+                    total += os.path.getsize(x["file"])
+            n_trash = sum(1 for k, _ in rows.values() if k == "trash")
+            info.config(text=T("В корзине: {0} клипов ({1:.0f} МБ). Место на диске освобождается только после «Удалить "
+                               "навсегда». Клипы, удалённые до появления корзины, можно нарезать заново из записи стрима "
+                               "— оценки у них сохранились.").format(n_trash, total / 1e6))
+            b_clear.config(text=T("🧹 Очистить корзину ({0:.0f} МБ)").format(total / 1e6))
+            self._update_trash_button()
+
+        def selected():
+            return [rows[i] for i in tree.selection() if i in rows]
+
+        def on_select(e=None):
+            sel = selected()
+            if len(sel) == 1 and sel[0][0] == "trash":
+                player.load(sel[0][1]["file"])
+        tree.bind("<<TreeviewSelect>>", on_select)
+
+        def restore():
+            sel = [x for k, x in selected() if k == "trash"]
+            if not sel:
+                messagebox.showinfo(T("Корзина"), T("Выбери клипы «в корзине»."), parent=win)
+                return
+            player.release()
+            for x in sel:
+                library.restore_from_trash(x)
+            fill()
+            self.refresh_clips()
+            info.config(text=T("Возвращено клипов: {0} — они снова во вкладке «Клипы».").format(len(sel)))
+
+        def recut_again():
+            sel = [x for k, x in selected() if k == "gone"]
+            if not sel:
+                messagebox.showinfo(T("Корзина"), T("Выбери клипы с пометкой «файл удалён — можно нарезать заново»."),
+                                    parent=win)
+                return
+            queue_ = [x for x in sel if clipedit.source_range(x)]
+            if not queue_:
+                info.config(text=T("У этих клипов нет записи стрима — нарезать заново нельзя."))
+                return
+
+            def next_one(done_n=0):
+                if not queue_ or not win.winfo_exists():
+                    if win.winfo_exists():
+                        fill()
+                    self.refresh_clips()
+                    return
+                x = dict(queue_.pop(0))
+                url, s0, e0 = clipedit.source_range(x)
+                x["_src_url"] = url
+                info.config(text=T("Нарезаю заново: {0} «{1}»... осталось {2}").format(
+                    x.get("channel", ""), (x.get("caption") or "")[:30], len(queue_)))
+
+                def done(res, err):
+                    if err:
+                        info.config(text=T("Не получилось: {0}").format(tr_line(err)))
+                    else:
+                        import shutil
+                        os.makedirs(os.path.dirname(x["path"]), exist_ok=True)
+                        shutil.move(res["file"], x["path"])
+                        library.make_thumb(x["path"])
+                        library.update_clip(x["path"], {"words": res.get("words") or [],
+                                                        "transcript": res.get("transcript", ""),
+                                                        "credit_burned": bool(self.cfg.get("credit_auto"))})
+                    next_one(done_n + 1)
+                self._run_recut(x, s0, e0, lambda m: info.config(text=m), done)
+            next_one()
+
+        def purge():
+            sel = selected()
+            if not sel or not messagebox.askyesno(T("Корзина"), T("Удалить навсегда: {0}? Вернуть будет нельзя.").format(
+                    len(sel)), parent=win):
+                return
+            player.release()
+            freed = library.purge_trash([x for k, x in sel if k == "trash"])
+            for k, x in sel:
+                if k == "gone":  # «раньше удалённые» — просто скрываем из списка
+                    library.update_clip(x["path"], {"dismissed": True})
+            fill()
+            info.config(text=T("Освобождено {0:.0f} МБ.").format(freed / 1e6))
+
+        def clear_all():
+            trash = library.load_trash()
+            if not trash or not messagebox.askyesno(T("Корзина"), T("Очистить корзину целиком ({0} клипов)? Вернуть будет "
+                                                                   "нельзя.").format(len(trash)), parent=win):
+                return
+            player.release()
+            freed = library.purge_trash(trash)
+            fill()
+            info.config(text=T("Корзина очищена, освобождено {0:.0f} МБ.").format(freed / 1e6))
+        bar = ttk.Frame(frm)
+        bar.pack(fill="x")
+        ttk.Button(bar, text=T("↩  Вернуть"), style="Big.TButton", command=restore).pack(side="left")
+        ttk.Button(bar, text=T("✂  Нарезать заново"), command=recut_again).pack(side="left", padx=6)
+        ttk.Button(bar, text=T("🗑  Удалить навсегда"), command=purge).pack(side="left")
+        b_clear = ttk.Button(bar, text="", command=clear_all)
+        b_clear.pack(side="left", padx=6)
+        ttk.Button(bar, text=T("Закрыть"), command=lambda: (player.release(), win.destroy())).pack(side="right")
+        win.protocol("WM_DELETE_WINDOW", lambda: (player.release(), win.destroy()))
+        fill()
+
+    def _update_trash_button(self):
+        n = len(library.load_trash())
+        if hasattr(self, "b_trash"):
+            self.b_trash.config(text=T("♻  Корзина ({0})").format(n) if n else T("♻  Корзина"))
+
     def _stream_rows(self) -> dict:
         """Все известные стримы по каналам: из памяти программы + загруженные с сайта."""
         from . import progress
@@ -2203,20 +2594,21 @@ class App:
             pub.add_command(label=T('в {0}').format(label), command=lambda k=key: self.publish(k))
         pub_mb["menu"] = pub
         pub_mb.pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text=T("✂  Длина"), command=self.edit_clip).pack(side="left", padx=(0, 6))
         ttk.Button(btns, text=T("🛠  Исправить нарушение"), command=self.fix_violations).pack(side="left", padx=(0, 6))
-        ttk.Button(btns, text=T("☑  Выбрать все"), command=self.select_all_clips).pack(side="left", padx=(0, 6))
-
-        ttk.Button(btns, text=T("✍  Описание и хэштеги"),
-                   command=self.post_texts).pack(side="left", padx=(0, 6))
-        posted_mb = ttk.Menubutton(btns, text=T("✔  Отметить: выложено в…"))
+        posted_mb = ttk.Menubutton(btns, text=T("✔  Выложено в…"))
         pm = tk.Menu(posted_mb, tearoff=0)
         for key, label in library.PLATFORM_NAMES.items():
             pm.add_command(label=T('{0} — выложено / снять отметку').format(label), command=lambda k=key: self.toggle_posted(k))
         posted_mb["menu"] = pm
         posted_mb.pack(side="left", padx=(0, 6))
         ttk.Button(btns, text=T("🗑  Удалить"), command=self.delete_clip).pack(side="left", padx=(0, 6))
+        self.b_trash = ttk.Button(btns, text=T("♻  Корзина"), command=self.open_trash)
+        self.b_trash.pack(side="left", padx=(0, 6))
         more = ttk.Menubutton(btns, text=T("Ещё ▾"))
         mm = tk.Menu(more, tearoff=0)
+        mm.add_command(label=T("☑  Выбрать все"), command=self.select_all_clips)
+        mm.add_command(label=T("✍  Описание и хэштеги"), command=self.post_texts)
         mm.add_command(label=T("▶  Открыть в отдельном плеере"), command=self.play_clip)
         mm.add_command(label=T("📋  Копировать надпись"), command=self.copy_caption)
         mm.add_command(label=T("📂  Показать в папке"), command=self.reveal_clip)
@@ -2276,10 +2668,9 @@ class App:
         self.clip_by_iid = {}
         missing = []
         shown = 0
-        from .caption import display_ratings
-        # оценка — в сравнении со ВСЕМИ твоими клипами (а не только показанными), чтобы она не скакала
-        pool = clips if date == T("Все дни") else [c for d in dates for c in library.list_clips(d)]
-        scores = display_ratings(pool or clips)
+        # оценка ставится один раз (в сравнении со всеми клипами, и удалёнными тоже) и больше не меняется
+        pool = [c for d in dates for c in library.list_clips(d, include_missing=True)]
+        scores = library.frozen_ratings(pool + [c for c in clips if c["path"] not in {p["path"] for p in pool}])
         from . import policy
         pol_results = policy.load_results()
         from . import credit
@@ -2314,6 +2705,7 @@ class App:
             if c["path"] in sel_paths:
                 self.tree.selection_add(iid)
             shown += 1
+        self._update_trash_button()
         fresh = sum(1 for c in clips if not any(c["posted"].values()))
         where = T("всего") if date == T("Все дни") else T('за {0}').format(date)
         self.clips_info.config(text=T('Клипов {0}: {1}, нигде не выложено: {2}.  Интерес 1–10 — в сравнении со всеми твоими клипами.  Клик — посмотреть справа.').format(where, len(clips), fresh))
@@ -2594,19 +2986,23 @@ class App:
                 self._open(os.path.dirname(c["path"]))
 
     def delete_clip(self):
+        """Удалить = переложить в корзину (вернуть можно, место освобождается после очистки корзины)."""
         sel = self._selected()
-        if sel and messagebox.askyesno(T("Удалить"), T('Удалить клипов: {0}? Файлы удалятся с диска.').format(len(sel))):
-            if self.preview.path in {c["path"] for c in sel}:
-                self.preview.release()
-            for c in sel:
-                for p in (c["path"], library.thumb_path(c["path"])):
-                    try:
-                        os.remove(p)
-                    except OSError:
-                        pass
-                library.forget(c["path"])
-                self.images.pop(c["path"], None)
-            self.refresh_clips()
+        if not sel:
+            return
+        if not messagebox.askyesno(T("Удалить"), T("Переложить в корзину клипов: {0}? Вернуть можно в любой момент "
+                                                  "(кнопка «Корзина»).").format(len(sel))):
+            return
+        if self.preview.path in {c["path"] for c in sel}:
+            self.preview.release()
+        for c in sel:
+            try:
+                library.move_to_trash(c, c.get("score10"))
+            except OSError as e:
+                messagebox.showwarning(T("Удалить"), str(e))
+            self.images.pop(c["path"], None)
+        self.refresh_clips()
+        self.clips_info.config(text=T("В корзине: {0}. Вернуть — кнопка «♻ Корзина».").format(len(sel)))
 
     def pick_facecam(self):
         """Окно, где мышкой обводят вебку стримера — дальше она всегда будет браться отсюда."""

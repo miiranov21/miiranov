@@ -62,8 +62,9 @@ def list_dates() -> list[str]:
     return sorted(dates, key=key, reverse=True)
 
 
-def list_clips(date: str, out_dir: str | None = None) -> list[dict]:
-    """Клипы за день (только те, чьи файлы существуют), новые сверху."""
+def list_clips(date: str, out_dir: str | None = None, include_missing: bool = False) -> list[dict]:
+    """Клипы за день (только те, чьи файлы существуют), новые сверху.
+    include_missing=True — и удалённые (у них c["missing"] = True): их можно вернуть из корзины или нарезать заново."""
     p = os.path.join(_state(), "days", date + ".json")
     try:
         with open(p, encoding="utf-8") as f:
@@ -76,8 +77,10 @@ def list_clips(date: str, out_dir: str | None = None) -> list[dict]:
     for c in data.get("clips", []):
         path = os.path.normpath(os.path.join(root, c.get("file", "")))
         if not os.path.exists(path):
+            if include_missing:
+                res.append(dict(c, path=path, posted=posted.get(path, {}), missing=True, date=date))
             continue
-        res.append(dict(c, path=path, posted=posted.get(path, {})))
+        res.append(dict(c, path=path, posted=posted.get(path, {}), date=date))
     res.reverse()
     return res
 
@@ -169,3 +172,119 @@ def stage_for_upload(clip: dict) -> str:
         import shutil
         shutil.copy2(clip["path"], dest)
     return dest
+
+
+def update_clip(path: str, fields: dict, out_dir: str | None = None) -> bool:
+    """Меняет запись клипа в дневнике (после обрезки/удлинения: новое начало, конец, слова...)."""
+    path = os.path.normpath(path)
+    root = os.path.normpath(out_dir or paths.default_out_dir())
+    rel = os.path.relpath(path, root)
+    date = rel.split(os.sep)[0]
+    p = os.path.join(_state(), "days", date + ".json")
+    try:
+        with open(p, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return False
+    for c in data.get("clips", []):
+        if os.path.normpath(os.path.join(root, date, c.get("file", ""))) == path:
+            c.update(fields)
+            with open(p, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=1)
+            return True
+    return False
+
+
+# ---------- оценки 1–10: ставятся один раз и больше не меняются ----------
+def _ratings_file() -> str:
+    return os.path.join(_state(), "ratings.json")
+
+
+def frozen_ratings(clips: list[dict]) -> dict:
+    """Оценка каждого клипа «замораживается» при первом показе. Удаление слабых клипов не двигает остальные,
+    поэтому хороший клип случайно не «съедет» вниз списка."""
+    try:
+        with open(_ratings_file(), encoding="utf-8") as f:
+            saved = json.load(f)
+    except Exception:
+        saved = {}
+    new = [c for c in clips if c["path"] not in saved]
+    if new:
+        from .caption import display_ratings
+        fresh = display_ratings(clips)  # новым клипам — место среди всех (и удалённых тоже)
+        for c in new:
+            saved[c["path"]] = fresh.get(c["path"], 1)
+        with open(_ratings_file(), "w", encoding="utf-8") as f:
+            json.dump(saved, f, ensure_ascii=False, indent=0)
+    return {c["path"]: saved.get(c["path"], 1) for c in clips}
+
+
+# ---------- корзина: удалённое лежит здесь, пока не очистишь ----------
+def trash_dir() -> str:
+    return os.path.join(paths.default_work_dir(), "trash")
+
+
+def _trash_file() -> str:
+    return os.path.join(_state(), "trash.json")
+
+
+def load_trash() -> list[dict]:
+    try:
+        with open(_trash_file(), encoding="utf-8") as f:
+            items = json.load(f)
+    except Exception:
+        return []
+    return [t for t in items if os.path.exists(t.get("file", ""))]
+
+
+def _save_trash(items: list[dict]) -> None:
+    with open(_trash_file(), "w", encoding="utf-8") as f:
+        json.dump(items, f, ensure_ascii=False, indent=1)
+
+
+def move_to_trash(clip: dict, score: int | None = None) -> dict:
+    import shutil
+    import time
+    os.makedirs(trash_dir(), exist_ok=True)
+    dest = os.path.join(trash_dir(), f"{int(time.time() * 1000)}_{os.path.basename(clip['path'])}")
+    shutil.move(clip["path"], dest)
+    try:
+        os.remove(thumb_path(clip["path"]))
+    except OSError:
+        pass
+    keep = {k: clip.get(k) for k in ("channel", "caption", "moment", "start", "end", "vod_url", "date", "rating",
+                                     "ai_score")}
+    rec = dict(keep, orig=os.path.normpath(clip["path"]), file=dest, trashed=time.time(), score10=score)
+    items = load_trash()
+    items.append(rec)
+    _save_trash(items)
+    return rec
+
+
+def restore_from_trash(rec: dict) -> str:
+    import shutil
+    dest = rec["orig"]
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    if os.path.exists(dest):  # на этом месте уже другой файл (например, нарезали заново) — не затираем
+        base, n = dest[:-4], 2
+        while os.path.exists(f"{base} ({n}).mp4"):
+            n += 1
+        dest = f"{base} ({n}).mp4"
+    shutil.move(rec["file"], dest)
+    _save_trash([t for t in load_trash() if t["file"] != rec["file"]])
+    make_thumb(dest)
+    return dest
+
+
+def purge_trash(recs: list[dict]) -> int:
+    """Удалить навсегда. Возвращает, сколько байт освободилось."""
+    freed = 0
+    gone = {r["file"] for r in recs}
+    for r in recs:
+        try:
+            freed += os.path.getsize(r["file"])
+            os.remove(r["file"])
+        except OSError:
+            pass
+    _save_trash([t for t in load_trash() if t["file"] not in gone])
+    return freed

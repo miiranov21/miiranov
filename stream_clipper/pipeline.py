@@ -116,9 +116,10 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
         if transcript:
             from . import subtitles
             quote = streamer_quote(subtitles.LAST_WORDS, center)
-        frames = _moment_frames(segment, center, base) if _api_key() else []
-        text = make_caption(meta.get("streamer", ""), meta.get("title", ""), meta.get("top_messages", []),
-                            transcript, meta.get("lang", "en"), log=log, frames=frames, quote=quote)
+        keep_text = meta.get("caption_text")  # перерезка клипа: надпись оставляем ту же
+        frames = _moment_frames(segment, center, base) if _api_key() and not keep_text else []
+        text = keep_text or make_caption(meta.get("streamer", ""), meta.get("title", ""), meta.get("top_messages", []),
+                                         transcript, meta.get("lang", "en"), log=log, frames=frames, quote=quote)
         for p in frames:
             try:
                 os.remove(p)
@@ -455,6 +456,27 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
 
     _finish(cfg, new, work, done + new, title, link, log)
     return new
+
+
+def recut(job: dict, cfg: Settings, log=print) -> dict:
+    """Перерезать готовый клип с новыми границами (удлинить/сдвинуть): снова качаем кусок записи стрима
+    и собираем клип теми же настройками, с той же надписью. job: url, start, end, out, meta."""
+    from . import twitch
+    work = os.path.join(cfg.work_dir, "recut")
+    os.makedirs(work, exist_ok=True)
+    start, end = max(0.0, float(job["start"])), float(job["end"])
+    log(f"Качаю кусок стрима {_fmt(start)}–{_fmt(end)}...")
+    seg = twitch.download_section(job["url"], start, end, os.path.join(work, "recut_raw"), cfg.max_height)
+    meta = dict(job.get("meta") or {})
+    cfg.clip_pre = min(cfg.clip_pre, max(1.0, (end - start) * 0.57))
+    log("Собираю клип...")
+    _make_short(seg, job["out"], cfg, log, meta)
+    try:
+        os.remove(seg)
+    except OSError:
+        pass
+    return {"file": job["out"], "words": meta.get("words") or [], "transcript": meta.get("transcript", ""),
+            "start": start, "end": end}
 
 
 def _quick_policy(d: dict, log=print) -> None:

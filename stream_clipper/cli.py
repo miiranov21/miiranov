@@ -149,6 +149,10 @@ def main(argv=None) -> None:
     l.add_argument("chat", help="JSON чата (TwitchDownloader или формат этой программы)")
     _common(l)
 
+    x = sub.add_parser("recut", help="перерезать готовый клип с новыми границами (задание — JSON-файл)")
+    x.add_argument("job")
+    _common(x)
+
     r = sub.add_parser("report", help="пересобрать отчёт и zip за день")
     r.add_argument("date", nargs="?", help="ДД.ММ.ГГГГ (по умолчанию сегодня)")
     r.add_argument("-o", "--out", default=None)
@@ -163,13 +167,27 @@ def main(argv=None) -> None:
         return
     cfg = _settings(a)
     cfg.start_mode = getattr(a, "from_mode", "stream")
-    print(f"Клипы будут здесь: {cfg.out_dir}")
+    if a.cmd != "recut":
+        print(f"Клипы будут здесь: {cfg.out_dir}")
     from .ffmpeg_setup import ensure_ffmpeg
     if not ensure_ffmpeg():
         sys.exit(1)
     if a.cookies_browser:
         from . import twitch
         twitch.set_cookies_browser(a.cookies_browser)
+    if a.cmd == "recut":  # отдельная задача из окна; сигналы работающей слежки не трогаем
+        import json
+        with open(a.job, encoding="utf-8") as f:
+            job = json.load(f)
+        from .pipeline import recut
+        try:
+            res = recut(job, cfg)
+        except Exception as e:
+            res = {"error": f"{type(e).__name__}: {e}"}
+        with open(job["result"], "w", encoding="utf-8") as f:
+            json.dump(res, f, ensure_ascii=False)
+        print("Готово." if "error" not in res else "ОШИБКА: " + res["error"])
+        return
     try:
         import os
         for p in (paths.stop_request_path(), paths.live_settings_path()):

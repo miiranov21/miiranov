@@ -626,13 +626,14 @@ class App:
         logbar.pack(fill="x")
         self.log_detailed = tk.BooleanVar(value=False)
         self.log_lines: list = []  # (текст, важная ли строка)
-        ttk.Label(logbar, text=T("Коротко: что началось и какие клипы готовы"), foreground=self.muted).pack(side="left")
         self.b_hide_log = ttk.Button(logbar, text=T("Скрыть ▴"), command=self._toggle_log)
         self.b_hide_log.pack(side="right", padx=(6, 0))
-        self.b_details = ttk.Button(logbar, text=T("Подробнее ▾"), command=self._toggle_details)
+        self.b_details = ttk.Button(logbar, text=T("📄 Подробный журнал"), command=self._toggle_details)
         self.b_details.pack(side="right")
-        self.log = ScrolledText(logf, height=8, font=("Consolas", 10), state="disabled", wrap="word")
-        self.log.pack(fill="both", expand=True)
+        from .activity import ActivityPanel
+        self.activity = ActivityPanel(logf, self)  # карточки стримеров и лента событий
+        self.activity.pack(fill="both", expand=True)
+        self.log = ScrolledText(logf, height=8, font=("Consolas", 10), state="disabled", wrap="word")  # полный журнал
         self.logf = logf
         if self.cfg.get("log_hidden"):
             self.root.after(50, self._toggle_log)
@@ -1282,7 +1283,8 @@ class App:
             while True:
                 item = self.lines.get_nowait()
                 if item is None:
-                    self._append(T("=== Остановлено ===\n"))
+                    self._append(T("=== Остановлено ===\n"), from_worker=True)
+                    self.activity.stopped()
                     self.proc = None
                     self.job = None
                     self.stopping = False
@@ -1307,7 +1309,11 @@ class App:
                     if self.pending_update and self.v["autoupdate"].get():
                         self.root.after(1000, self.install_update)
                 else:
-                    self._append(tr_line(item), important=self._is_important(item))
+                    try:
+                        self.activity.worker_line(item)
+                    except Exception:
+                        pass
+                    self._append(tr_line(item), important=self._is_important(item), from_worker=True)
                     if "готово ->" in item:
                         self.root.after(500, self.refresh_clips)
         except queue.Empty:
@@ -1325,27 +1331,45 @@ class App:
             return False
         return t.startswith(self._IMPORTANT_START) or any(k in t for k in self._IMPORTANT_HAS)
 
-    def _append(self, text: str, important: bool = True):
+    def _append(self, text: str, important: bool = True, from_worker: bool = False):
+        """Полный журнал получает всё; в ленту «Что происходит» попадают важные сообщения самого окна
+        (строки рабочей части лента разбирает сама — в activity.worker_line)."""
         self.log_lines.append((text, important))
         if len(self.log_lines) > 6000:
             self.log_lines = self.log_lines[-4000:]
-        if important or self.log_detailed.get():
-            self.log.config(state="normal")
-            self.log.insert("end", text if text.endswith("\n") or not important else text)
-            self.log.see("end")
-            self.log.config(state="disabled")
+        self.log.config(state="normal")
+        self.log.insert("end", text)
+        self.log.see("end")
+        self.log.config(state="disabled")
         if text.strip() and important:
             self.status.config(text=text.strip().splitlines()[-1][:120])
+            if not from_worker and hasattr(self, "activity"):
+                icon = "⚠" if text.lstrip().startswith("⚠") else ("⏹" if "Останов" in text or "Dayan" in text else "ℹ")
+                self.activity.info(text.lstrip("⚠ ").strip(), icon)
+
+    def show_clip(self, path: str):
+        """Клик по клипу в ленте — открыть его во вкладке «Клипы»."""
+        self.nb.select(1)
+        self.refresh_clips()
+        for iid, c in self.clip_by_iid.items():
+            if os.path.normpath(c["path"]) == os.path.normpath(path):
+                self.tree.selection_set(iid)
+                self.tree.see(iid)
+                break
+
+    def _log_body(self):
+        return self.log if self.log_detailed.get() else self.activity
 
     def _toggle_log(self):
         """Свернуть / развернуть окно «Что происходит» (последнее событие всё равно видно внизу)."""
-        hidden = self.log.winfo_ismapped()
+        body = self._log_body()
+        hidden = body.winfo_ismapped()
         if hidden:
-            self.log.pack_forget()
+            body.pack_forget()
             self.logf.pack_configure(fill="x", expand=False)
             self.b_hide_log.config(text=T("Показать ▾"))
         else:
-            self.log.pack(fill="both", expand=True)
+            body.pack(fill="both", expand=True)
             self.logf.pack_configure(fill="both", expand=True)
             self.b_hide_log.config(text=T("Скрыть ▴"))
         self.cfg["log_hidden"] = hidden
@@ -1358,15 +1382,14 @@ class App:
             pass
 
     def _toggle_details(self):
+        """Переключатель: понятная лента ↔ полный текстовый журнал."""
+        was_visible = self._log_body().winfo_ismapped()
+        self._log_body().pack_forget()
         self.log_detailed.set(not self.log_detailed.get())
-        self.b_details.config(text=T("Коротко ▴") if self.log_detailed.get() else T("Подробнее ▾"))
-        self.log.config(state="normal")
-        self.log.delete("1.0", "end")
-        for text, important in self.log_lines:
-            if important or self.log_detailed.get():
-                self.log.insert("end", text)
+        self.b_details.config(text=T("🖼 Коротко и понятно") if self.log_detailed.get() else T("📄 Подробный журнал"))
+        if was_visible:
+            self._log_body().pack(fill="both", expand=True)
         self.log.see("end")
-        self.log.config(state="disabled")
 
     def _set_running(self, running: bool, what: str = ""):
         self.b_watch.config(state="disabled" if running else "normal")

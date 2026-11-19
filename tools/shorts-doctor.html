@@ -167,12 +167,58 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
   </header>
 
   <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="clips" aria-selected="false">Клипы</button>
     <button class="tab" role="tab" data-tab="new" aria-selected="false">Новое видео</button>
     <button class="tab" role="tab" data-tab="diag" aria-selected="true">Разбор видео</button>
     <button class="tab" role="tab" data-tab="check" aria-selected="false">Перед публикацией</button>
     <button class="tab" role="tab" data-tab="noviews" aria-selected="false">Почему нет просмотров</button>
     <button class="tab" role="tab" data-tab="platforms" aria-selected="false">Платформы и режим</button>
   </nav>
+
+  <!-- ============ CLIPS FROM STREAM CLIPPER ============ -->
+  <section id="tab-clips" role="tabpanel" hidden>
+    <div class="grid2">
+      <form class="panel form" id="cf" autocomplete="off">
+        <div class="field">
+          <label for="catFile">catalog.json из Stream Clipper</label>
+          <input id="catFile" type="file" accept=".json,application/json">
+          <small>В программе: «Клипы → Ещё → Обмен с «Доктором шортсов»: открыть папку». Файл обновляется сам раз в минуту.</small>
+        </div>
+        <div class="row">
+          <div class="field"><label for="cPerDay">Клипов в день</label><input id="cPerDay" type="number" min="1" max="12" value="3"></div>
+          <div class="field"><label for="cDays">На сколько дней</label><input id="cDays" type="number" min="1" max="7" value="2"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="cFrom">Публиковать с, час</label><input id="cFrom" type="number" min="0" max="23" value="12"></div>
+          <div class="field"><label for="cTo">до, час</label><input id="cTo" type="number" min="1" max="24" value="23"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="cGap">Пауза между постами, ч</label><input id="cGap" type="number" min="2" max="12" step="0.5" value="4"></div>
+          <div class="field"><label for="cDel">Удалять, если оценка ниже</label><input id="cDel" type="number" min="0" max="60" value="20"></div>
+        </div>
+        <div class="field">
+          <label>Площадки</label>
+          <div class="btns" id="cPlats">
+            <label class="check" style="border:0;padding:0"><input type="checkbox" value="tiktok" checked><span>TikTok</span></label>
+            <label class="check" style="border:0;padding:0"><input type="checkbox" value="youtube" checked><span>Shorts</span></label>
+            <label class="check" style="border:0;padding:0"><input type="checkbox" value="instagram" checked><span>Reels</span></label>
+          </div>
+        </div>
+        <div class="btns">
+          <button class="btn" type="button" id="cPlan">Составить план</button>
+          <button class="btn ghost" type="button" id="cSave" hidden>Сохранить decisions.json</button>
+        </div>
+        <p class="note" id="cNote" style="margin:0">Тексты и хуки пишет Claude. Если он недоступен, страница подставит шаблоны.</p>
+      </form>
+      <div class="verdict" id="cOut">
+        <div class="headline warn">
+          <div class="tag">Как это работает</div>
+          <h2>Загрузите каталог клипов и нажмите «Составить план»</h2>
+          <p>Страница оценит каждый клип, уберёт дубли одного момента, выберет лучшие и разнесёт публикации по времени с паузой между ними. Для каждой площадки Claude напишет свой заголовок, описание и хэштеги, а клипам без надписи придумает хук. Негодные клипы попадут в список на удаление: программа удалит их в корзину только после вашего подтверждения. Сохраните decisions.json и загрузите его в Stream Clipper: «Клипы → Ещё → Загрузить решения аналитика из файла…».</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- ============ NEW VIDEO ============ -->
   <section id="tab-new" role="tabpanel" hidden>
@@ -1282,6 +1328,209 @@ ${imgs.length ? `Прикреплены кадры из видео по поря
     });
     return c;
   }
+
+  /* ---------- Stream Clipper exchange: catalog.json -> decisions.json ---------- */
+  let catalog = null, decisionsOut = null;
+  const PL_NAME = { tiktok: "TikTok", youtube: "Shorts", instagram: "Reels" };
+  const parseRuDate = (s) => { const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(s || ""); return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null; };
+  const isoLocal = (d) => { const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00`; };
+
+  $("catFile").addEventListener("change", async () => {
+    const f = $("catFile").files[0]; if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      if (!data || !Array.isArray(data.clips)) throw new Error("нет списка clips");
+      catalog = data;
+      $("cNote").textContent = `Загружено клипов: ${data.clips.length}${data.generated ? ", каталог от " + data.generated.replace("T", " ") : ""}.`;
+    } catch (e) { catalog = null; $("cNote").textContent = "Это не catalog.json из Stream Clipper: " + e.message; }
+  });
+
+  function scoreClip(c, now) {
+    const why = []; let s = 0;
+    const r = Number(c.rating) || 0, ai = c.ai_score == null ? null : Number(c.ai_score);
+    s += r * 6 + (ai == null ? r : ai) * 3;
+    if (c.has_hook) s += 10;
+    const d = Number(c.duration) || 0;
+    if (d && d < 7) { s -= 15; why.push("слишком короткий"); }
+    if (d > 60) { s -= 15; why.push("длиннее минуты"); }
+    let hard = false;
+    const issues = (c.policy && c.policy.issues) || [];
+    if (!(c.policy && c.policy.fixed)) issues.forEach(i => {
+      if (i.severity === "high") { s -= 40; hard = true; why.push("нарушение правил: " + (i.what || i.kind)); }
+      else if (i.severity === "medium") { s -= 10; why.push("возможное нарушение: " + (i.what || i.kind)); }
+    });
+    const day = parseRuDate(c.date); const age = day ? (now - day) / 864e5 : 0;
+    if (age > 3) s -= Math.min(30, (age - 3) * 5);
+    return { score: Math.max(0, Math.min(100, Math.round(s))), why, hard, age, dur: d };
+  }
+
+  function buildPlan() {
+    const now = new Date();
+    const perDay = Math.max(1, +$("cPerDay").value || 3), days = Math.max(1, +$("cDays").value || 2);
+    const from = Math.min(23, +$("cFrom").value || 12), to = Math.max(from + 1, Math.min(24, +$("cTo").value || 23));
+    const gap = Math.max(2, +$("cGap").value || 4), thr = +$("cDel").value || 20;
+    const plats = Array.from(document.querySelectorAll("#cPlats input:checked")).map(i => i.value);
+    const clips = catalog.clips.map(c => Object.assign({ _: scoreClip(c, now) }, c));
+    const anyPosted = (c) => Object.values(c.posted || {}).some(Boolean);
+    // duplicates: same streamer, moments within 25 s -> keep the best
+    const byS = {};
+    clips.forEach(c => (byS[c.streamer] = byS[c.streamer] || []).push(c));
+    Object.values(byS).forEach(list => {
+      list.sort((a, b) => (+a.moment || 0) - (+b.moment || 0));
+      for (let i = 1; i < list.length; i++) {
+        const a = list[i - 1], b = list[i];
+        if (a.vod_url === b.vod_url && Math.abs((+b.moment || 0) - (+a.moment || 0)) < 25) {
+          const lose = a._.score >= b._.score ? b : a, win = lose === a ? b : a;
+          lose._.dupOf = win.id;
+        }
+      }
+    });
+    const del = [], pool = [];
+    clips.forEach(c => {
+      if (anyPosted(c)) { pool.push(c); return; }
+      const reasons = [];
+      if (c._.dur && c._.dur < 5) reasons.push("короче 5 секунд");
+      if (c._.hard) reasons.push(c._.why.find(w => w.startsWith("нарушение")) || "нарушение правил");
+      if (c._.dupOf) reasons.push("дубликат лучшего клипа " + c._.dupOf.split("/").pop());
+      if (c._.score < thr) reasons.push(`низкая оценка (${c._.score} из 100)`);
+      if (reasons.length) { c._.delReason = reasons.join("; "); del.push(c); } else pool.push(c);
+    });
+    const cand = pool.filter(c => plats.some(p => !(c.posted || {})[p])).sort((a, b) => b._.score - a._.score);
+    // time slots
+    const slots = [];
+    for (let d = 0; d < days + 1 && slots.length < perDay * days; d++) {
+      const base = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d, from, 0, 0);
+      let t = new Date(base); let n = 0;
+      const earliest = new Date(now.getTime() + 60 * 60 * 1000);
+      while (t.getHours() < to && t.getDate() === base.getDate() && n < perDay) {
+        if (t >= earliest) { slots.push(new Date(t)); n++; }
+        t = new Date(t.getTime() + gap * 3600 * 1000);
+      }
+    }
+    const chosen = cand.slice(0, Math.min(slots.length, perDay * days));
+    const chosenIds = new Set(chosen.map(c => c.id));
+    // stale clips that were never chosen
+    pool.forEach(c => {
+      if (!anyPosted(c) && !chosenIds.has(c.id) && c._.age > 7) { c._.delReason = `старше 7 дней и не попал в отбор`; del.push(c); }
+    });
+    const posts = [];
+    chosen.forEach((c, i) => plats.forEach((p, k) => {
+      if ((c.posted || {})[p]) return;
+      posts.push({ c, p, when: new Date(slots[i].getTime() + k * 20 * 60 * 1000) });
+    }));
+    return { chosen, posts, del, plats, total: clips.length };
+  }
+
+  function templateTexts(c) {
+    const s = c.streamer || "streamer", ru = c.lang === "ru";
+    const game = /gta/i.test((c.caption || "") + (c.transcript || "")) ? ["#gta6", "#gta"] : [];
+    const tags = ["#" + s.replace(/\W/g, "").toLowerCase(), ...game, ru ? "#стрим" : "#stream"].slice(0, 5);
+    const title = c.caption || (ru ? `${s}: лучший момент стрима` : `${s} best stream moment`);
+    return {
+      hook: c.has_hook ? "" : (ru ? `${s.toUpperCase()} ТАКОГО НЕ ЖДАЛ` : `${s.toUpperCase()} DIDN'T EXPECT THIS`),
+      tiktok: { title, description: title + (ru ? ". Что бы ты сделал?" : ". What would you do?"), hashtags: tags },
+      youtube: { title: title.slice(0, 60), description: title, hashtags: tags.slice(0, 3) },
+      instagram: { title, description: title + (ru ? "\nОтправь другу, который это оценит" : "\nSend this to a friend who needs to see it"), hashtags: tags }
+    };
+  }
+
+  async function writeTexts(chosen) {
+    const out = {}; chosen.forEach(c => out[c.id] = templateTexts(c));
+    const sample = await claude.use("sample");
+    if (!sample || !chosen.length) return { out, ai: false };
+    const items = chosen.map(c => ({ id: c.id, streamer: c.streamer, source: c.source, lang: c.lang || "en",
+      duration: c.duration, on_video_caption: c.caption || "", has_hook: !!c.has_hook, transcript: (c.transcript || "").slice(0, 400) }));
+    const stats = accVids.length ? "\nАналитика аккаунта за последние дни (что уже вышло): " + accVids.slice(0, 8).map(v => `«${(v.title || "").slice(0, 50)}» — ${v.f.views || 0} просм., ${v.problem}`).join("; ") : "";
+    const prompt = `Ты продюсер коротких видео (нарезки стримов) для TikTok, YouTube Shorts и Instagram Reels. Для каждого клипа ниже напиши тексты публикации отдельно под каждую площадку.
+
+Правила:
+- язык текстов = поле lang клипа (ru — по-русски, иначе по-английски);
+- без хэштегов #fyp, #fyppp, #foryou, #viral, #рек и подобных; без хэштегов чужих площадок (#shorts и #reels в TikTok, #tiktok в Reels и т.п.);
+- 3–5 тематических хэштегов: ник стримера, игра, суть момента;
+- в заголовке и описании ник стримера и что именно произошло (так ищут в поиске), а не «wait what just happened»;
+- TikTok: title до 80 символов, description 1–2 предложения + вопрос зрителю;
+- YouTube Shorts: title до 60 символов, главное ключевое слово в начале; description 1 предложение; 2–3 хэштега;
+- Instagram Reels: description: первая строка цепляет, дальше призыв переслать другу; до 5 хэштегов;
+- hook: если has_hook=false, придумай крупную надпись на первые 3 секунды (до 6 слов, ЗАГЛАВНЫМИ), про стримера и момент; если has_hook=true — пустая строка;
+- не выдумывай событий, которых нет в надписи и расшифровке.${stats}
+
+Клипы (JSON):
+${JSON.stringify(items)}
+
+Ответь только JSON-массивом такого вида:
+[{"id":"...","hook":"...","tiktok":{"title":"...","description":"...","hashtags":["#..."]},"youtube":{"title":"...","description":"...","hashtags":["#..."]},"instagram":{"title":"...","description":"...","hashtags":["#..."]}}]`;
+    try {
+      const arr = await sample.json(prompt, { cache: false });
+      (Array.isArray(arr) ? arr : []).forEach(x => { if (x && out[x.id]) out[x.id] = Object.assign(out[x.id], x); });
+      return { out, ai: true };
+    } catch (e) { return { out, ai: false, err: e && e.code }; }
+  }
+
+  $("cPlan").addEventListener("click", async () => {
+    if (!catalog) { $("cNote").textContent = "Сначала загрузите catalog.json."; return; }
+    const btn = $("cPlan"); btn.disabled = true; $("cSave").hidden = true;
+    try {
+      const plan = buildPlan();
+      $("cNote").textContent = plan.chosen.length ? "Claude пишет тексты для отобранных клипов, обычно до минуты…" : "Подходящих клипов для публикации нет.";
+      const { out, ai, err } = await writeTexts(plan.chosen);
+      const decisions = {};
+      plan.chosen.forEach(c => {
+        const t = out[c.id], dec = { id: c.id, platforms: {}, delete: false, reason: `оценка ${c._.score} из 100` };
+        plan.plats.forEach(p => {
+          const pp = plan.posts.find(x => x.c === c && x.p === p);
+          if (!pp) return;
+          const tx = t[p] || {};
+          const edits = [];
+          if (!c.has_hook && t.hook) edits.push({ type: "hook", text: String(t.hook).slice(0, 60), seconds: 3 });
+          if (!c.credit) edits.push({ type: "credit", pos: "bottom-left" });
+          dec.platforms[p] = { post: true, when: isoLocal(pp.when), title: tx.title || "", description: tx.description || "",
+            hashtags: (tx.hashtags || []).slice(0, 5), edits };
+        });
+        decisions[c.id] = dec;
+      });
+      plan.del.forEach(c => { decisions[c.id] = { id: c.id, platforms: {}, delete: true, reason: c._.delReason }; });
+      decisionsOut = { version: 1, generated: isoLocal(new Date()), decisions: Object.values(decisions) };
+      renderClipPlan(plan, out);
+      $("cSave").hidden = false;
+      $("cNote").textContent = (ai ? "Тексты написал Claude. " : `Claude недоступен${err ? " (" + err + ")" : ""}, тексты по шаблону. `) +
+        "Проверьте план и сохраните decisions.json.";
+    } catch (e) {
+      $("cNote").textContent = "Не получилось составить план: " + (e && e.message ? e.message : e);
+    } finally { btn.disabled = false; }
+  });
+
+  function renderClipPlan(plan, texts) {
+    const o = $("cOut"); o.innerHTML = "";
+    const head = document.createElement("div"); head.className = "headline " + (plan.posts.length ? "good" : "warn");
+    head.innerHTML = `<div class="tag">План готов</div><h2></h2><p></p>`;
+    head.querySelector("h2").textContent = `${plan.chosen.length} клипов к публикации, ${plan.del.length} на удаление`;
+    head.querySelector("p").textContent = `Всего в каталоге ${plan.total}. Публикаций: ${plan.posts.length}, площадки: ${plan.plats.map(p => PL_NAME[p]).join(", ")}. Удаление — только совет: Stream Clipper спросит подтверждение, и клипы можно вернуть из корзины.`;
+    o.append(head);
+    const sch = document.createElement("div"); sch.className = "out-card";
+    sch.innerHTML = `<h3>Расписание</h3><div class="scroll"><table id="planTable" style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr><th style="text-align:left;padding:6px">Когда</th><th style="text-align:left;padding:6px">Где</th><th style="text-align:left;padding:6px">Клип</th><th style="text-align:left;padding:6px">Текст</th></tr></thead><tbody></tbody></table></div>`;
+    const tb = sch.querySelector("tbody");
+    plan.posts.sort((a, b) => a.when - b.when).forEach(x => {
+      const t = (texts[x.c.id] || {})[x.p] || {};
+      const tr = document.createElement("tr");
+      const td = (txt, cls) => { const e = document.createElement("td"); e.style.cssText = "padding:6px;border-top:1px solid var(--line);vertical-align:top"; if (cls) e.className = cls; e.textContent = txt; return e; };
+      tr.append(td(x.when.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }), "n"),
+        td(PL_NAME[x.p]), td(`${x.c.streamer} · ${x.c.id.split("/").pop()} · ${x.c._.score}/100`),
+        td([t.title, (t.hashtags || []).join(" ")].filter(Boolean).join("\n")));
+      tb.append(tr);
+    });
+    o.append(sch);
+    const hooks = plan.chosen.filter(c => !c.has_hook && texts[c.id] && texts[c.id].hook);
+    if (hooks.length) o.append(listCard("Добавить хук на первые 3 секунды", hooks.map(c => `${c.streamer} · ${c.id.split("/").pop()}: «${texts[c.id].hook}»`), "warn"));
+    if (plan.del.length) o.append(listCard("Советую удалить", plan.del.slice(0, 60).map(c => `${c.streamer} · ${c.id.split("/").pop()}: ${c._.delReason}`).concat(plan.del.length > 60 ? [`и ещё ${plan.del.length - 60}`] : []), "bad"));
+  }
+
+  $("cSave").addEventListener("click", async () => {
+    if (!decisionsOut) return;
+    const dl = await claude.use("downloads");
+    if (!dl) { $("cNote").textContent = "Сохранение недоступно в этом окне. Откройте страницу на claude.ai."; return; }
+    try { await dl.save({ filename: "decisions.json", data: JSON.stringify(decisionsOut, null, 1) }); $("cNote").textContent = "Сохранено. В Stream Clipper: «Клипы → Ещё → Загрузить решения аналитика из файла…» или положите файл в папку exchange."; }
+    catch (e) { if (e && e.code !== "declined") $("cNote").textContent = "Не удалось сохранить (" + (e && e.code) + ")."; }
+  });
 
   renderChecks();
   renderHistory();

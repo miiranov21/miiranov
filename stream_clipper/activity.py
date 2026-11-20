@@ -237,6 +237,11 @@ class ActivityPanel(ttk.Frame):
         if m:
             self.last_path = m.group(1).strip()
             return False
+        m = re.match(r"^⏸ (.+?): разобрал до (\S+)", line)
+        if m:  # по кругу: стример разобран частично — вернёмся к нему
+            c = self.card(m.group(1))
+            self._set(c, "waiting", T("разобрал до {0}, вернусь по кругу").format(m.group(2)))
+            return True
         m = re.match(r"^🌐 (.+?): (.+)$", line)
         if m:
             c = self.card(m.group(1))

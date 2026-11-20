@@ -78,7 +78,7 @@ def _settings(a) -> Settings:
     return cfg
 
 
-def _vod_with_memory(url: str, cfg) -> None:
+def _vod_with_memory(url: str, cfg, slice_sec: float | None = None) -> bool:
     """Нарезка по ссылке с памятью: после перезапуска уже готовые клипы не режутся заново."""
     import json
     import os
@@ -108,7 +108,9 @@ def _vod_with_memory(url: str, cfg) -> None:
             except Exception:
                 started = None
         start = paths.resolve_start(cfg.start_from, getattr(cfg, "start_mode", "stream"), started)
-    process_vod(url, cfg, done=done, on_clip=on_clip, start_at=start)
+    progress: dict = {}
+    process_vod(url, cfg, done=done, on_clip=on_clip, start_at=start, progress=progress, slice_sec=slice_sec)
+    return bool(progress.get("unfinished"))
 
 
 def _channels_from_file() -> list[str]:
@@ -203,10 +205,14 @@ def main(argv=None) -> None:
             except OSError:
                 pass
         if a.cmd == "vod":
-            for u in a.urls:
-                _vod_with_memory(u, cfg)
-                if paths.stop_requested():
-                    break
+            # несколько ссылок — по кругу: с каждой по куску (≈10 мин работы), пока все не разобраны
+            left = list(a.urls)
+            while left and not paths.stop_requested():
+                for u in list(left):
+                    if not _vod_with_memory(u, cfg, slice_sec=600 if len(left) > 1 else None):
+                        left.remove(u)
+                    if paths.stop_requested():
+                        break
         elif a.cmd == "watch":
             from .watch import watch
             channels = a.channels or _channels_from_file()

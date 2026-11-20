@@ -495,7 +495,8 @@ def _finish(cfg: Settings, new: list[dict], work: str, all_clips: list[dict], ti
 
 
 def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: bool = False, log=print,
-                on_clip=None, start_at=None, progress: dict | None = None, jump: bool = False) -> list[dict]:
+                on_clip=None, start_at=None, progress: dict | None = None, jump: bool = False,
+                slice_sec: float | None = None) -> list[dict]:
     """Обрабатывает запись стрима (Twitch/YouTube). Клипы режутся ПО ХОДУ загрузки чата:
     скачали очередные 30 минут стрима — сразу нарезали лучшие моменты оттуда.
     done — уже нарезанные клипы (чтобы не повторяться); live=True — запись ещё идёт (эфир);
@@ -507,6 +508,10 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
     from .chat import download_chat_part
 
     done = list(done or [])
+    import time as _t
+    t_slice = _t.time()  # «по кругу»: разбираем кусок не дольше slice_sec и уступаем следующему стримеру
+    if progress is not None:
+        progress["unfinished"] = False
     log(f"VOD {url}{'  (идёт эфир)' if live else ''}")
     info = twitch.get_info(url)
     yt = twitch.is_youtube(url)
@@ -641,6 +646,11 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
             break
         if paths.stop_requested():
             log("  останавливаюсь по просьбе — продолжу с этого места при следующем запуске")
+            break
+        if slice_sec and _t.time() - t_slice >= slice_sec:
+            if progress is not None:
+                progress["unfinished"] = True
+            log(f"⏸ {channel}: разобрал до {_fmt(covered)} — перехожу к следующему стримеру, вернусь по кругу")
             break
 
     _finish(cfg, new, work, done + new, title, link, log)

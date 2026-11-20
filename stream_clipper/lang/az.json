@@ -848,5 +848,6 @@
 "Канал английский — для этих стримеров нужен отдельный канал: {0}.\n\nПрограмма их не будет нарезать и выкладывать.": "Kanal ingilisdilidir — bu strimerlər üçün ayrıca kanal lazımdır: {0}.\n\nProqram onları kəsməyəcək və paylaşmayacaq.",
 "бесплатный режим: Доктор выключил Claude — надписи и тексты по шаблонам": "pulsuz rejim: Doktor Claude-u söndürüb — yazılar və mətnlər şablonlarla",
 "в Telegram — копия 1080p с меньшим битрейтом (клип больше 50 МБ; оригинал в папке на компьютере)": "Telegram-da — daha aşağı bitreytli 1080p nüsxə (klip 50 MB-dan böyükdür; orijinal kompüterdəki qovluqdadır)",
-"\n(копия под лимит Telegram 50 МБ: оригинал лежит в папке на компьютере)": "\n(Telegram-ın 50 MB limiti üçün nüsxə: orijinal kompüterdəki qovluqdadır)"
+"\n(копия под лимит Telegram 50 МБ: оригинал лежит в папке на компьютере)": "\n(Telegram-ın 50 MB limiti üçün nüsxə: orijinal kompüterdəki qovluqdadır)",
+"разобрал до {0}, вернусь по кругу": "{0}-a qədər baxdım, növbə ilə qayıdacağam"
 }

@@ -136,7 +136,11 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                 return None  # последняя запись — от старого стрима
         return url
 
+    SLICE = 10 * 60  # по кругу: каждому стримеру — не больше 10 минут работы за раз, потом следующему
+    pending: dict = {}  # стример → (live) — запись разобрана не до конца, вернёмся на следующем круге
+
     def run_vod(src: Source, live: bool):
+        pending.pop(src.name, None)
         url = current_vod(src, live)
         if not url:
             if live:
@@ -180,7 +184,10 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
         progress: dict = {}
         try:
             new = process_vod(url, cfg, done=done, live=live, log=log, on_clip=on_clip,
-                              start_at=start_at, progress=progress, jump=jump)
+                              start_at=start_at, progress=progress, jump=jump,
+                              slice_sec=SLICE if len(sources) > 1 else None)
+            if progress.get("unfinished"):
+                pending[src.name] = live
             if jump or (progress.get("start_at") and state.get(key) is None):
                 state[key] = progress.get("start_at") or start_at
                 state[text_key] = spec_text
@@ -299,6 +306,14 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                     vod_checked.pop(src.name, None)
                 was_live[src.name] = live
                 first_check[src.name] = False
+            # круг по недоразобранным записям: каждому стримеру по куску, чтобы за ночь были клипы со всех
+            if pending:
+                log("По кругу: " + ", ".join(pending))
+                for src in list(sources):
+                    if src.name in pending and not paths.stop_requested():
+                        run_vod(src, live=pending[src.name])
+                if pending:
+                    continue  # ещё есть что разбирать — без паузы, но эфиры проверяем на каждом круге
             # ждём до следующей проверки, но список стримеров ловим сразу
             waited = 0
             while waited < poll:

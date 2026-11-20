@@ -117,20 +117,38 @@ def _fit_size(path: str) -> str:
     return out
 
 
+def _block_after_render(job: dict) -> str | None:
+    """Сначала собрать готовую версию (запикать мат, размыть наготу), потом проверить жёсткое правило публикации."""
+    from . import policy
+    try:
+        _render_for(job)
+    except Exception:
+        pass
+    return policy.publish_block(job["path"], job.get("applied") or job.get("edits"))
+
+
+def _types(ops) -> set:
+    return {(o.get("type") if isinstance(o, dict) else o) for o in (ops or [])}
+
+
 def _render_for(job: dict) -> str:
-    if job.get("file") and os.path.exists(job["file"]):
+    """Готовое видео для площадки: весь монтаж уже сделан — мат запикан, нагота размыта, подпись автора, громкость.
+    Если версия от автопилота собрана раньше без этого — пересобираем."""
+    have = job.get("applied") or []
+    if job.get("file") and os.path.exists(job["file"]) and _types(have) & {"bleep_profanity", "bleep", "mute"}:
         return job["file"]
     clip = next((c for d in library.list_dates() for c in library.list_clips(d)
                  if os.path.normpath(c["path"]) == os.path.normpath(job["path"])), None)
     if clip is None:
         raise RuntimeError("клип больше не в папке")
-    if not job.get("edits"):
-        return clip["path"]
-    from . import edits
+    from . import autopilot, edits, policy, strategy
+    clip["policy"] = policy.load_results().get(os.path.normpath(clip["path"])) or {}
+    base = [o for o in (have if have and isinstance(have[0], dict) else (job.get("edits") or [])) if isinstance(o, dict)]
+    ops = autopilot.ensure_mandatory(base, clip, strategy.get(), job["platform"], autopilot._dur(clip))
     out = os.path.join(paths.default_work_dir(), "tg_assist", f"{job['platform']}_{os.path.basename(clip['path'])}")
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    res = edits.build_variant(clip, job["edits"], out, log=lambda m: None, platform=job["platform"])
-    job["applied"] = [a["type"] for a in res.get("applied", [])]
+    res = edits.build_variant(clip, ops, out, log=lambda m: None, platform=job["platform"])
+    job["applied"] = res.get("applied", [])
     job["file"] = out
     return out
 
@@ -452,7 +470,7 @@ def tick(paused: bool, event) -> dict:
             if clip_posted:
                 job["status"] = "posted"
                 continue
-            block = policy.publish_block(job["path"], job.get("applied") or job.get("edits"))
+            block = _block_after_render(job)
             if block:
                 job["status"] = "blocked"
                 event("⛔", f"{os.path.basename(job['path'])[:-4]}: {NAMES[job['platform']]} — не отправляю: {block}",
@@ -563,7 +581,7 @@ def _deliver_batch(st: dict, c: dict, event, stats: dict, now: datetime) -> None
         if clip_posted:
             job["status"] = "posted"
             continue
-        block = policy.publish_block(job["path"], job.get("applied") or job.get("edits"))
+        block = _block_after_render(job)
         if block:
             job["status"] = "blocked"
             event("⛔", f"{os.path.basename(job['path'])[:-4]}: {NAMES[job['platform']]} — не отправляю: {block}",
@@ -635,7 +653,7 @@ def send_ahead(event, hours: float = 48) -> dict:
         if (library.load_posted().get(os.path.normpath(job["path"])) or {}).get(job["platform"]):
             job["status"] = "posted"
             continue
-        if policy.publish_block(job["path"], job.get("applied") or job.get("edits")):
+        if _block_after_render(job):
             job["status"] = "blocked"
             continue
         job["schedule"] = True
@@ -659,7 +677,7 @@ def _send_list(st: dict, c: dict, event, stats: dict, items: list, header: str) 
     except Exception:
         pass
     for jid, job in items:
-        if policy.publish_block(job["path"], job.get("applied") or job.get("edits")):
+        if _block_after_render(job):
             job["status"] = "blocked"
             continue
         job["schedule"] = schedule_mode()

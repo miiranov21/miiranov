@@ -1922,6 +1922,10 @@ class App:
     def refresh_plan(self):
         from datetime import datetime as _dt
         from . import autopilot, schedule
+        try:  # удалённые, архивные и выложенные клипы — вон из плана, их время — следующим
+            autopilot.rebuild_schedule()
+        except Exception:
+            pass
         tree = self.plan_tree
         tree.delete(*tree.get_children())
         self.plan_rows.clear()
@@ -3851,9 +3855,14 @@ class App:
         self._doc_busy = True
 
         def work():
-            from . import strategy
+            from . import autopilot, strategy
             try:
                 strategy.refresh(log=lambda m: None)
+            except Exception:
+                pass
+            try:  # раз в минуту чистим план от удалённых клипов — даже если Telegram и автопилот выключены
+                if not paths.team_dir() or self.v["team_main"].get():
+                    autopilot.rebuild_schedule()
             except Exception:
                 pass
             self.root.after(0, done)
@@ -4699,6 +4708,14 @@ class App:
             self.images.pop(c["path"], None)
         self.refresh_clips()
         self.clips_info.config(text=T("В корзине: {0}. Вернуть — кнопка «♻ Корзина».").format(len(sel)))
+
+        def replan():  # удалённые клипы сразу уходят из плана и из очереди Telegram
+            from . import autopilot
+            try:
+                autopilot.rebuild_schedule()
+            except Exception:
+                pass
+        threading.Thread(target=replan, daemon=True).start()
 
     def _spec_for(self, channel: str) -> str | None:
         """Стример из списка (twitch-логин или @ник YouTube), которому соответствует имя канала из клипа."""

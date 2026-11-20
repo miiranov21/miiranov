@@ -236,9 +236,14 @@ def ensure_mandatory(ops: list, c: dict, strat: dict, platform: str, duration: f
         pass  # текста хука нет — его должен придумать план (Claude); выдумывать не будем
     if not (c.get("words") or c.get("transcript")) and "subtitles" not in have:
         add.append({"type": "subtitles", "style": "karaoke"})
-    swear = any(i.get("kind") in ("profanity", "slur") for i in (c.get("policy") or {}).get("issues", []))
-    if swear and platform in ("youtube", "instagram") and not have & {"bleep", "bleep_profanity", "mute"}:
+    # видео приходит в Telegram полностью готовым: мат запикан на ВСЕХ площадках (речь проверяется при монтаже),
+    # нагота размыта — без этого выкладывать нельзя
+    if not have & {"bleep", "bleep_profanity", "mute"}:
         add.append({"type": "bleep_profanity", "all": True})
+    if "blur" not in have:
+        for i in (c.get("policy") or {}).get("issues", []):
+            if i.get("kind") == "nudity" and i.get("box") and i.get("severity") == "high":
+                add.append({"type": "blur", "t0": i.get("t0", 0), "t1": i.get("t1", 0), "box": i["box"]})
     from . import shape
     tgt = shape.target_for(platform)
     if tgt and duration > tgt[1] + 0.5 and "trim" not in have:
@@ -456,8 +461,8 @@ def rebuild_schedule(now: datetime | None = None, event=None) -> dict:
             job = jobs_by.get((os.path.normpath(path), pl), (None, {}))[1]
             status = "sent" if job.get("status") in ("sent",) else ("published" if job.get("status") == "posted"
                                                                      else q.get("status"))
-            if status == "sent" and os.path.normpath(path) in live and not _channel_lang_ok(live[os.path.normpath(path)]):
-                status = "waiting"  # уже ушло в Telegram, но стример не англоязычный — тоже снимаем
+            if status == "sent" and _alive(path, pl, live, archived, posted) not in (None, "уже выложен"):
+                status = "waiting"  # уже ушло в Telegram, но клип удалён / в архиве / не тот язык — тоже снимаем
             if status in FIXED:
                 t = _parse(q.get("when"))
                 if t:
@@ -504,8 +509,13 @@ def rebuild_schedule(now: datetime | None = None, event=None) -> dict:
     changed = False
     for path, pl, why in removed:
         jid, job = jobs_by.get((os.path.normpath(path), pl), (None, None))
-        if jid and (job.get("status") in ("pending", "error", "blocked")
-                    or (job.get("status") == "sent" and why == "стример не англоязычный")):
+        if jid and job.get("status") in ("pending", "error", "blocked", "sent"):
+            if job.get("status") == "sent":  # у тебя и друга кнопки меняются: выкладывать не надо
+                try:
+                    from . import telegram
+                    tg_assist._edit_all(telegram.load(), job, f"🗑 Не выкладываем — клип {why}")
+                except Exception:
+                    pass
             tst["jobs"].pop(jid, None)
             changed = True
         exchange.drop_platform(path, pl)
@@ -529,14 +539,17 @@ def rebuild_schedule(now: datetime | None = None, event=None) -> dict:
 
 
 def plan_rows() -> list[dict]:
-    """План публикаций для окна: что, куда и когда (ещё не выложенное)."""
+    """План публикаций для окна: что, куда и когда (ещё не выложенное и только живые клипы)."""
     from . import tg_assist
+    live = {os.path.normpath(c["path"]): c for d in library.list_dates() for c in library.list_clips(d)}
+    archived = {os.path.normpath(p) for p in archive.archived_paths()}
+    posted = {os.path.normpath(k): v for k, v in library.load_posted().items()}
     tst = tg_assist.load()
     jobs_by = {(os.path.normpath(j.get("path", "")), j.get("platform")): j for j in tst.get("jobs", {}).values()}
     rows = []
     for path, rec in load_state().get("clips", {}).items():
         for pl, q in (rec.get("queue") or {}).items():
-            if q.get("status") != "waiting":
+            if q.get("status") != "waiting" or _alive(path, pl, live, archived, posted):
                 continue
             job = jobs_by.get((os.path.normpath(path), pl)) or {}
             rows.append({"path": path, "platform": pl, "when": q.get("when"), "title": q.get("title", ""),

@@ -31,6 +31,20 @@ VOICE_MIN = 0.20           # доля клипа с голосом стриме�
 SILENT = 0.08              # почти ни слова — не берём, даже если картинка двигается
 
 
+DEFAULT_T = {"static_motion": STATIC_MOTION, "face_still": FACE_STILL, "voice_min": VOICE_MIN, "silence_max": SILENT,
+             "face_absent_max": 0.60, "face_still_max": 0.70, "tts_face_still": 0.85, "title_keyword_factor": 0.6,
+             "min_chat_messages": 8}
+
+
+def th(name: str) -> float:
+    """Порог из strategy.json → quality_filters.thresholds (если нет — значение по умолчанию)."""
+    try:
+        v = (rules().get("thresholds") or {}).get(name)
+        return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else float(DEFAULT_T[name])
+    except Exception:
+        return float(DEFAULT_T[name])
+
+
 def rules() -> dict:
     try:
         from . import strategy
@@ -72,7 +86,7 @@ def sleep_threshold(title: str) -> float:
     thr = float(rs.get("chat_keyword_share") or 0.25)
     words = [w.lower() for w in (rs.get("title_keywords") or DEFAULT_TITLE_WORDS)]
     if any(w in (title or "").lower() for w in words):
-        thr *= 0.6  # «sleep stream», «24/7» в названии — осторожнее во всём стриме
+        thr *= th("title_keyword_factor")  # «sleep stream», «24/7» в названии — осторожнее во всём стриме
     return thr
 
 
@@ -84,7 +98,7 @@ def filter_highlights(hl: list, msgs, title: str, channel: str, chat_lag: float 
     out = []
     for h in hl:
         share, n = sleep_share(msgs, h.start, h.end + chat_lag)
-        if n >= 8 and share >= thr:
+        if n >= th("min_chat_messages") and share >= thr:
             from .pipeline import _fmt
             log(f"💤 пропущен момент {_fmt(h.peak)} у {channel} — стример спит (чат: {share:.0%} про сон)")
             continue
@@ -153,7 +167,7 @@ def visual_metrics(path: str, facecam: tuple | None) -> dict:
                         a = g[y0:y0 + bh_, x0:x0 + bw_]
                         b = prev_crop[y0:y0 + bh_, x0:x0 + bw_]
                         shift = abs(box[0] - prev_box[0]) + abs(box[1] - prev_box[1])
-                        if a.shape == b.shape and a.size and float(np.abs(a - b).mean()) < FACE_STILL and shift <= 2:
+                        if a.shape == b.shape and a.size and float(np.abs(a - b).mean()) < th("face_still") and shift <= 2:
                             still += 1
                     prev_crop, prev_box = g, box
                 else:
@@ -201,21 +215,24 @@ def voice_ratio_words(words: list, duration: float) -> float:
 
 
 def verdict(vis: dict, voice: float, has_cam: bool, by_energy: bool = False) -> str | None:
-    """None — момент хороший; иначе причина, почему не брать."""
-    if voice >= VOICE_MIN and by_energy and has_cam and vis.get("face_seen", 0) >= 0.4 \
-            and vis.get("face_still", 0) > 0.85:
+    """None — момент хороший; иначе причина, почему не брать. Пороги — из стратегии «Доктора»."""
+    vmin, silent, still_max = th("voice_min"), th("silence_max"), th("face_still_max")
+    seen_min = 1.0 - th("face_absent_max")
+    motion_min = th("static_motion")
+    if voice >= vmin and by_energy and has_cam and vis.get("face_seen", 0) >= seen_min \
+            and vis.get("face_still", 0) > th("tts_face_still"):
         # голос есть, а лицо совсем не двигается — говорит не стример (озвучка доната, видео на фоне)
         return "стример спит (голос — похоже, озвучка доната)"
-    if voice >= VOICE_MIN:
+    if voice >= vmin:
         return None  # стример говорит — спокойный момент со смешной речью оставляем
     motion = vis.get("motion", 99.0)
-    if has_cam and vis.get("face_seen", 1.0) < 0.4:
+    if has_cam and vis.get("face_seen", 1.0) < seen_min:
         return "стримера нет в кадре (отошёл)"
-    if voice < SILENT and motion < STATIC_MOTION * 2:
+    if voice < silent and motion < motion_min * 2:
         return "стример молчит и в кадре почти ничего не происходит"
-    if has_cam and vis.get("face_seen", 0) >= 0.4 and vis.get("face_still", 0) > 0.7:
+    if has_cam and vis.get("face_seen", 0) >= seen_min and vis.get("face_still", 0) > still_max:
         return "стример спит (лицо не двигается)"
-    if motion < STATIC_MOTION:
+    if motion < motion_min:
         return "кадр почти не двигается и стример молчит"
     return None
 

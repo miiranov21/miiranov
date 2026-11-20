@@ -927,5 +927,20 @@
 "Все свободные клипы ниже порога оценки — «⚡ Заполнить план сейчас» возьмёт лучшие из них.": "Bütün boş kliplər qiymət həddindən aşağıdır — «⚡ Planı indi doldur» onlardan ən yaxşılarını götürəcək.",
 "автопилот уже работает — подожди": "avtopilot artıq işləyir — gözlə",
 "заполняю план: отбираю и монтирую клипы...": "planı doldururam: klipləri seçir və montaj edirəm...",
-"Telegram: не получилось прислать видео на сегодня — {0}": "Telegram: bugünkü videoları göndərmək alınmadı — {0}"
+"Telegram: не получилось прислать видео на сегодня — {0}": "Telegram: bugünkü videoları göndərmək alınmadı — {0}",
+" 💾 Хранитель данных — резервная копия раз в неделю ": " 💾 Məlumat qoruyucusu — həftədə bir ehtiyat nüsxə ",
+"Копировать и сами клипы (много места)": "Kliplərin özünü də köçür (çox yer tutur)",
+"💾 Сделать копию сейчас": "💾 İndi nüsxə çıxar",
+"Восстановить из копии…": "Nüsxədən bərpa et…",
+"Последняя копия: {0} — {1} файлов, {2} МБ. Следующая — через неделю после неё.": "Son nüsxə: {0} — {1} fayl, {2} MB. Növbəti — ondan bir həftə sonra.",
+"Копий ещё не было — первая будет сделана сама через пару минут после запуска.": "Hələ nüsxə olmayıb — birincisi işə salındıqdan bir neçə dəqiqə sonra özü çıxarılacaq.",
+"Куда складывать резервные копии": "Ehtiyat nüsxələri hara qoymaq",
+"Делаю резервную копию...": "Ehtiyat nüsxə çıxarıram...",
+"💾 Хранитель данных: копия не получилась — {0}": "💾 Məlumat qoruyucusu: nüsxə alınmadı — {0}",
+"Копия не получилась: {0}": "Nüsxə alınmadı: {0}",
+"Хранитель данных: резервная копия готова — {0} файлов, {1} МБ": "Məlumat qoruyucusu: ehtiyat nüsxə hazırdır — {0} fayl, {1} MB",
+"Папка копии (копия_ГГГГ-ММ-ДД_…)": "Nüsxə qovluğu (копия_İİİİ-AA-GG_…)",
+"Восстановить": "Bərpa et",
+"Вернуть данные из этой копии? Текущие данные сначала сохранятся отдельной копией. После этого программу нужно перезапустить.": "Məlumatlar bu nüsxədən qaytarılsın? Hazırkı məlumatlar əvvəlcə ayrıca nüsxədə saxlanacaq. Sonra proqramı yenidən başlatmaq lazımdır.",
+"Восстановлено файлов: {0}. Перезапусти программу.": "Bərpa olunan fayl: {0}. Proqramı yenidən başlat."
 }

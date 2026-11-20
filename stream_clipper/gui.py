@@ -651,6 +651,7 @@ class App:
                   foreground=self.muted).pack(side="left")
 
         self._build_post_settings(sett)
+        self._build_backup_settings(sett)
         self._build_team_settings(sett)
         self._build_telegram(sett)
         self._build_publish_settings(sett)
@@ -734,6 +735,7 @@ class App:
         self.root.after(3000, self._doctor_settings_tick)
         self.root.after(40000, lambda: self.sweep_sleepy(auto=True))
         self.root.after(25000, self._tg_on_start)
+        self.root.after(90000, self._backup_tick)
         self.root.after(2500, self.check_updates)
 
     # ---------- горячие клавиши и меню правой кнопки ----------
@@ -1853,6 +1855,96 @@ class App:
             self.refresh_archive()
         elif i == 4:
             self.refresh_plan()
+
+    # ---------- 💾 Хранитель данных ----------
+    def _build_backup_settings(self, parent):
+        from . import backup
+        box = ttk.LabelFrame(parent, text=T(" 💾 Хранитель данных — резервная копия раз в неделю "), padding=6)
+        box.pack(fill="x", pady=(0, 6))
+        r1 = ttk.Frame(box)
+        r1.pack(fill="x")
+        ttk.Label(r1, text=T("Папка:")).pack(side="left")
+        self.bk_dir = tk.StringVar(value=backup.target_dir())
+        ttk.Entry(r1, textvariable=self.bk_dir, width=60).pack(side="left", padx=4, fill="x", expand=True)
+        ttk.Button(r1, text=T("Выбрать…"), command=self._backup_choose).pack(side="left")
+        r2 = ttk.Frame(box)
+        r2.pack(fill="x", pady=(4, 0))
+        self.bk_clips = tk.BooleanVar(value=bool(backup.load().get("with_clips")))
+        ttk.Checkbutton(r2, text=T("Копировать и сами клипы (много места)"), variable=self.bk_clips,
+                        command=self._backup_save_cfg).pack(side="left")
+        ttk.Button(r2, text=T("💾 Сделать копию сейчас"), command=lambda: self._backup_run(force=True)).pack(side="left", padx=8)
+        ttk.Button(r2, text=T("Восстановить из копии…"), command=self._backup_restore).pack(side="left")
+        self.bk_status = ttk.Label(box, text="", foreground=self.muted)
+        self.bk_status.pack(anchor="w", pady=(4, 0))
+        self._backup_status()
+
+    def _backup_status(self):
+        from . import backup
+        c = backup.load()
+        if c.get("last"):
+            self.bk_status.config(text=T("Последняя копия: {0} — {1} файлов, {2} МБ. Следующая — через неделю после неё.").format(
+                time.strftime("%d.%m.%Y %H:%M", time.localtime(c["last"])), c.get("last_files", 0), c.get("last_mb", 0)))
+        else:
+            self.bk_status.config(text=T("Копий ещё не было — первая будет сделана сама через пару минут после запуска."))
+
+    def _backup_save_cfg(self):
+        from . import backup
+        c = backup.load()
+        c["dir"] = self.bk_dir.get().strip() or backup.default_dir()
+        c["with_clips"] = bool(self.bk_clips.get())
+        backup.save(c)
+
+    def _backup_choose(self):
+        d = filedialog.askdirectory(title=T("Куда складывать резервные копии"))
+        if d:
+            self.bk_dir.set(d)
+            self._backup_save_cfg()
+
+    def _backup_tick(self):
+        """Раз в 6 часов: если неделя прошла — Хранитель делает копию."""
+        self.root.after(6 * 3600 * 1000, self._backup_tick)
+        self._backup_run(force=False)
+
+    def _backup_run(self, force: bool):
+        from . import backup
+        if getattr(self, "_bk_busy", False) or (not force and not backup.due()):
+            return
+        self._backup_save_cfg()
+        self._bk_busy = True
+        self.bk_status.config(text=T("Делаю резервную копию..."))
+
+        def work():
+            try:
+                res, err = backup.make_backup(log=lambda m: None), None
+            except Exception as e:
+                res, err = {}, e
+            self.root.after(0, lambda: done(res, err))
+
+        def done(res, err):
+            self._bk_busy = False
+            if err:
+                self.activity.event("❌", T("💾 Хранитель данных: копия не получилась — {0}").format(err), kind="error")
+                self.bk_status.config(text=T("Копия не получилась: {0}").format(err))
+                return
+            self.activity.event("💾", T("Хранитель данных: резервная копия готова — {0} файлов, {1} МБ").format(
+                res["files"], res["mb"]))
+            self._backup_status()
+        threading.Thread(target=work, daemon=True).start()
+
+    def _backup_restore(self):
+        from . import backup
+        d = filedialog.askdirectory(title=T("Папка копии (копия_ГГГГ-ММ-ДД_…)"), initialdir=self.bk_dir.get())
+        if not d:
+            return
+        if not messagebox.askyesno(T("Восстановить"), T("Вернуть данные из этой копии? Текущие данные сначала сохранятся "
+                                                       "отдельной копией. После этого программу нужно перезапустить.")):
+            return
+        try:
+            n = backup.restore(d)
+        except Exception as e:
+            messagebox.showwarning(T("Восстановить"), str(e))
+            return
+        messagebox.showinfo(T("Восстановить"), T("Восстановлено файлов: {0}. Перезапусти программу.").format(n))
 
     CLEAR_CHAT_V = 1
 

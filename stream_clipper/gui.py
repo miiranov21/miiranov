@@ -1984,6 +1984,46 @@ class App:
             self._assist_busy = False
         threading.Thread(target=work, daemon=True).start()
 
+    def wipe_all(self):
+        """Полная очистка: клипы — в корзину, архив, план, очередь Telegram, отметки и память разбора — с нуля.
+        Перед этим Хранитель данных делает резервную копию."""
+        from . import backup
+        if self.proc:
+            messagebox.showinfo(T("Чистый лист"), T("Сначала нажми «Стоп» — программа сейчас работает."))
+            return
+        if not messagebox.askyesno(T("Чистый лист"), T(
+                "Убрать ВСЕ клипы и начать с нуля?\n\n"
+                "• все клипы и архив уйдут в корзину (вернуть можно, пока корзину не очистили);\n"
+                "• план, очередь Telegram, отметки «выложено» и решения агентов очистятся;\n"
+                "• стримы забудутся — их можно будет разобрать заново.\n\n"
+                "Перед этим Хранитель данных сделает резервную копию.")):
+            return
+        self.status.config(text=T("Делаю копию и очищаю..."))
+        if self.preview.path:
+            self.preview.release()
+
+        def work():
+            try:
+                res, err = backup.wipe_all(log=lambda m: None), None
+            except Exception as e:
+                res, err = {}, e
+            self.root.after(0, lambda: done(res, err))
+
+        def done(res, err):
+            if err:
+                messagebox.showwarning(T("Чистый лист"), T("Не получилось: {0}").format(err))
+                return
+            self.images.clear()
+            self.activity.event("🧹", T("Чистый лист: клипов в корзину — {0}, из архива — {1}. План и отметки очищены.").format(
+                res["clips"], res["archive"]))
+            self.status.config(text=T("Готово — начинаем с чистого листа. Копия: {0}").format(res["backup"]))
+            self.refresh_clips()
+            try:
+                self.refresh_plan()
+            except Exception:
+                pass
+        threading.Thread(target=work, daemon=True).start()
+
     def sweep_sleepy(self, auto: bool = False):
         """Проверить ВСЕ клипы фильтрами «стример спит» и убрать не прошедшие в архив (один раз — сам при запуске)."""
         from . import autopilot
@@ -3920,6 +3960,8 @@ class App:
         mm.add_command(label=T("🗑  Удалить, что советует аналитик…"), command=self.delete_advised)
         mm.add_command(label=T("⛔  Снять с публикации (выложенные с нарушениями)…"), command=self.unpublish_window)
         mm.add_command(label=T("💤  Убрать в архив клипы, где стример спит (проверить все)"), command=self.sweep_sleepy)
+        mm.add_separator()
+        mm.add_command(label=T("🧹  Начать с чистого листа (убрать все клипы, план и отметки)…"), command=self.wipe_all)
         mm.add_separator()
         mm.add_command(label=T("☑  Выбрать все"), command=self.select_all_clips)
         mm.add_command(label=T("✍  Описание и хэштеги"), command=self.post_texts)

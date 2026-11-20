@@ -140,3 +140,93 @@ def restore(src: str, log=print) -> int:
             n += 1
     log(f"💾 Хранитель данных: восстановлено файлов — {n}. Перезапусти программу.")
     return n
+
+
+def wipe_all(log=print, forget_streams: bool = True) -> dict:
+    """«🧹 Начать с чистого листа»: сначала резервная копия, потом ВСЕ клипы — в корзину (вернуть можно,
+    пока корзину не очистили), архив, план, очередь Telegram, отметки «выложено», решения автопилота и «Доктора»
+    очищаются; forget_streams — ещё и память «что разобрано» (стримы разберутся заново)."""
+    from . import archive, autopilot, exchange, library, progress, tg_assist
+    snap = make_backup(log=lambda m: None, with_clips=False)
+    moved = 0
+    for d in library.list_dates():
+        for c in library.list_clips(d):
+            try:
+                library.move_to_trash(c, c.get("score10"))
+                moved += 1
+            except OSError:
+                pass
+    # архив: сжатые копии — в корзину программы, указатель — пустой
+    arch = 0
+    trash = library.trash_dir()
+    os.makedirs(trash, exist_ok=True)
+    for rec in archive.load():
+        for k in ("small", "thumb"):
+            p = rec.get(k)
+            if p and os.path.exists(p):
+                try:
+                    shutil.move(p, os.path.join(trash, f"arch_{int(time.time() * 1000)}_{os.path.basename(p)}"))
+                except OSError:
+                    pass
+        arch += 1
+    archive._save([])
+    # план, очередь, отметки, решения
+    st = autopilot.load_state()
+    st["clips"] = {}
+    st.pop("quality_checked", None)
+    autopilot.save_state(st)
+    tst = tg_assist.load()
+    tst["jobs"] = {}
+    tst.pop("replace", None)
+    tg_assist.save(tst)
+    work = paths.default_work_dir()
+    for name in ("posted.json", "published.json", "decisions.json", "renders.json", "captions_history.json",
+                 "captions_used.json", "extra_vods.json"):
+        for base in (work, library._state()):
+            p = os.path.join(base, name)
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+    try:
+        from . import team
+        if team.enabled():
+            for kind in ("posted", "published"):
+                team.write_own(kind, {})
+    except Exception:
+        pass
+    if forget_streams:  # дневник клипов (иначе те же моменты стримов не нарежутся заново) — он есть в копии
+        for ddir in (os.path.join(library._state(), "days"),):
+            if os.path.isdir(ddir):
+                for fn in os.listdir(ddir):
+                    if fn.endswith(".json"):
+                        try:
+                            os.remove(os.path.join(ddir, fn))
+                        except OSError:
+                            pass
+        try:
+            from . import team
+            if team.enabled():
+                me = team._safe(team.me())
+                tdir = os.path.join(team.shared_dir(), "days")
+                for fn in os.listdir(tdir) if os.path.isdir(tdir) else []:
+                    if fn.endswith(f".{me}.json"):
+                        os.remove(os.path.join(tdir, fn))
+        except Exception:
+            pass
+        try:
+            with progress._lock:
+                progress._save({})
+        except Exception:
+            pass
+        for name in ("watch_state.json", "vod_state.json"):
+            p = os.path.join(work, name)
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+    log(f"🧹 Чистый лист: клипов в корзину — {moved}, из архива — {arch}; план, очередь, отметки очищены. "
+        f"Копия до очистки: {snap['path']}")
+    return {"clips": moved, "archive": arch, "backup": snap["path"]}

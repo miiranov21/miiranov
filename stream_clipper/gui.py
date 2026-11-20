@@ -30,7 +30,7 @@ STREAMERS_HEADER = T("""# Стримеры, за которыми следит �
 # YouTube — @ник канала (youtube.com/@MrBeast -> @MrBeast)
 """)
 DEFAULTS = {"subs": True, "caption": True, "facecam": True, "audio": True,
-            "top": "3", "length": "35", "quality": "1080", "autoupdate": True, "doctor_settings": True,
+            "top": "5", "length": "35", "quality": "1080", "autoupdate": True, "doctor_settings": True,
             "wm_on": False, "wm_text": "", "wm_image": "", "wm_pos": T("плавает по экрану"), "wm_op": T("средне"), "game_view": T("целиком"), "yt_browser": T("не брать"),
             "credit_auto": False, "credit_pos": T("вверху слева"), "lang": i18n.LANG,
             "start_from": T("с начала"), "start_mode": T("от начала стрима"), "theme": T("Фиолетовая (как Twitch)")}
@@ -473,11 +473,14 @@ class App:
         self.nb.add(streams, text=T("  Стримы  "))
         arch = ttk.Frame(self.nb, padding=8)
         self.nb.add(arch, text=T("  Архив  "))
+        plan_tab = ttk.Frame(self.nb, padding=8)
+        self.nb.add(plan_tab, text=T("  План  "))
         self.nb.add(sett_outer, text=T("  Настройки  "))
         self.sett = sett
         self._build_clips(clips)
         self._build_streams(streams)
         self._build_archive(arch)
+        self._build_plan(plan_tab)
         self.nb.bind("<<NotebookTabChanged>>", self._on_tab)
 
         top = ttk.Frame(main)
@@ -501,9 +504,12 @@ class App:
         self._doc_widgets: dict = {}  # настройка → её поля (блокируются, пока выбирает «Доктор»)
         self._doc_reason: dict = {}
         self._doc_extra: dict = {}
-        self.v["doctor_settings"] = tk.BooleanVar(value=bool(self.cfg.get("doctor_settings", True)))
-        ttk.Checkbutton(opt, text=T("🩺 Доверить настройки Доктору"), variable=self.v["doctor_settings"],
-                        command=self._doctor_toggled).pack(anchor="w", pady=(0, 2))
+        self._init_own()
+        head = ttk.Frame(opt)
+        head.pack(anchor="w", fill="x", pady=(0, 2))
+        ttk.Button(head, text=T("🩺 Всё Доктору"), command=self._all_to_doctor).pack(side="left")
+        ttk.Label(head, text=T("  🩺 — выбирает Доктор, ✋ — твоё значение (главнее)"),
+                  foreground=self.muted).pack(side="left")
         self.doc_hint = ttk.Label(opt, text="", foreground=self.muted, wraplength=330, justify="left")
         self.doc_hint.pack(anchor="w", pady=(0, 4))
         for key, text in (("subs", T("Субтитры (речь стримера)")),
@@ -511,8 +517,11 @@ class App:
                           ("facecam", T("Вебка стримера сверху")),
                           ("audio", T("Искать по звуку и картинке (без чата)"))):
             self.v[key] = tk.BooleanVar(value=bool(self.cfg.get(key)))
-            w = ttk.Checkbutton(opt, text=text, variable=self.v[key])
-            w.pack(anchor="w", pady=2)
+            row = ttk.Frame(opt)
+            row.pack(anchor="w", pady=1)
+            self._own_btn(row, key).pack(side="left", padx=(0, 4))
+            w = ttk.Checkbutton(row, text=text, variable=self.v[key])
+            w.pack(side="left")
             self._doc_reg(key, w)
             self.v[key].trace_add("write", lambda *a: self._on_live_setting(quick=True))
         grid = ttk.Frame(opt)
@@ -532,12 +541,14 @@ class App:
                 cb.configure(validate="key", validatecommand=digits)
                 self.v[key].trace_add("write", lambda *a: self._on_live_setting())
             cb.grid(row=r, column=1, sticky="w", padx=6)
+            self._own_btn(grid, key).grid(row=r, column=2, sticky="w")
             self._doc_reg(key, cb)
         ttk.Label(grid, text=T("Игра в кадре:")).grid(row=3, column=0, sticky="w", pady=2)
         gv = self.cfg.get("game_view")
         self.v["game_view"] = tk.StringVar(value=gv if gv in GAME_VIEW else T("целиком"))
         w = ttk.Combobox(grid, textvariable=self.v["game_view"], values=list(GAME_VIEW), width=12, state="readonly")
         w.grid(row=3, column=1, sticky="w", padx=6)
+        self._own_btn(grid, "game_view").grid(row=3, column=2, sticky="w")
         self._doc_reg("game_view", w)
         # картинка-пример: как будет выглядеть клип при выбранном варианте
         self.gv_images = {}
@@ -548,7 +559,7 @@ class App:
             except Exception:
                 pass
         self.gv_preview = ttk.Label(grid)
-        self.gv_preview.grid(row=0, column=2, rowspan=4, padx=(10, 0), sticky="ne")
+        self.gv_preview.grid(row=0, column=3, rowspan=4, padx=(10, 0), sticky="ne")
         self.v["game_view"].trace_add("write", lambda *a: self._update_gv_preview())
         self.v["game_view"].trace_add("write", lambda *a: self._on_live_setting(quick=True))
         self.v["quality"].trace_add("write", lambda *a: self._on_live_setting(quick=True))
@@ -582,6 +593,7 @@ class App:
         r1 = ttk.Frame(wm)
         r1.pack(fill="x")
         self.v["wm_on"] = tk.BooleanVar(value=bool(self.cfg.get("wm_on")))
+        self._own_btn(r1, "watermark").pack(side="left", padx=(0, 4))
         w = ttk.Checkbutton(r1, text=T("Ставить"), variable=self.v["wm_on"])
         w.pack(side="left")
         self._doc_reg("wm_on", w)
@@ -620,6 +632,7 @@ class App:
         cr = ttk.LabelFrame(sett, text=T(" Подпись автора — чей это клип (Twitch | KaiCenat) "), padding=6)
         cr.pack(fill="x", pady=(0, 6))
         self.v["credit_auto"] = tk.BooleanVar(value=bool(self.cfg.get("credit_auto", False)))
+        self._own_btn(cr, "credit").pack(side="left", padx=(0, 4))
         w = ttk.Checkbutton(cr, text=T("Сразу подписывать все новые клипы"), variable=self.v["credit_auto"])
         w.pack(side="left")
         self._doc_reg("credit_auto", w)
@@ -637,6 +650,7 @@ class App:
         ttk.Label(cr, text=T("  иначе — галочкой в колонке «Автор» на нужных клипах (вкладка «Клипы»)"),
                   foreground=self.muted).pack(side="left")
 
+        self._build_post_settings(sett)
         self._build_team_settings(sett)
         self._build_telegram(sett)
         self._build_publish_settings(sett)
@@ -1707,6 +1721,80 @@ class App:
             self.refresh_streams()
         elif i == 3:
             self.refresh_archive()
+        elif i == 4:
+            self.refresh_plan()
+
+    # ---------- вкладка «План»: что и когда выйдет ----------
+    def _build_plan(self, parent):
+        top = ttk.Frame(parent)
+        top.pack(fill="x")
+        ttk.Label(top, text=T("Что и когда выйдет. Время — по Москве и по США (ET). Клип в корзине или архиве из плана "
+                              "уходит сам, его время получает следующий."), foreground=self.muted,
+                  wraplength=900, justify="left").pack(side="left")
+        btns = ttk.Frame(parent)
+        btns.pack(fill="x", pady=6)
+        ttk.Button(btns, text=T("⬆ Поднять выше"), command=lambda: self._plan_action("raise")).pack(side="left")
+        ttk.Button(btns, text=T("✕ Убрать из плана"), command=lambda: self._plan_action("remove")).pack(side="left", padx=6)
+        ttk.Button(btns, text=T("▶ Открыть клип"), command=lambda: self._plan_action("open")).pack(side="left")
+        ttk.Button(btns, text=T("⟳ Пересобрать план"), command=lambda: self._plan_action("rebuild")).pack(side="right")
+        self.plan_status = ttk.Label(btns, text="", foreground=self.muted)
+        self.plan_status.pack(side="right", padx=8)
+        cols = ("day", "msk", "et", "platform", "streamer", "clip", "state")
+        tree = ttk.Treeview(parent, columns=cols, show="headings", height=18)
+        for c, t_, w in (("day", T("Дата"), 70), ("msk", T("МСК"), 60), ("et", "ET", 60), ("platform", T("Где"), 90),
+                         ("streamer", T("Стример"), 120), ("clip", T("Клип / название"), 420), ("state", T("Статус"), 150)):
+            tree.heading(c, text=t_)
+            tree.column(c, width=w, stretch=c == "clip", anchor="w")
+        tree.pack(fill="both", expand=True)
+        self.plan_tree = tree
+        self.plan_rows: dict = {}
+
+    def refresh_plan(self):
+        from datetime import datetime as _dt
+        from . import autopilot, schedule
+        tree = self.plan_tree
+        tree.delete(*tree.get_children())
+        self.plan_rows.clear()
+        names = {"tiktok": "TikTok", "youtube": "YouTube", "instagram": "Instagram"}
+        chans = {os.path.normpath(c["path"]): c.get("channel", "") for d in library.list_dates() for c in library.list_clips(d)}
+        rows = autopilot.plan_rows()
+        for r in rows:
+            try:
+                t = _dt.fromisoformat(r["when"])
+                day, msk, et = schedule.day_label(t), f"{schedule.msk(t):%H:%M}", f"{schedule.et(t):%H:%M}"
+            except (TypeError, ValueError):
+                day = msk = et = "—"
+            state = T("отправлено в Telegram") if r.get("sent") else (T("⬆ поднят") if r.get("pin") else T("ждёт"))
+            iid = tree.insert("", "end", values=(day, msk, et, names.get(r["platform"], r["platform"]),
+                                                 chans.get(os.path.normpath(r["path"]), ""),
+                                                 f"{os.path.basename(r['path'])[:-4]} — {r.get('title') or ''}", state))
+            self.plan_rows[iid] = r
+        self.plan_status.config(text=T("в плане: {0}").format(len(rows)))
+
+    def _plan_action(self, what: str):
+        from . import autopilot
+        if what == "rebuild":
+            def work():
+                try:
+                    autopilot.rebuild_schedule()
+                except Exception as e:
+                    self.root.after(0, lambda: messagebox.showwarning(T("План"), str(e)))
+                self.root.after(0, self.refresh_plan)
+            threading.Thread(target=work, daemon=True).start()
+            return
+        sel = self.plan_tree.selection()
+        r = self.plan_rows.get(sel[0]) if sel else None
+        if not r:
+            messagebox.showinfo(T("План"), T("Выбери строку в плане."))
+            return
+        if what == "open":
+            self._open(r["path"])
+            return
+        if what == "remove":
+            autopilot.plan_remove(r["path"], r["platform"])
+        else:
+            autopilot.plan_raise(r["path"], r["platform"])
+        self.refresh_plan()
 
     # ---------- вкладка «Стримы»: что уже разобрано и откуда продолжать ----------
     def _build_streams(self, parent):
@@ -3559,72 +3647,199 @@ class App:
             return T("вкл") if val else T("выкл")
         return str(val) if val != "" else "—"
 
+    # группы настроек с переключателем «🩺 Доктор / ✋ Вручную»
+    OWN_GROUPS = {"subs": ("subs",), "caption": ("caption",), "facecam": ("facecam",), "audio": ("audio",),
+                  "top": ("top",), "length": ("length",), "quality": ("quality",), "game_view": ("game_view",),
+                  "watermark": ("wm_on", "wm_text", "wm_pos", "wm_op"), "credit": ("credit_auto", "credit_pos"),
+                  "ppd": ("ppd_tiktok", "ppd_youtube", "ppd_instagram"),
+                  "slots": ("slots_tiktok", "slots_youtube", "slots_instagram")}
+
+    def _group_of(self, key: str) -> str:
+        return next((g for g, ks in self.OWN_GROUPS.items() if key in ks), key)
+
+    def _init_own(self):
+        """Чьи настройки: ✋ (True) — твои, 🩺 (False) — Доктора. «Клипов за час» по умолчанию твой (5)."""
+        if getattr(self, "_own_ready", False):
+            return
+        self._own_ready = True
+        from . import strategy
+        uo = strategy.get(raw=True).get("user_overrides") or {}
+        default_own = set(uo.get("default_user_controlled") or ["top"])
+        legacy_manual = self.cfg.get("doctor_settings") is False  # раньше сняли общую галочку — всё было твоим
+        first = "own_top" not in self.cfg
+        for g in self.OWN_GROUPS:
+            val = self.cfg.get(f"own_{g}")
+            if val is None:
+                val = legacy_manual or g in default_own
+            self.v[f"own_{g}"] = tk.BooleanVar(value=bool(val))
+        if first and "top" in default_own:
+            try:
+                if int(str(self.cfg.get("top") or 0)) < 5:
+                    self.cfg["top"] = "5"
+            except ValueError:
+                self.cfg["top"] = "5"
+
+    def _own_btn(self, parent, group: str):
+        self._init_own()
+        var = self.v[f"own_{group}"]
+        b = ttk.Button(parent, width=3, command=lambda g=group: self._toggle_own(g))
+        upd = lambda *a: b.config(text="✋" if var.get() else "🩺")
+        var.trace_add("write", upd)
+        upd()
+        self._own_tips = getattr(self, "_own_tips", {})
+        b.bind("<Enter>", lambda e, g=group: self.status.config(
+            text=T("✋ — твоё значение, Доктор его не трогает") if self.v[f"own_{g}"].get()
+            else T("🩺 — выбирает Доктор; нажми, чтобы задать самому")), add="+")
+        return b
+
+    def _toggle_own(self, group: str):
+        var = self.v[f"own_{group}"]
+        var.set(not var.get())
+        self.activity.event("✋" if var.get() else "🩺", (T("{0}: теперь твоё значение — Доктор его не меняет") if var.get()
+                            else T("{0}: снова выбирает Доктор")).format(T(self.GROUP_NAMES.get(group, group))))
+        self._apply_doctor_settings()
+        self._save_settings()
+        self._write_user_overrides()
+
+    GROUP_NAMES = {"subs": "субтитры", "caption": "надпись-плашка", "facecam": "вебка сверху",
+                   "audio": "поиск по звуку и картинке", "top": "клипов за час", "length": "длина клипа",
+                   "quality": "качество", "game_view": "игра в кадре", "watermark": "водяной знак",
+                   "credit": "подпись автора", "ppd": "публикаций в день", "slots": "время публикаций"}
+
+    def _all_to_doctor(self):
+        for g in self.OWN_GROUPS:
+            self.v[f"own_{g}"].set(False)
+        self.activity.event("🩺", T("Все настройки снова выбирает Доктор"))
+        self._apply_doctor_settings()
+        self._save_settings()
+        self._write_user_overrides()
+
     def _apply_doctor_settings(self):
         from . import strategy
-        if not self.v["doctor_settings"].get():
-            return
-        cs = strategy.get().get("clip_settings") or {}
-        if not isinstance(cs, dict) or not (cs.get("defaults") or cs.get("per_streamer")):
-            self.doc_hint.config(text=T("🩺 Доктор ещё не прислал настройки — пока работают твои."))
-            self._doc_reason = {}
-            self._doc_lock(set())
-            return
-        vals = self._doctor_to_gui(cs.get("defaults") or {})
-        if "manual_settings" not in self.cfg:  # твои ручные настройки — вернутся, если снимешь галочку
-            self.cfg["manual_settings"] = {k: self.v[k].get() for k in self.DOC_KEYS}
+        raw = strategy.get(raw=True)
+        cs = raw.get("clip_settings") or {}
+        vals_all = self._doctor_to_gui(cs.get("defaults") or {}) if isinstance(cs, dict) else {}
+        ap = raw.get("autopilot") or {}
+        for pl in ("tiktok", "youtube", "instagram"):  # публикации — тоже из стратегии
+            n = (ap.get("posts_per_day") or {}).get(pl)
+            if isinstance(n, int):
+                vals_all[f"ppd_{pl}"] = str(n)
+            sl = (ap.get("target_slots_et") or {}).get(pl)
+            if isinstance(sl, list):
+                vals_all[f"slots_{pl}"] = ", ".join(sl)
+        own = {g for g in self.OWN_GROUPS if self.v[f"own_{g}"].get()}
+        vals = {k: v for k, v in vals_all.items() if self._group_of(k) not in own and k in self.v}
         changes = []
         for k, v in vals.items():
             if self.v[k].get() != v:
                 changes.append(k)
                 self.v[k].set(v)
-        ps = cs.get("per_streamer") if isinstance(cs.get("per_streamer"), dict) else {}
-        fb = cs.get("no_facecam_fallback")
+        ps = cs.get("per_streamer") if isinstance(cs, dict) and isinstance(cs.get("per_streamer"), dict) else {}
+        fb = cs.get("no_facecam_fallback") if isinstance(cs, dict) else None
         fb = fb if isinstance(fb, dict) else ({"game_view": fb} if fb in GAME_VIEW.values() else {})
-        extra = {"per_streamer": {str(n): o for n, o in ps.items() if isinstance(o, dict)},
-                 "no_facecam_fallback": fb}
+        # своё значение главнее: из «своих настроек для стримера» убираем то, что ты задал сам
+        own_doc_keys = {dk for dk, gks in self.DOC_MAP.items() if any(self._group_of(g) in own for g in gks)}
+        ps = {str(n): {k: v for k, v in o.items() if k not in own_doc_keys} for n, o in ps.items() if isinstance(o, dict)}
+        ps = {n: o for n, o in ps.items() if o}
+        fb = {k: v for k, v in fb.items() if k not in own_doc_keys}
+        extra = {"per_streamer": ps, "no_facecam_fallback": fb}
         extra_changed = extra != self._doc_extra
         self._doc_extra = extra
-        reasons = self._doctor_reasons(cs, vals)
+        reasons = self._doctor_reasons(cs if isinstance(cs, dict) else {}, vals)
         self._doc_reason = {k: T("выбирает Доктор: {0}").format(r) if r else T("выбирает Доктор")
                             for k, r in reasons.items() if k in vals}
         self._doc_lock(set(vals))
-        hint = T("🩺 Выбирает Доктор — поля заблокированы (наведи мышь — причина).")
-        if extra["per_streamer"]:
-            hint += "\n" + T("Свои настройки для: {0}").format(", ".join(extra["per_streamer"]))
+        if not vals_all:
+            hint = T("🩺 Доктор ещё не прислал настройки — пока работают твои.")
+        else:
+            hint = T("Заблокированные поля выбирает Доктор (наведи мышь — почему). Нажми 🩺 рядом с полем, чтобы задать самому.")
+            if ps:
+                hint += "\n" + T("Свои настройки для: {0}").format(", ".join(ps))
         self.doc_hint.config(text=hint)
         if changes or (extra_changed and getattr(self, "_doc_announced", False)):
-            parts = [f"{T(self.DOC_NAMES[k])}: {self._fmt_doc_value(self.v[k].get())}" for k in changes
+            names = dict(self.DOC_NAMES, ppd_tiktok="TikTok в день", ppd_youtube="YouTube в день",
+                         ppd_instagram="Instagram в день", slots_tiktok="время TikTok", slots_youtube="время YouTube",
+                         slots_instagram="время Instagram")
+            parts = [f"{T(names.get(k, k))}: {self._fmt_doc_value(self.v[k].get())}" for k in changes
                      if k != "wm_on" or "wm_text" not in changes]
-            if extra_changed and extra["per_streamer"]:
-                parts.append(T("для {0} — свои").format(", ".join(extra["per_streamer"])))
+            if extra_changed and ps:
+                parts.append(T("для {0} — свои").format(", ".join(ps)))
             why = "; ".join(dict.fromkeys(reasons.get(k, "") for k in changes if reasons.get(k)))
-            self.activity.event("🩺", T("Доктор поменял настройки клипов: {0}").format(", ".join(parts) or "—")
-                                + (f" — {why}" if why else ""))
+            if getattr(self, "_doc_announced", False) or changes:
+                self.activity.event("🩺", T("Доктор поменял настройки: {0}").format(", ".join(parts) or "—")
+                                    + (f" — {why}" if why else ""))
         self._doc_announced = True
         if changes or extra_changed:
             self._save_settings()
             self._on_live_setting(quick=True)
 
-    def _doctor_toggled(self):
-        if self.v["doctor_settings"].get():
-            self.activity.event("🩺", T("Настройки клипов доверены Доктору — он выбирает их по трендам и аналитике"))
-            self._apply_doctor_settings()
-            self._save_settings()
-            return
-        manual = self.cfg.pop("manual_settings", None) or {}
-        for k, v in manual.items():
-            if k in self.v:
+    def _write_user_overrides(self):
+        """Твои «Публикаций в день» и «Время публикаций» — в user_overrides.json (главнее стратегии «Доктора»)."""
+        from . import strategy
+        over: dict = {"autopilot": {}}
+        if self.v["own_ppd"].get():
+            ppd = {}
+            for pl in ("tiktok", "youtube", "instagram"):
                 try:
-                    self.v[k].set(v)
-                except Exception:
+                    ppd[pl] = max(0, min(24, int(self.v[f"ppd_{pl}"].get())))
+                except ValueError:
                     pass
-        self._doc_extra = {}
-        self._doc_reason = {}
-        self._doc_lock(set())
-        self.doc_hint.config(text="")
-        self.activity.event("🩺", T("Настройки клипов снова твои — вернул те, что были до Доктора"))
-        self._save_settings()
-        self._on_live_setting(quick=True)
+            over["autopilot"]["posts_per_day"] = ppd
+        if self.v["own_slots"].get():
+            slots = {}
+            for pl in ("tiktok", "youtube", "instagram"):
+                items = [x.strip() for x in self.v[f"slots_{pl}"].get().replace(";", ",").split(",") if x.strip()]
+                ok = []
+                for x in items:
+                    try:
+                        h, m = x.split(":")
+                        ok.append(f"{int(h) % 24:02d}:{int(m) % 60:02d}")
+                    except ValueError:
+                        pass
+                if ok:
+                    slots[pl] = sorted(set(ok))
+            over["autopilot"]["target_slots_et"] = slots
+        if not over["autopilot"]:
+            over = {}
+        strategy.save_user_overrides(over)
+
+    def _build_post_settings(self, parent):
+        box = ttk.LabelFrame(parent, text=T(" 🗓 Публикации: сколько в день и во сколько (время США, ET) "), padding=6)
+        box.pack(fill="x", pady=(0, 6))
+        top_row = ttk.Frame(box)
+        top_row.pack(fill="x")
+        ttk.Label(top_row, text=T("Публикаций в день:")).pack(side="left")
+        self._own_btn(top_row, "ppd").pack(side="left", padx=4)
+        ttk.Label(top_row, text=T("   Время публикаций (ET, через запятую):")).pack(side="left")
+        self._own_btn(top_row, "slots").pack(side="left", padx=4)
+        for pl, name in (("tiktok", "TikTok"), ("youtube", "YouTube"), ("instagram", "Instagram")):
+            row = ttk.Frame(box)
+            row.pack(fill="x", pady=1)
+            ttk.Label(row, text=name, width=10).pack(side="left")
+            self.v[f"ppd_{pl}"] = tk.StringVar(value=str(self.cfg.get(f"ppd_{pl}", "")))
+            w = ttk.Spinbox(row, from_=0, to=24, width=4, textvariable=self.v[f"ppd_{pl}"])
+            w.pack(side="left")
+            self._doc_reg(f"ppd_{pl}", w)
+            self.v[f"slots_{pl}"] = tk.StringVar(value=str(self.cfg.get(f"slots_{pl}", "")))
+            w = ttk.Entry(row, textvariable=self.v[f"slots_{pl}"], width=52)
+            w.pack(side="left", padx=(12, 0))
+            self._doc_reg(f"slots_{pl}", w)
+            for k in (f"ppd_{pl}", f"slots_{pl}"):
+                self.v[k].trace_add("write", lambda *a: self._on_post_setting())
+        ttk.Label(box, text=T("По Москве это время само сдвигается, когда в США переводят часы. Пачки видео в Telegram "
+                              "приходят днём, у каждого — на какое время его запланировать."),
+                  foreground=self.muted, wraplength=900, justify="left").pack(anchor="w", pady=(4, 0))
+
+    def _on_post_setting(self):
+        if getattr(self, "_post_job", None):
+            self.root.after_cancel(self._post_job)
+        self._post_job = self.root.after(1500, self._post_setting_apply)
+
+    def _post_setting_apply(self):
+        self._post_job = None
+        if self.v["own_ppd"].get() or self.v["own_slots"].get():
+            self._write_user_overrides()
+            self._save_settings()
 
     # ---------- автопилот ----------
     AUTOPILOT_EVERY = 5 * 60 * 1000

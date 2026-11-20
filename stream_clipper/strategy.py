@@ -68,13 +68,47 @@ def _merge(base: dict, extra: dict) -> dict:
     return out
 
 
-def get() -> dict:
-    """Текущая стратегия (последняя скачанная поверх значений по умолчанию)."""
+def _overrides_path() -> str:
+    return os.path.join(paths.default_work_dir(), "user_overrides.json")
+
+
+def user_overrides() -> dict:
+    """Что пользователь задал сам (✋) — главнее стратегии «Доктора»."""
+    try:
+        with open(_overrides_path(), encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_user_overrides(data: dict) -> None:
+    os.makedirs(os.path.dirname(_overrides_path()), exist_ok=True)
+    tmp = _overrides_path() + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data or {}, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, _overrides_path())
+
+
+def _replace_merge(base: dict, extra: dict) -> dict:
+    """Как _merge, но словари площадок (posts_per_day, target_slots_et) заменяются по ключам площадок."""
+    out = dict(base)
+    for k, v in (extra or {}).items():
+        out[k] = _replace_merge(base.get(k) or {}, v) if isinstance(v, dict) and isinstance(base.get(k), dict) else v
+    return out
+
+
+def get(raw: bool = False) -> dict:
+    """Текущая стратегия (последняя скачанная поверх значений по умолчанию) + твои ручные значения (✋).
+    raw=True — только «Доктор», без ручных значений (чтобы показать в окне, что он выбрал)."""
     try:
         with open(os.path.join(_dir(), "strategy.json"), encoding="utf-8") as f:
-            return _merge(DEFAULT, json.load(f))
+            s = _merge(DEFAULT, json.load(f))
     except Exception:
-        return json.loads(json.dumps(DEFAULT))
+        s = json.loads(json.dumps(DEFAULT))
+    if not raw:
+        s = _replace_merge(s, user_overrides())
+    return s
 
 
 def edit_style() -> str:

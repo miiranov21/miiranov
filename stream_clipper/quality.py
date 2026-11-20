@@ -305,7 +305,12 @@ def deep_metrics(path: str) -> dict:
 def sleep_score(m: dict, voice: float, voice_by_words: bool, title: str = "", chat_hits: int = 0) -> tuple[int, list]:
     """Сколько признаков сна набралось и какие. Отказ — от 3 (или чат явно про сон)."""
     why = []
-    if m.get("changed", 1) < float((rules().get("thresholds") or {}).get("deep_changed_max", 0.015)):
+    thr = float((rules().get("thresholds") or {}).get("deep_changed_max", 0.015))
+    if m.get("changed", 1) >= thr * 2:
+        # в кадре идёт игра (картинка заметно меняется) — стример не спит; ночная сцена, маленькая вебка
+        # или «24 hour» в названии сами по себе ничего не значат. Сон тут выдаёт только чат.
+        return (1, ["чат пишет про сон"]) if chat_hits else (0, [])
+    if m.get("changed", 1) < thr:
         why.append("картинка почти не меняется")
     if m.get("dark", 255) < float((rules().get("thresholds") or {}).get("deep_dark_max", 55)):
         why.append("в кадре темно")

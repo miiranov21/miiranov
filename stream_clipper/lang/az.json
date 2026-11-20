@@ -916,5 +916,15 @@
 "Не понял время. Напиши, например, 12:30.": "Vaxtı başa düşmədim. Məsələn, 12:30 yaz.",
 "Стрим «{0}»: теперь разобран до {1} — дальше разберётся заново.": "«{0}» strimi: indi {1}-a qədər baxılıb — sonrasına yenidən baxılacaq.",
 "📋 План — в Telegram": "📋 Plan — Telegram-a",
-"план отправлен в Telegram": "plan Telegram-a göndərildi"
+"план отправлен в Telegram": "plan Telegram-a göndərildi",
+"⚡ Заполнить план сейчас": "⚡ Planı indi doldur",
+"Не удалось разобрать, почему план пуст: {0}": "Planın niyə boş olduğunu müəyyən etmək alınmadı: {0}",
+"Почему в плане мало: клипов в папке — {0}; уже выложено — {1}; стримеры не на языке канала — {2}; ждут отбора автопилотом — {3}; оценка ниже порога ({4:.0f}) — {5}; отклонены — {6}.": "Planda niyə az var: qovluqda klip — {0}; artıq paylaşılıb — {1}; strimer kanalın dilində deyil — {2}; avtopilotun seçimini gözləyir — {3}; qiymət həddən aşağı ({4:.0f}) — {5}; rədd edilib — {6}.",
+"В архиве: ": "Arxivdə: ",
+"⚠ Автопилот выключен (вкладка «Управление») — без него план не заполняется.": "⚠ Avtopilot sönülüdür («İdarəetmə» bölməsi) — onsuz plan dolmur.",
+"⚠ План ведёт компьютер друга (общая папка) — здесь он не заполняется.": "⚠ Planı dostun kompüteri aparır (ümumi qovluq) — burada dolmur.",
+"Нажми «⚡ Заполнить план сейчас» — автопилот сразу отберёт и смонтирует клипы.": "«⚡ Planı indi doldur» düyməsini bas — avtopilot klipləri dərhal seçib montaj edəcək.",
+"Все свободные клипы ниже порога оценки — «⚡ Заполнить план сейчас» возьмёт лучшие из них.": "Bütün boş kliplər qiymət həddindən aşağıdır — «⚡ Planı indi doldur» onlardan ən yaxşılarını götürəcək.",
+"автопилот уже работает — подожди": "avtopilot artıq işləyir — gözlə",
+"заполняю план: отбираю и монтирую клипы...": "planı doldururam: klipləri seçir və montaj edirəm..."
 }

@@ -1906,6 +1906,7 @@ class App:
         ttk.Button(btns, text=T("✕ Убрать из плана"), command=lambda: self._plan_action("remove")).pack(side="left", padx=6)
         ttk.Button(btns, text=T("▶ Открыть клип"), command=lambda: self._plan_action("open")).pack(side="left")
         ttk.Button(btns, text=T("⟳ Пересобрать план"), command=lambda: self._plan_action("rebuild")).pack(side="right")
+        ttk.Button(btns, text=T("⚡ Заполнить план сейчас"), command=self._fill_plan).pack(side="right", padx=6)
         ttk.Button(btns, text=T("📤 Всё на 2 дня — в Telegram"), command=self._send_ahead).pack(side="right", padx=6)
         ttk.Button(btns, text=T("📋 План — в Telegram"), command=self._plan_to_tg).pack(side="right")
         self.plan_status = ttk.Label(btns, text="", foreground=self.muted)
@@ -1918,6 +1919,8 @@ class App:
             tree.column(c, width=w, stretch=c == "clip", anchor="w")
         tree.pack(fill="both", expand=True)
         self.plan_tree = tree
+        self.plan_why = ttk.Label(parent, text="", foreground=self.muted, wraplength=1100, justify="left")
+        self.plan_why.pack(anchor="w", pady=(6, 0))
         self.plan_rows: dict = {}
 
     def refresh_plan(self):
@@ -1945,6 +1948,74 @@ class App:
                                                  f"{os.path.basename(r['path'])[:-4]} — {r.get('title') or ''}", state))
             self.plan_rows[iid] = r
         self.plan_status.config(text=T("в плане: {0}").format(len(rows)))
+        self.plan_why.config(text="")
+        if len(rows) < 3:  # план пустой или почти — объясняем почему
+            threading.Thread(target=self._plan_explain, daemon=True).start()
+
+    def _plan_explain(self):
+        from . import autopilot
+        try:
+            d = autopilot.plan_diagnosis()
+        except Exception as e:
+            self.root.after(0, lambda: self.plan_why.config(text=T("Не удалось разобрать, почему план пуст: {0}").format(e)))
+            return
+        lines = [T("Почему в плане мало: клипов в папке — {0}; уже выложено — {1}; стримеры не на языке канала — {2}; "
+                   "ждут отбора автопилотом — {3}; оценка ниже порога ({4:.0f}) — {5}; отклонены — {6}.").format(
+            d["clips"], d["posted"], d["foreign"], d["waiting_review"], d["min_score"], d["low_score"], d["rejected"])]
+        if d["archive_reasons"]:
+            lines.append(T("В архиве: ") + "; ".join(f"{tr_line(r)} — {n}" for r, n in d["archive_reasons"]))
+        if not self.v["autopilot"].get():
+            lines.append(T("⚠ Автопилот выключен (вкладка «Управление») — без него план не заполняется."))
+        elif paths.team_dir() and not self.v["team_main"].get():
+            lines.append(T("⚠ План ведёт компьютер друга (общая папка) — здесь он не заполняется."))
+        if d["waiting_review"]:
+            lines.append(T("Нажми «⚡ Заполнить план сейчас» — автопилот сразу отберёт и смонтирует клипы."))
+        elif d["low_score"] and not d["waiting_review"]:
+            lines.append(T("Все свободные клипы ниже порога оценки — «⚡ Заполнить план сейчас» возьмёт лучшие из них."))
+        self.root.after(0, lambda: self.plan_why.config(text="\n".join(lines)))
+
+    def _fill_plan(self):
+        from . import autopilot, strategy
+        from .caption import _api_key
+        if getattr(self, "_autopilot_busy", False):
+            self.plan_status.config(text=T("автопилот уже работает — подожди"))
+            return
+        self._autopilot_busy = True
+        self.plan_status.config(text=T("заполняю план: отбираю и монтирую клипы..."))
+
+        def say(msg):
+            self.root.after(0, lambda: self.plan_status.config(text=tr_line(msg)[:120]))
+
+        def event(icon, text, path=None, kind="info"):
+            self.root.after(0, lambda: self.activity.event(icon, tr_line(text), path, kind))
+
+        def work():
+            try:
+                st = autopilot.fill_plan(say, event, _api_key())
+                if not autopilot.plan_rows():  # всё ниже порога — берём лучшие из того, что есть
+                    s = strategy.get()
+                    ap = s.setdefault("autopilot", {})
+                    old = ap.get("min_score_to_post", 55)
+                    over = strategy.user_overrides()
+                    over.setdefault("autopilot", {})["min_score_to_post"] = max(30, float(old) - 20)
+                    strategy.save_user_overrides(over)
+                    try:
+                        st = autopilot.fill_plan(say, event, _api_key())
+                    finally:
+                        over = strategy.user_overrides()
+                        (over.get("autopilot") or {}).pop("min_score_to_post", None)
+                        strategy.save_user_overrides(over)
+                err = None
+            except Exception as e:
+                st, err = {}, e
+            self.root.after(0, lambda: done(st, err))
+
+        def done(st, err):
+            self._autopilot_busy = False
+            if err:
+                self.plan_status.config(text=T("не получилось: {0}").format(err))
+            self.refresh_plan()
+        threading.Thread(target=work, daemon=True).start()
 
     def _plan_to_tg(self):
         from . import tg_assist
@@ -4113,7 +4184,9 @@ class App:
         def work():
             from . import autopilot
             try:
-                stats = autopilot.run_step(_api_key(), paused, say, event)
+                # план пустой — сразу набираем побольше (до 30 клипов), иначе обычным темпом
+                budget = 30 if not autopilot.plan_rows() else autopilot.MAX_REVIEWS_PER_RUN
+                stats = autopilot.run_step(_api_key(), paused, say, event, budget=budget)
                 err = None
             except Exception as e:
                 stats, err = {}, e

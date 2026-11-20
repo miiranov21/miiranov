@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from . import archive, exchange, library, paths, strategy
 
 PLATFORMS = ("tiktok", "youtube", "instagram")
-MAX_REVIEWS_PER_RUN = 2
+MAX_REVIEWS_PER_RUN = 6
 FLAGS = 0x08000000 if os.name == "nt" else 0
 
 
@@ -558,6 +558,55 @@ def rebuild_schedule(now: datetime | None = None, event=None) -> dict:
         event("🗓", f"План: снял с публикации {len(removed)} (" +
               ", ".join(sorted({w for _, _, w in removed})) + "), слоты отданы следующим", None, "info")
     return {"removed": len(removed), "moved": moved}
+
+
+def plan_diagnosis() -> dict:
+    """Почему в плане столько, сколько есть: что с клипами (для окна, когда план пуст)."""
+    strat = strategy.get()
+    ap = strat.get("autopilot") or {}
+    st = load_state()
+    dates = library.list_dates()
+    clips = [c for d in dates for c in library.list_clips(d)]
+    pool = [c for d in dates for c in library.list_clips(d, include_missing=True)]
+    scores = library.frozen_ratings(pool) if pool else {}
+    from . import policy
+    pres = policy.load_results()
+    minimum = float(ap.get("min_score_to_post", 55))
+    out = {"clips": len(clips), "posted": 0, "planned": len(plan_rows()), "foreign": 0, "low_score": 0,
+           "waiting_review": 0, "rejected": 0, "min_score": minimum, "stages": {}, "archived_recent": []}
+    for c in clips:
+        rec = st.get("clips", {}).get(c["path"])
+        if any((c.get("posted") or {}).values()):
+            out["posted"] += 1
+            continue
+        if not _channel_lang_ok(c):
+            out["foreign"] += 1
+            continue
+        if rec:
+            stage = rec.get("stage") or "?"
+            out["stages"][stage] = out["stages"].get(stage, 0) + 1
+            if stage in ("rejected", "rejected_by_user"):
+                out["rejected"] += 1
+            continue
+        c["score10"] = scores.get(c["path"], 5)
+        c["policy"] = pres.get(os.path.normpath(c["path"])) or {}
+        if score(c, strat) < minimum:
+            out["low_score"] += 1
+        else:
+            out["waiting_review"] += 1
+    reasons: dict = {}
+    for a in archive.load():
+        if a.get("restored"):
+            continue
+        r = str(a.get("reason") or "?").split(":")[0][:60]
+        reasons[r] = reasons.get(r, 0) + 1
+    out["archive_reasons"] = sorted(reasons.items(), key=lambda kv: -kv[1])[:6]
+    return out
+
+
+def fill_plan(say, event, key=None, budget: int = 30) -> dict:
+    """«⚡ Заполнить план»: сразу отобрать и смонтировать до budget клипов (а не по 6 за 5 минут)."""
+    return run_step(key, False, say, event, budget=budget)
 
 
 def plan_rows() -> list[dict]:

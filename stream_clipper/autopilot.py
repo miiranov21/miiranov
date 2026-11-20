@@ -93,6 +93,41 @@ def score(c: dict, strat: dict) -> float:
     return max(0.0, min(100.0, s))
 
 
+def already_posted(c: dict, clips: list[dict]) -> bool:
+    """Уже выложено: отметка «выложено», запись о публикации или тот же момент стрима уже выложен другим клипом
+    (например, его нарезал друг или клип перерезали)."""
+    if any((c.get("posted") or {}).values()):
+        return True
+    pub = _published_cache()
+    if os.path.normpath(c["path"]) in pub:
+        return True
+    m = float(c.get("moment", c.get("start", 0)) or 0)
+    key = c.get("vod_url") or ""
+    if not key:
+        return False
+    for o in clips:
+        if o is c or (o.get("vod_url") or "") != key:
+            continue
+        if (any((o.get("posted") or {}).values()) or os.path.normpath(o["path"]) in pub) \
+                and abs(float(o.get("moment", o.get("start", 0)) or 0) - m) < 25:
+            return True
+    return False
+
+
+_PUB = {"t": 0.0, "data": set()}
+
+
+def _published_cache() -> set:
+    if time.time() - _PUB["t"] > 30:
+        try:
+            _PUB["data"] = {os.path.normpath(k) for k, v in library.load_published().items()
+                            if any(pl in v for pl in ("tiktok", "youtube", "instagram"))}
+        except Exception:
+            _PUB["data"] = set()
+        _PUB["t"] = time.time()
+    return _PUB["data"]
+
+
 def duplicates(clips: list[dict]) -> dict:
     """Один и тот же момент стрима (тот же vod_url, момент ближе 25 с): {проигравший путь: путь победителя}."""
     out = {}
@@ -439,6 +474,20 @@ def _alive(path: str, pl: str, live: dict, archived: set, posted: dict) -> str |
     return None
 
 
+def _moment_posted(path: str, pl: str, live: dict, posted: dict) -> str | None:
+    """Тот же момент стрима уже выложен на этой площадке другим клипом (друг нарезал, перерезали) — второй не нужен."""
+    c = live.get(os.path.normpath(path)) or {}
+    key = c.get("vod_url") or ""
+    if not key:
+        return None
+    m = float(c.get("moment", c.get("start", 0)) or 0)
+    for p, o in live.items():
+        if p != os.path.normpath(path) and (o.get("vod_url") or "") == key and (posted.get(p) or {}).get(pl) \
+                and abs(float(o.get("moment", o.get("start", 0)) or 0) - m) < 25:
+            return "этот момент уже выложен"
+    return None
+
+
 def rebuild_schedule(now: datetime | None = None, event=None) -> dict:
     """Пересобрать расписание целиком: живые клипы (есть в папке, не в корзине и не в архиве, не выложены на этой
     площадке) — по слотам «Доктора» с ближайшего; свежие (до 24 ч) первыми, потом по оценке; старше 3 дней —
@@ -470,7 +519,7 @@ def rebuild_schedule(now: datetime | None = None, event=None) -> dict:
                 continue
             if status != "waiting":
                 continue
-            why = _alive(path, pl, live, archived, posted)
+            why = _alive(path, pl, live, archived, posted) or _moment_posted(path, pl, live, posted)
             if why:
                 q["status"] = "removed"
                 q["why"] = why
@@ -576,7 +625,7 @@ def plan_diagnosis() -> dict:
            "waiting_review": 0, "rejected": 0, "min_score": minimum, "stages": {}, "archived_recent": []}
     for c in clips:
         rec = st.get("clips", {}).get(c["path"])
-        if any((c.get("posted") or {}).values()):
+        if already_posted(c, clips):
             out["posted"] += 1
             continue
         if not _channel_lang_ok(c):
@@ -699,7 +748,7 @@ def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEW
     clips = [c for c in clips if os.path.exists(c["path"])]
 
     # 2) отбор
-    fresh = [c for c in clips if c["path"] not in st["clips"] and not any(c["posted"].values())]
+    fresh = [c for c in clips if c["path"] not in st["clips"] and not already_posted(c, clips)]
     up_upload = os.path.normpath(library.upload_dir())
     fresh = [c for c in fresh if not os.path.normpath(c["path"]).startswith(up_upload)]
     # канал под один язык: клипы стримеров на другом языке в план не ставим (и не архивируем — пригодятся другому каналу)

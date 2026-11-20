@@ -1907,7 +1907,7 @@ class App:
         ttk.Button(btns, text=T("▶ Открыть клип"), command=lambda: self._plan_action("open")).pack(side="left")
         ttk.Button(btns, text=T("⟳ Пересобрать план"), command=lambda: self._plan_action("rebuild")).pack(side="right")
         ttk.Button(btns, text=T("⚡ Заполнить план сейчас"), command=self._fill_plan).pack(side="right", padx=6)
-        ttk.Button(btns, text=T("📤 Всё на 2 дня — в Telegram"), command=self._send_ahead).pack(side="right", padx=6)
+        ttk.Button(btns, text=T("📤 Видео на сегодня — в Telegram"), command=self._send_ahead).pack(side="right", padx=6)
         ttk.Button(btns, text=T("📋 План — в Telegram"), command=self._plan_to_tg).pack(side="right")
         self.plan_status = ttk.Label(btns, text="", foreground=self.muted)
         self.plan_status.pack(side="right", padx=8)
@@ -2019,14 +2019,14 @@ class App:
 
     def _plan_to_tg(self):
         from . import tg_assist
-        threading.Thread(target=lambda: (tg_assist.send_plan(None, 48),
+        threading.Thread(target=lambda: (tg_assist.send_plan(None, 24),
                                          self.root.after(0, lambda: self.plan_status.config(text=T("план отправлен в Telegram")))),
                          daemon=True).start()
 
     def _send_ahead(self, then=None):
         """Все видео из плана на 2 дня — в Telegram сейчас (перед выключением компьютера)."""
         from . import tg_assist
-        self.status.config(text=T("Отправляю в Telegram видео на 2 дня вперёд... не закрывай программу"))
+        self.status.config(text=T("Отправляю в Telegram видео на сегодня... не закрывай программу"))
 
         def event(icon, text, path=None, kind="info"):
             self.root.after(0, lambda: self.activity.event(icon, tr_line(text), path, kind))
@@ -4987,7 +4987,7 @@ class App:
             ahead = [r for r in autopilot.plan_rows() if not r.get("sent")]
             if messagebox.askyesno(T("Выход"), T(
                     "Ещё не отправлено видео из плана: {0}. Пока компьютер выключен, бот их не пришлёт.\n\n"
-                    "Отправить в Telegram (тебе и другу) план и все видео на ближайшие 2 дня? Запланируете их в "
+                    "Отправить в Telegram (тебе и другу) план и видео на сегодня (ближайшие сутки)? Запланируете их в "
                     "приложениях на указанное время — и всё выйдет без компьютера.").format(len(ahead))):
                 self._send_ahead(then=self.on_close)
                 return

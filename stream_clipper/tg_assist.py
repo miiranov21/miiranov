@@ -28,8 +28,8 @@ REMIND_AFTER = 30 * 60
 FLAGS = 0x08000000 if os.name == "nt" else 0
 HINT_SCHEDULE = (
     "📌 Как планировать публикации (аудитория — США, поэтому время ночное по Москве — вставать не нужно).\n"
-    "Бот присылает пачку видео в 12:00 и 18:00 МСК. У каждого видео написано, на какое время его запланировать.\n\n"
-    "1) Сохрани видео (нажми на него → «Сохранить» / «⋯ → Сохранить в галерею»).\n"
+    "Бот присылает видео на сегодня днём, файлами. У каждого написано, на какое время его запланировать.\n\n"
+    "1) Сохрани файл видео в галерею: нажми на файл → «⋯» → «Сохранить в галерею» (файл — без потери качества).\n"
     "2) Скопируй текст (нажми на блок с текстом — он скопируется).\n"
     "3) Запланируй в приложении:\n"
     "• TikTok: «+» → загрузи видео → «Далее» → вставь текст → «Ещё параметры» → «Запланировать публикацию» → "
@@ -257,7 +257,7 @@ def recipients(c: dict) -> list[dict]:
 def _send(c: dict, jid: str, job: dict, channel: str) -> None:
     """Видео и текст с кнопками — каждому получателю (видео загружается один раз, остальным уходит по file_id)."""
     target = _target(c)
-    hint_v = "schedule" if job.get("schedule") else True
+    hint_v = "schedule2" if job.get("schedule") else True
     if c.get("assist_hint") != hint_v:
         for r in recipients(c):
             try:
@@ -278,16 +278,18 @@ def _send(c: dict, jid: str, job: dict, channel: str) -> None:
     try:
         for r in recipients(c):
             extra = target if r.get("main") else {}
-            data = {"chat_id": r["id"], "supports_streaming": "true",
+            # ФАЙЛОМ, а не «видео»: Telegram не пережимает файл — на телефон скачивается исходное качество
+            data = {"chat_id": r["id"], "disable_content_type_detection": "true",
                     "caption": f"{NAMES[job['platform']]} · {channel}", **extra}
+            safe = "".join(ch if ch.isascii() and (ch.isalnum() or ch in "-_") else "_" for ch in channel) or "clip"
             try:
                 if file_id:
-                    v = telegram._call(c["token"], "sendVideo", timeout=120, data=dict(data, video=file_id))
+                    v = telegram._call(c["token"], "sendDocument", timeout=120, data=dict(data, document=file_id))
                 else:
                     with open(video, "rb") as f:
-                        v = telegram._call(c["token"], "sendVideo", timeout=900, data=data,
-                                           files={"video": (f"{job['platform']}_{jid}.mp4", f, "video/mp4")})
-                    file_id = ((v.get("video") or {}).get("file_id")) or None
+                        v = telegram._call(c["token"], "sendDocument", timeout=900, data=data,
+                                           files={"document": (f"{job['platform']}_{safe}_{jid}.mp4", f, "video/mp4")})
+                    file_id = ((v.get("document") or v.get("video") or {}).get("file_id")) or None
                 m = telegram._call(c["token"], "sendMessage", data={"chat_id": r["id"], "text": _text(job, channel),
                                                                     "parse_mode": "HTML", "reply_markup": _buttons(job, jid),
                                                                     "reply_to_message_id": v["message_id"], **extra})
@@ -456,6 +458,12 @@ def tick(paused: bool, event) -> dict:
         event("❌", f"Telegram: не смог прочитать нажатия кнопок — {e}", None, "error")
     sync_jobs(st)
     now = datetime.now()
+    if st.get("cleanup_v") != CLEANUP_V:
+        try:
+            cleanup_future(c, st, event)
+        except Exception:
+            pass
+        st["cleanup_v"] = CLEANUP_V
     if schedule_mode():
         if not paused:
             _deliver_batch(st, c, event, stats, now)
@@ -527,7 +535,9 @@ def _deliver_batch(st: dict, c: dict, event, stats: dict, now: datetime) -> None
         if job["status"] == "pending" and job.get("when") and job["when"] <= now_s:
             job["when"] = _next_when(st, job["platform"])
             _sync_autopilot(job, "waiting", job["when"])
-    todo = sorted(((jid, j) for jid, j in st["jobs"].items() if j["status"] == "pending" and j.get("when")),
+    horizon = (now + timedelta(hours=24)).isoformat(timespec="minutes")  # только на сутки вперёд, не на неделю
+    todo = sorted(((jid, j) for jid, j in st["jobs"].items()
+                   if j["status"] == "pending" and j.get("when") and j["when"] <= horizon),
                   key=lambda kv: kv[1]["when"])
     extra = st.get("last_delivery") == stamp
     rep = {pl: n for pl, n in (st.get("replace") or {}).items() if n > 0}
@@ -654,7 +664,7 @@ def send_plan(event=None, hours: float = 24) -> None:
             pass
 
 
-def send_ahead(event, hours: float = 48) -> dict:
+def send_ahead(event, hours: float = 24) -> dict:
     """Компьютер выключают: прислать в Telegram (тебе и другу) ВСЕ видео из плана на ближайшие hours часов —
     каждое со временем «Запланировать на …». Их ставят на отложенную публикацию в приложениях, и дальше
     компьютер не нужен."""
@@ -729,6 +739,32 @@ def _send_list(st: dict, c: dict, event, stats: dict, items: list, header: str) 
                   job["path"], "info")
         except Exception as e:
             event("❌", f"Telegram: не отправилось ({NAMES[job['platform']]}) — {e}"[:220], None, "error")
+
+
+CLEANUP_V = 1
+
+
+def cleanup_future(c: dict, st: dict, event=None, hours: float = 24) -> int:
+    """Раньше бот слал видео на много дней вперёд. Убираем из чата те, что не на ближайшие сутки (Telegram даёт
+    боту удалять свои сообщения за последние 48 ч), — они придут файлами в свой день."""
+    limit = (datetime.now() + timedelta(hours=hours)).isoformat(timespec="minutes")
+    n = 0
+    for job in st["jobs"].values():
+        if job.get("status") != "sent" or (job.get("when") or "") <= limit:
+            continue
+        for m in job.get("msgs") or []:
+            for mid in (m.get("video"), m.get("msg")):
+                if mid:
+                    try:
+                        telegram._call(c["token"], "deleteMessage", data={"chat_id": m["chat"], "message_id": mid})
+                    except Exception:
+                        pass
+        job.update({"status": "pending", "msgs": [], "msg_id": None})
+        job.pop("file_sent", None)
+        n += 1
+    if n and event:
+        event("🧹", f"Telegram: убрал из чата {n} видео на будущие дни — придут файлами в свой день", None, "info")
+    return n
 
 
 def overview() -> list[dict]:

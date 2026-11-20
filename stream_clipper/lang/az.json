@@ -894,5 +894,17 @@
 "Вебки указаны — начинаю работу.": "Veb-kameralar göstərildi — işə başlayıram.",
 "📤 Всё на 2 дня — в Telegram": "📤 2 günlük hamısı — Telegram-a",
 "Не получилось отправить: {0}": "Göndərmək alınmadı: {0}",
-"Отправляю в Telegram видео на 2 дня вперёд... не закрывай программу": "2 gün qabağa videoları Telegram-a göndərirəm... proqramı bağlama"
+"Отправляю в Telegram видео на 2 дня вперёд... не закрывай программу": "2 gün qabağa videoları Telegram-a göndərirəm... proqramı bağlama",
+"🔴 Текущий эфир и новые стримы": "🔴 Hazırkı efir və yeni strimlər",
+"Какие стримы разбирать": "Hansı strimlərə baxmaq",
+"У каждого стримера выбери, что разбирать. «Текущий эфир» — программа ждёт эфир и режет его по ходу. Прошлый стрим — тот, что вы пропустили: он разберётся по кругу вместе с остальными. Эфиры отслеживаются в любом случае.": "Hər strimer üçün nəyə baxılacağını seç. «Hazırkı efir» — proqram efiri gözləyir və gedişatda kəsir. Keçmiş strim — buraxdığınız strim: o, digərləri ilə növbə ilə baxılacaq. Efirlər hər halda izlənir.",
+"загружаю список стримов...": "strimlərin siyahısı yüklənir...",
+"Загружаю списки прошлых стримов...": "Keçmiş strimlərin siyahıları yüklənir...",
+"✔ разобран": "✔ baxılıb",
+"разобран {0}%": "{0}% baxılıb",
+"ещё не разбирали": "hələ baxılmayıb",
+"Готово. Не разобранные отмечены «ещё не разбирали».": "Hazırdır. Baxılmayanlar «hələ baxılmayıb» kimi qeyd olunub.",
+"прошлых записей не нашлось": "keçmiş yazılar tapılmadı",
+"Прошлые стримы к разбору: {0}": "Baxılacaq keçmiş strimlər: {0}",
+"▶ Начать": "▶ Başla"
 }

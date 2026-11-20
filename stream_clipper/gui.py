@@ -1364,6 +1364,96 @@ class App:
             self._live_sent = None
         threading.Thread(target=self._reader, args=(self.proc,), daemon=True).start()
 
+    LIVE_CHOICE = "🔴 Текущий эфир и новые стримы"
+
+    def _choose_streams(self, names: list, then):
+        """Окно перед стартом: у каждого стримера — что разбирать: текущий эфир или прошлый стрим, который пропустили."""
+        from . import progress
+        win = tk.Toplevel(self.root)
+        win.title(T("Какие стримы разбирать"))
+        win.transient(self.root)
+        frm = ttk.Frame(win, padding=10)
+        frm.pack(fill="both", expand=True)
+        ttk.Label(frm, wraplength=820, justify="left", text=T(
+            "У каждого стримера выбери, что разбирать. «Текущий эфир» — программа ждёт эфир и режет его по ходу. "
+            "Прошлый стрим — тот, что вы пропустили: он разберётся по кругу вместе с остальными. "
+            "Эфиры отслеживаются в любом случае.")).pack(anchor="w", pady=(0, 8))
+        rows, choices = {}, {}
+        for spec in names:
+            kind, target, key = self._spec_kind(spec)
+            r = ttk.Frame(frm)
+            r.pack(fill="x", pady=2)
+            ttk.Label(r, text=key, width=18).pack(side="left")
+            var = tk.StringVar(value=T(self.LIVE_CHOICE))
+            cb = ttk.Combobox(r, textvariable=var, values=[T(self.LIVE_CHOICE), T("загружаю список стримов...")],
+                              width=90, state="readonly")
+            cb.pack(side="left", fill="x", expand=True)
+            rows[spec] = (var, cb, kind, target, key)
+            choices[spec] = {}
+        status = ttk.Label(frm, text=T("Загружаю списки прошлых стримов..."), foreground=self.muted)
+        status.pack(anchor="w", pady=(6, 0))
+
+        def load_all():
+            from . import twitch
+            data = progress.load()
+            for spec, (var, cb, kind, target, key) in rows.items():
+                try:
+                    vods = twitch.list_streams(kind, target, 10)
+                except Exception:
+                    vods = []
+                opts = {}
+                for v in vods:
+                    e = data.get(str(v.get("key")))
+                    sm = progress.summary(e) if e else None
+                    dur = float(v.get("duration") or 0)
+                    if sm and sm["finished"]:
+                        st_ = T("✔ разобран")
+                    elif sm and dur:
+                        st_ = T("разобран {0}%").format(int(100 * min(1.0, sm["seen"] / dur)))
+                    else:
+                        st_ = T("ещё не разбирали")
+                    when = time.strftime("%d.%m %H:%M", time.localtime(v["ts"])) if v.get("ts") else ""
+                    label = f"{when} · {(v.get('title') or '')[:55]} · {progress.fmt(dur) if dur else '?'} · {st_}"
+                    opts[label] = v
+                self.root.after(0, lambda spec=spec, opts=opts: fill(spec, opts))
+            self.root.after(0, lambda: status.config(text=T("Готово. Не разобранные отмечены «ещё не разбирали».")))
+
+        def fill(spec, opts):
+            try:
+                var, cb, *_ = rows[spec]
+                choices[spec] = opts
+                cb.configure(values=[T(self.LIVE_CHOICE)] + list(opts) if opts
+                             else [T(self.LIVE_CHOICE), T("прошлых записей не нашлось")])
+            except tk.TclError:
+                pass
+
+        def start():
+            vods = []
+            for spec, (var, cb, kind, target, key) in rows.items():
+                v = choices.get(spec, {}).get(var.get())
+                if v:
+                    vods.append({"url": v["url"], "key": str(v.get("key") or ""), "channel": key,
+                                 "title": v.get("title") or ""})
+            try:
+                path = os.path.join(paths.default_work_dir(), "extra_vods.json")
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump({"vods": vods}, f, ensure_ascii=False, indent=1)
+            except OSError as e:
+                messagebox.showwarning(T("Стримы"), str(e), parent=win)
+            if vods:
+                self._append(T("Прошлые стримы к разбору: {0}").format(
+                    ", ".join(f"{v['channel']} — {v['title'][:40]}" for v in vods)) + "\n")
+            win.destroy()
+            then()
+        bar = ttk.Frame(frm)
+        bar.pack(fill="x", pady=(10, 0))
+        ttk.Button(bar, text=T("▶ Начать"), command=start).pack(side="left")
+        ttk.Button(bar, text=T("Отмена"), command=win.destroy).pack(side="right")
+        self.streams_win = win  # для проверок
+        win.grab_set()
+        threading.Thread(target=load_all, daemon=True).start()
+
     def _lang_warning(self, names: list) -> None:
         """Канал английский, а в списке стример на другом языке (программа уже видела его чат) — предупреждаем."""
         from . import caption, strategy
@@ -1401,7 +1491,8 @@ class App:
                 todo.append((key, kind, target))
 
         def go():
-            self._run(["watch", *self._flags()], T("Слежу за: ") + ", ".join(names), job=["watch"])
+            self._choose_streams(names, lambda: self._run(["watch", *self._flags()], T("Слежу за: ") + ", ".join(names),
+                                                          job=["watch"]))
         if not todo:
             go()
             return

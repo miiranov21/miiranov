@@ -202,6 +202,45 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
             _save(state_path, state)
         _report(src, new, live)
 
+    # прошлые стримы, которые выбрали в окне перед стартом («какой стрим разбирать») — разбираются по кругу вместе с эфирами
+    extra_path = os.path.join(cfg.work_dir, "extra_vods.json")
+
+    def load_extra() -> list:
+        d = _load(extra_path)
+        return [e for e in (d.get("vods") if isinstance(d, dict) else []) or [] if e.get("url")]
+
+    def drop_extra(url: str) -> None:
+        d = _load(extra_path)
+        d["vods"] = [e for e in (d.get("vods") or []) if e.get("url") != url]
+        _save(extra_path, d)
+
+    def run_extra(item: dict) -> None:
+        url, name = item["url"], item.get("channel") or "стрим"
+        vid = str(item.get("key") or "") or twitch.vod_id(url) or url
+        done = state.get(vid, [])
+        saved = list(done)
+
+        def on_clip(d):
+            saved.append(d)
+            state[vid] = saved
+            if not cfg.dry_run:
+                _save(state_path, state)
+        progress: dict = {}
+        try:
+            log(f"[{name}] прошлый стрим: {item.get('title') or url}")
+            new = process_vod(url, cfg, done=done, live=False, log=log, on_clip=on_clip, progress=progress,
+                              slice_sec=SLICE if (len(sources) + len(load_extra())) > 1 else None)
+        except Exception as e:
+            log(f"[{name}] ошибка обработки прошлого стрима: {e}")
+            drop_extra(url)
+            return
+        state[vid] = done + new
+        if not cfg.dry_run:
+            _save(state_path, state)
+        if not progress.get("unfinished"):
+            log(f"[{name}] прошлый стрим разобран полностью")
+            drop_extra(url)
+
     def run_rec(src: Source, final: bool):
         sess = sessions.get(src.name)
         if not sess:
@@ -307,12 +346,16 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
                 was_live[src.name] = live
                 first_check[src.name] = False
             # круг по недоразобранным записям: каждому стримеру по куску, чтобы за ночь были клипы со всех
-            if pending:
-                log("По кругу: " + ", ".join(pending))
+            extras = load_extra()
+            if pending or extras:
+                log("По кругу: " + ", ".join(list(pending) + [f"{e.get('channel', '')} (прошлый стрим)" for e in extras]))
                 for src in list(sources):
                     if src.name in pending and not paths.stop_requested():
                         run_vod(src, live=pending[src.name])
-                if pending:
+                for item in extras:
+                    if not paths.stop_requested():
+                        run_extra(item)
+                if pending or load_extra():
                     continue  # ещё есть что разбирать — без паузы, но эфиры проверяем на каждом круге
             # ждём до следующей проверки, но список стримеров ловим сразу
             waited = 0

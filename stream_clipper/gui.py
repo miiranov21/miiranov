@@ -1393,7 +1393,35 @@ class App:
         if not names:
             messagebox.showwarning(T("Нет стримеров"), T("Впиши хотя бы одного стримера во вкладку Twitch или YouTube."))
             return
-        self._run(["watch", *self._flags()], T("Слежу за: ") + ", ".join(names), job=["watch"])
+        from . import facecam
+        todo = []
+        for spec in names:  # перед стартом — указать вебку тем, у кого она ещё не задана
+            kind, target, key = self._spec_kind(spec)
+            if not facecam.get_entry(key).get("manual"):
+                todo.append((key, kind, target))
+
+        def go():
+            self._run(["watch", *self._flags()], T("Слежу за: ") + ", ".join(names), job=["watch"])
+        if not todo:
+            go()
+            return
+        if not messagebox.askyesno(T("Вебка стримеров"), T(
+                "Перед стартом укажем, где у стримеров вебка: {0}.\n\nПрограмма возьмёт кадр со стрима — обведи на нём "
+                "вебку мышкой. Если на кадре её не видно — «Другой кадр», если вебки нет совсем — «Нет веб-камеры».\n\n"
+                "Указать сейчас? («Нет» — начать сразу, вебка будет искаться сама)").format(
+                    ", ".join(k for k, _, _ in todo))):
+            go()
+            return
+
+        def step(i=0):
+            if i >= len(todo):
+                self._append(T("Вебки указаны — начинаю работу.") + "\n")
+                go()
+                return
+            key, kind, target = todo[i]
+            self._facecam_window(key, kind, target, fresh=True, on_done=lambda: step(i + 1),
+                                 step=f"{i + 1}/{len(todo)}")
+        step()
 
     def start_vod(self):
         url = self.url.get().strip()
@@ -1782,6 +1810,7 @@ class App:
         ttk.Button(btns, text=T("✕ Убрать из плана"), command=lambda: self._plan_action("remove")).pack(side="left", padx=6)
         ttk.Button(btns, text=T("▶ Открыть клип"), command=lambda: self._plan_action("open")).pack(side="left")
         ttk.Button(btns, text=T("⟳ Пересобрать план"), command=lambda: self._plan_action("rebuild")).pack(side="right")
+        ttk.Button(btns, text=T("📤 Всё на 2 дня — в Telegram"), command=self._send_ahead).pack(side="right", padx=6)
         self.plan_status = ttk.Label(btns, text="", foreground=self.muted)
         self.plan_status.pack(side="right", padx=8)
         cols = ("day", "msk", "et", "platform", "streamer", "clip", "state")
@@ -1815,6 +1844,32 @@ class App:
                                                  f"{os.path.basename(r['path'])[:-4]} — {r.get('title') or ''}", state))
             self.plan_rows[iid] = r
         self.plan_status.config(text=T("в плане: {0}").format(len(rows)))
+
+    def _send_ahead(self, then=None):
+        """Все видео из плана на 2 дня — в Telegram сейчас (перед выключением компьютера)."""
+        from . import tg_assist
+        self.status.config(text=T("Отправляю в Telegram видео на 2 дня вперёд... не закрывай программу"))
+
+        def event(icon, text, path=None, kind="info"):
+            self.root.after(0, lambda: self.activity.event(icon, tr_line(text), path, kind))
+
+        def work():
+            try:
+                res, err = tg_assist.send_ahead(event), None
+            except Exception as e:
+                res, err = {}, e
+            self.root.after(0, lambda: done(res, err))
+
+        def done(res, err):
+            self._ahead_done = True
+            if err:
+                messagebox.showwarning("Telegram", T("Не получилось отправить: {0}").format(err))
+            else:
+                messagebox.showinfo("Telegram", T("Отправлено видео: {0}. Запланируйте их в приложениях на время, "
+                                                  "указанное у каждого.").format(res.get("sent", 0)))
+            if then:
+                then()
+        threading.Thread(target=work, daemon=True).start()
 
     def _plan_action(self, what: str):
         from . import autopilot
@@ -4546,7 +4601,7 @@ class App:
         kind, target, name = self._spec_kind(self.queue_keys[sel[0]])
         self._facecam_window(name, kind, target)
 
-    def _fetch_stream_frame(self, name: str, kind: str, target: str, then):
+    def _fetch_stream_frame(self, name: str, kind: str, target: str, then, another: bool = False, on_fail=None):
         """Берёт кадр со стрима в фоне (из эфира или последней записи), потом вызывает then()."""
         from . import facecam
         self.clips_info.config(text=T("Беру кадр со стрима {0}... (до минуты)").format(name))
@@ -4555,7 +4610,7 @@ class App:
         def work():
             msgs = []
             try:
-                res = facecam.grab_stream_frame(kind, target, name, log=msgs.append)
+                res = facecam.grab_stream_frame(kind, target, name, log=msgs.append, another=another)
             except Exception as e:
                 res, msgs = None, msgs + [f"{type(e).__name__}: {e}"]
             self.root.after(0, lambda: done(res, msgs))
@@ -4564,6 +4619,8 @@ class App:
             if not res:
                 messagebox.showwarning(T("Вебка"), T("Не получилось взять кадр со стрима {0}.").format(name) + "\n"
                                        + "\n".join(tr_line(m) for m in msgs[-3:]))
+                if on_fail:
+                    on_fail()
                 return
             self.clips_info.config(text="")
             then()
@@ -4583,12 +4640,23 @@ class App:
             kind, target = ("youtube", "@" + channel) if "youtu" in url else ("twitch", channel.lower())
         self._facecam_window(channel, kind, target)
 
-    def _facecam_window(self, channel: str, kind: str, target: str, fresh: bool = False):
+    def _facecam_window(self, channel: str, kind: str, target: str, fresh: bool = False, on_done=None,
+                        another: bool = False, step: str = ""):
+        """Окно «обведи вебку». on_done — что делать после (например, следующий стример перед стартом слежки)."""
         from . import facecam
         frame = facecam.frame_path(channel)
         if fresh or not os.path.exists(frame):
-            self._fetch_stream_frame(channel, kind, target, lambda: self._facecam_window(channel, kind, target))
+            self._fetch_stream_frame(channel, kind, target,
+                                     lambda: self._facecam_window(channel, kind, target, on_done=on_done, step=step),
+                                     another=another, on_fail=on_done)
             return
+        finished = {"v": False}
+
+        def finish():
+            if not finished["v"]:
+                finished["v"] = True
+                if on_done:
+                    self.root.after(100, on_done)
         old = getattr(self, "facecam_win", None)
         if old is not None:
             try:
@@ -4597,8 +4665,9 @@ class App:
                 pass
         win = tk.Toplevel(self.root)
         self.facecam_win = win
-        win.title(T('Вебка стримера {0}').format(channel))
+        win.title(T('Вебка стримера {0}').format(channel) + (f"  ({step})" if step else ""))
         win.transient(self.root)
+        win.protocol("WM_DELETE_WINDOW", lambda: (win.destroy(), finish()))
         img = tk.PhotoImage(file=frame)
         W, H = img.width(), img.height()
         ttk.Label(win, text=T("Обведи мышкой вебку стримера (зажми левую кнопку и тяни). "
@@ -4645,25 +4714,29 @@ class App:
             facecam.set_manual(channel, tuple(round(v, 4) for v in state["box"]))
             self._append(T('Вебка стримера {0} задана вручную — применится к следующим клипам.\n').format(channel))
             win.destroy()
+            finish()
 
         def no_cam():
             facecam.set_manual(channel, None, no_cam=True)
             self._append(T('Для {0}: вебки нет — игра будет на размытом фоне.\n').format(channel))
             win.destroy()
+            finish()
 
         def auto():
             facecam.set_manual(channel, None)
             self._append(T('Для {0}: вебка снова ищется автоматически.\n').format(channel))
             win.destroy()
+            finish()
+
+        def another_frame():
+            win.destroy()
+            self._facecam_window(channel, kind, target, fresh=True, on_done=on_done, another=True, step=step)
         bar = ttk.Frame(win, padding=6)
         bar.pack(fill="x")
         ttk.Button(bar, text=T("✔  Сохранить рамку"), command=save).pack(side="left")
-        ttk.Button(bar, text=T("У этого стримера нет вебки"), command=no_cam).pack(side="left", padx=6)
-        ttk.Button(bar, text=T("Искать автоматически"), command=auto).pack(side="left")
-        ttk.Button(bar, text=T("Отмена"), command=win.destroy).pack(side="right")
-        ttk.Button(bar, text=T("📡 Другой кадр со стрима"),
-                   command=lambda: (win.destroy(), self._facecam_window(channel, kind, target, fresh=True))
-                   ).pack(side="right", padx=6)
+        ttk.Button(bar, text=T("🚫 Нет веб-камеры"), command=no_cam).pack(side="left", padx=6)
+        ttk.Button(bar, text=T("🔄 На этом кадре нет веб-камеры — другой кадр"), command=another_frame).pack(side="left")
+        ttk.Button(bar, text=T("Пропустить (искать самой)"), command=auto).pack(side="right")
         win.grab_set()
         self.facecam_window = win  # для проверок
 
@@ -4685,6 +4758,15 @@ class App:
         if self.proc and not messagebox.askyesno(T("Выход"), T("Программа сейчас работает. Остановить и закрыть?\n"
                                                           "(Лучше сначала нажать «Стоп» — тогда прогресс сохранится.)")):
             return
+        from . import autopilot, telegram, tg_assist
+        if telegram.load().get("token") and tg_assist.mode() == "telegram_assist" and not getattr(self, "_ahead_done", False):
+            ahead = [r for r in autopilot.plan_rows() if not r.get("sent")]
+            if ahead and messagebox.askyesno(T("Выход"), T(
+                    "В плане {0} видео. Пока компьютер выключен, бот их не пришлёт.\n\n"
+                    "Отправить в Telegram (тебе и другу) все видео на ближайшие 2 дня? Запланируете их в приложениях "
+                    "на указанное время — и всё выйдет без компьютера.").format(len(ahead))):
+                self._send_ahead(then=self.on_close)
+                return
         self.force_stop()
         self._save_settings()
         self._autosave_streamers()

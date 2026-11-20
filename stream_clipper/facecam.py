@@ -197,7 +197,8 @@ def detect_facecam(video: str, samples: int = 20, cam_aspect: float = 1080 / 672
     return tuple(round(float(v), 4) for v in (x0 / W, y0 / H, reg_w_px / W, reg_h_px / H))
 
 
-def grab_stream_frame(kind: str, target: str, name: str, log=print, at: float = 900.0) -> str | None:
+def grab_stream_frame(kind: str, target: str, name: str, log=print, at: float = 900.0,
+                      another: bool = False) -> str | None:
     """Кадр прямо со стрима — чтобы указать вебку, не нарезая клип. kind: "twitch" / "youtube".
     Если стример в эфире — кадр из эфира, иначе — из последней записи (качается всего 2 секунды)."""
     import cv2
@@ -215,16 +216,21 @@ def grab_stream_frame(kind: str, target: str, name: str, log=print, at: float = 
         r = subprocess.run(cmd, capture_output=True, timeout=90, creationflags=flags)
         return r.returncode == 0 and os.path.exists(raw)
 
+    import random
+
+    def has_face(path: str) -> bool:
+        img = cv2.imread(path)
+        return img is not None and bool(_faces(img, img.shape[1], img.shape[0]))
     ok = False
     live_url = f"https://www.twitch.tv/{target}" if kind == "twitch" else twitch.youtube_live_url(target)
-    try:  # 1) стример в эфире — берём кадр из эфира
-        info = twitch.get_info(live_url, fmt)
+    try:  # 1) стример в эфире — берём кадр из эфира («другой кадр» — сначала пробуем запись)
+        info = {} if another else twitch.get_info(live_url, fmt)
         if info.get("is_live") and info.get("url"):
             log("Беру кадр из эфира...")
             ok = from_url(info["url"])
     except Exception:
         pass
-    if not ok:  # 2) иначе — 2 секунды из последней записи стрима
+    if not ok:  # 2) иначе — 2 секунды из последней записи стрима (ищем кадр, где видно лицо)
         try:
             vods = twitch.list_streams(kind, target, 1)
         except Exception as e:
@@ -232,26 +238,40 @@ def grab_stream_frame(kind: str, target: str, name: str, log=print, at: float = 
             vods = []
         if vods:
             v = vods[0]
-            t = min(at, max(10.0, (v.get("duration") or at * 2) / 3))
-            log("Стример не в эфире — беру кадр из последней записи...")
+            dur = v.get("duration") or at * 2
+            t = min(at, max(10.0, dur / 3))
+            tries = [random.uniform(0.1, 0.9) * dur for _ in range(3)] if another else [t] + \
+                [random.uniform(0.1, 0.9) * dur for _ in range(2)]
+            log("Беру кадр из последней записи стрима...")
             base = os.path.join(work, "grab_seg")
-            for f in os.listdir(work):
-                if f.startswith("grab_seg"):
-                    try:
-                        os.remove(os.path.join(work, f))
-                    except OSError:
-                        pass
+            for t in tries:
+                for f in os.listdir(work):
+                    if f.startswith("grab_seg"):
+                        try:
+                            os.remove(os.path.join(work, f))
+                        except OSError:
+                            pass
+                try:
+                    seg = twitch.download_section(v["url"], t, t + 2, base, 720)
+                    cap = cv2.VideoCapture(seg)
+                    okf, frame = cap.read()
+                    cap.release()
+                    os.remove(seg)
+                    if okf:
+                        cv2.imwrite(raw, frame)
+                        ok = True
+                        if has_face(raw):
+                            break  # кадр, где видно лицо, — сразу его
+                        log("На этом кадре лица не видно — беру другой момент...")
+                except Exception as e:
+                    log(f"Не получилось скачать кусок записи: {e}")
+        if not ok and another:  # записи нет — хотя бы свежий кадр из эфира
             try:
-                seg = twitch.download_section(v["url"], t, t + 2, base, 720)
-                cap = cv2.VideoCapture(seg)
-                okf, frame = cap.read()
-                cap.release()
-                if okf:
-                    cv2.imwrite(raw, frame)
-                    ok = True
-                os.remove(seg)
-            except Exception as e:
-                log(f"Не получилось скачать кусок записи: {e}")
+                info = twitch.get_info(live_url, fmt)
+                if info.get("is_live") and info.get("url"):
+                    ok = from_url(info["url"])
+            except Exception:
+                pass
     if not ok:
         return None
     frame = cv2.imread(raw)

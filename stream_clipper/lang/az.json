@@ -886,5 +886,13 @@
 "Готово: убрано в архив {0} клипов, где стример спит": "Hazırdır: strimerin yatdığı {0} klip arxivə köçürüldü",
 "Присылать ещё и каждый готовый клип (обычно не нужно — приходят только видео, которые надо выложить)": "Hər hazır klipi də göndər (adətən lazım deyil — yalnız paylaşılmalı videolar gəlir)",
 "✅ Stream Clipper подключён! Сюда будут приходить только видео, которые надо выложить: с текстом и временем публикации.": "✅ Stream Clipper qoşuldu! Bura yalnız paylaşılmalı videolar gələcək: mətn və paylaşım vaxtı ilə.",
-"Приходят только видео, которые надо выложить: с готовым текстом и временем публикации.": "Yalnız paylaşılmalı videolar gəlir: hazır mətn və paylaşım vaxtı ilə."
+"Приходят только видео, которые надо выложить: с готовым текстом и временем публикации.": "Yalnız paylaşılmalı videolar gəlir: hazır mətn və paylaşım vaxtı ilə.",
+"🚫 Нет веб-камеры": "🚫 Veb-kamera yoxdur",
+"🔄 На этом кадре нет веб-камеры — другой кадр": "🔄 Bu kadrda veb-kamera yoxdur — başqa kadr",
+"Пропустить (искать самой)": "Keç (proqram özü axtarsın)",
+"Вебка стримеров": "Strimerlərin veb-kamerası",
+"Вебки указаны — начинаю работу.": "Veb-kameralar göstərildi — işə başlayıram.",
+"📤 Всё на 2 дня — в Telegram": "📤 2 günlük hamısı — Telegram-a",
+"Не получилось отправить: {0}": "Göndərmək alınmadı: {0}",
+"Отправляю в Telegram видео на 2 дня вперёд... не закрывай программу": "2 gün qabağa videoları Telegram-a göndərirəm... proqramı bağlama"
 }

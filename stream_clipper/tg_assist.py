@@ -531,6 +531,60 @@ def _deliver_batch(st: dict, c: dict, event, stats: dict, now: datetime) -> None
               None, "info")
 
 
+def send_ahead(event, hours: float = 48) -> dict:
+    """Компьютер выключают: прислать в Telegram (тебе и другу) ВСЕ видео из плана на ближайшие hours часов —
+    каждое со временем «Запланировать на …». Их ставят на отложенную публикацию в приложениях, и дальше
+    компьютер не нужен."""
+    c = telegram.load()
+    if not (c.get("token") and c.get("chat_id")):
+        raise RuntimeError("Telegram не подключён")
+    from . import autopilot, policy
+    try:
+        autopilot.rebuild_schedule(event=event)
+    except Exception:
+        pass
+    st = load()
+    try:
+        handle_updates(st, c, event)
+    except Exception:
+        pass
+    sync_jobs(st)
+    now = datetime.now()
+    limit = (now + timedelta(hours=hours)).isoformat(timespec="minutes")
+    now_s = now.isoformat(timespec="minutes")
+    todo = sorted(((jid, j) for jid, j in st["jobs"].items()
+                   if j["status"] == "pending" and j.get("when") and now_s < j["when"] <= limit),
+                  key=lambda kv: kv[1]["when"])
+    sent = 0
+    try:
+        telegram._call(c["token"], "sendMessage", data={
+            "chat_id": c["chat_id"], **_target(c),
+            "text": f"🖥 Компьютер выключается. Вот все видео на ближайшие {int(hours)} ч: {len(todo)}. "
+                    "Запланируй каждое в приложении на указанное время — дальше всё выйдет само."})
+        for r in recipients(c)[1:]:
+            telegram._call(c["token"], "sendMessage", data={
+                "chat_id": r["id"], "text": f"🖥 Компьютер выключается. Видео на ближайшие {int(hours)} ч: {len(todo)}."})
+    except Exception:
+        pass
+    for jid, job in todo:
+        if (library.load_posted().get(os.path.normpath(job["path"])) or {}).get(job["platform"]):
+            job["status"] = "posted"
+            continue
+        if policy.publish_block(job["path"], job.get("applied") or job.get("edits")):
+            job["status"] = "blocked"
+            continue
+        job["schedule"] = True
+        try:
+            _send(c, jid, job, _channel_of(job["path"]))
+            sent += 1
+        except Exception as e:
+            event("❌", f"Telegram: не отправилось ({NAMES[job['platform']]}) — {e}"[:220], None, "error")
+        save(st)
+    save(st)
+    event("📦", f"Telegram: отправил видео на {int(hours)} ч вперёд — {sent}. Запланируйте их в приложениях.", None, "info")
+    return {"sent": sent, "total": len(todo)}
+
+
 def overview() -> list[dict]:
     st = load()
     return sorted(({"id": k, **{x: v.get(x) for x in ("path", "platform", "when", "status", "title")}}

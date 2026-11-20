@@ -591,6 +591,13 @@ def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEW
     if not paused and ap.get("auto_publish", True) and tg_assist.mode() != "telegram_assist":
         stats["published"] += _publish_due(st, by_path, strat, say, event)
 
+    # 1б) фильтры качества для уже нарезанных клипов: спит / отошёл / молчит при неподвижной картинке → в архив
+    try:
+        stats["archived"] += quality_sweep(clips, st, event, say)
+    except Exception as e:
+        event("❌", f"Проверка качества клипов: {e}"[:200], None, "error")
+    clips = [c for c in clips if os.path.exists(c["path"])]
+
     # 2) отбор
     fresh = [c for c in clips if c["path"] not in st["clips"] and not any(c["posted"].values())]
     up_upload = os.path.normpath(library.upload_dir())
@@ -667,6 +674,36 @@ def unpublish_flagged(st: dict, event) -> None:
                        f"⛔ Снять с публикации»", c["path"], "error")
             journal({"clip": exchange.clip_id(c["path"]), "action": "unpublish_manual", "platform": pl, "why": f["reason"],
                      "how": how})
+
+
+def quality_sweep(clips: list, st: dict, event, say=None, limit: int = 8) -> int:
+    """Готовые клипы, которые ещё не проверяли фильтрами качества: не прошедшие (и нигде не выложенные) — в архив."""
+    from . import quality
+    if not quality.enabled():
+        return 0
+    checked = st.setdefault("quality_checked", {})
+    n = done = 0
+    for c in clips:
+        p = os.path.normpath(c["path"])
+        if p in checked or not os.path.exists(c["path"]):
+            continue
+        if done >= limit:
+            break
+        done += 1
+        if say:
+            say(f"💤 проверяю, не спит ли стример: {c.get('channel', '')} {os.path.basename(p)[:-4]}")
+        why, m = quality.check_clip(c["path"], (0.0, 0.0, 1.0, 0.42), c.get("words") or [])
+        if m.get("face_seen", 0) < 0.1:  # в верхней части лица нет вовсе — клип без вебки, судим без неё
+            why = quality.verdict(m, m.get("voice", 0), False, by_energy=m.get("by") == "energy")
+        checked[p] = {"why": why, "m": m, "t": time.time()}
+        if why and not any((c.get("posted") or {}).values()):
+            reason = f"стример спит / нет активности: {why}"
+            event("💤", f"{c.get('channel', '')} {os.path.basename(p)[:-4]}: {why} — убираю в архив", c["path"], "info")
+            st["clips"].pop(c["path"], None)
+            _to_archive(c, reason, st, event)
+            n += 1
+    save_state(st)
+    return n
 
 
 def _to_archive(c: dict, reason: str, st: dict, event):

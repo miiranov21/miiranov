@@ -117,6 +117,19 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
             if ch:
                 log("    без вебки — по совету «Доктора»: " + ", ".join(ch))
     base = os.path.splitext(out)[0]
+    q_vis = None
+    if meta.get("check_quality", True) and not meta.get("caption_text"):
+        from . import quality
+        if quality.enabled():
+            q_vis = quality.visual_metrics(segment, facecam if layout == "facecam" else None)
+            will_subs = cfg.subs if cfg.subs is not None else __import__("stream_clipper.subtitles",
+                                                                             fromlist=["available"]).available()
+            if not will_subs:  # без субтитров решаем сразу — по голосовой полосе
+                v = quality.voice_ratio_energy(segment)
+                why = quality.verdict(q_vis, v, layout == "facecam", by_energy=True)
+                if why:
+                    raise ClipRejected(f"{why} (голос {v:.0%})")
+                q_vis = None
     if cfg.game_view not in ("full", "wide", "center"):  # auto — выбираем по кадрам этого момента
         import copy
         from . import shape
@@ -152,6 +165,19 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
             log(f"    субтитры не получились: {type(e).__name__}: {e}")
     elif cfg.subs is None:
         log("    субтитры выключены: не установлено распознавание речи (запусти install_subs.bat)")
+    if q_vis is not None:  # есть субтитры — голос стримера считаем по словам (озвучка донатов не в счёт)
+        from . import quality, subtitles as _sb
+        words_now = list(_sb.LAST_WORDS) if transcript else []
+        v = quality.voice_ratio_words(words_now, quality.duration(segment)) if words_now else \
+            quality.voice_ratio_energy(segment) * 0.5
+        why = quality.verdict(q_vis, v, layout == "facecam", by_energy=not words_now)
+        if why:
+            for p_ in ass_files:
+                try:
+                    os.remove(p_)
+                except OSError:
+                    pass
+            raise ClipRejected(f"{why} (голос {v:.0%})")
     text = ""
     if cfg.caption:
         from .caption import _api_key, make_caption, streamer_quote
@@ -425,14 +451,21 @@ def clip_budget(per_hour: int, seconds: float) -> int:
     return max(1, math.ceil(per_hour * max(seconds, 0) / 3600))
 
 
+class ClipRejected(Exception):
+    """Момент не прошёл фильтры качества (стример спит, отошёл, молчит при неподвижной картинке)."""
+
+
 def _analyze(msgs: list[ChatMessage], duration: float, audio_db, cfg: Settings, done: list[dict], log,
-             top: int | None = None, visual=None):
+             top: int | None = None, visual=None, title: str = "", channel: str = ""):
     log(f"Ищу моменты (длительность {_fmt(duration)}, сообщений {len(msgs)})...")
     hl = detect.find_highlights(
         msgs, int(duration), audio_db=audio_db, visual=visual, top=cfg.top if top is None else top, clip_pre=cfg.clip_pre, clip_post=cfg.clip_post,
         chat_lag=cfg.chat_lag, audio_weight=cfg.audio_weight, min_score=cfg.min_score,
         hype_words=cfg.hype_words, exclude=[(d["start"], d["end"]) for d in done], log=log)
     hl = [h for h in hl if not _overlaps(h, done)]
+    from . import quality
+    if quality.enabled():  # чат про сон («wake up», «zzz») — такие моменты не берём
+        hl = quality.filter_highlights(hl, msgs, title, channel, cfg.chat_lag, log)
     if cfg.auto_length:
         _auto_length(hl, msgs, audio_db, duration)
     for h in hl:
@@ -593,7 +626,7 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
         if allowed > 0:
             use = media if (media and cfg.audio) else None
             hl = _analyze(msgs, duration, use.audio(duration) if use else None, cfg, skip, log, top=allowed,
-                          visual=use.visual(duration) if use else None)
+                          visual=use.visual(duration) if use else None, title=title, channel=channel)
             for i, h in enumerate(hl, 1):
                 if paths.stop_requested():
                     stopped = True
@@ -627,6 +660,10 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                         _quick_policy(d, log)
                         log(f"    готово -> {d['file']}")
                         log(f"✅ {channel}: клип {_clip_no(d['file'])} готов — «{d.get('caption') or ''}»")
+                    except ClipRejected as e:
+                        log(f"💤 пропущен момент {_fmt(h.peak)} у {channel} — {e}")
+                        skip.append({"start": h.start, "end": h.end})
+                        continue
                     except Exception as e:
                         log(f"    ошибка: {e}")
                         daily.log_event(cfg.out_dir, f"{channel}: не удалось сделать клип {_fmt(h.start)} — {e}")
@@ -676,6 +713,7 @@ def recut(job: dict, cfg: Settings, log=print) -> dict:
     base = os.path.join(work, f"raw_{int(_time.time() * 1000)}_{int(start)}_{int(end)}")
     seg = twitch.download_section(job["url"], start, end, base, cfg.max_height)
     meta = dict(job.get("meta") or {})
+    meta["check_quality"] = False  # перерезка по просьбе пользователя — фильтры не применяем
     cfg.clip_pre = min(cfg.clip_pre, max(1.0, (end - start) * 0.57))
     log("Собираю клип...")
     try:
@@ -748,7 +786,7 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
         from .audio import scene_per_second
         visual_local = scene_per_second(video)
     duration = len(audio_db) if audio_db is not None else (msgs[-1].t if msgs else 0)
-    hl = _analyze(msgs, duration, audio_db, cfg, [], log, top=clip_budget(cfg.top, duration),
+    hl = _analyze(msgs, duration, audio_db, cfg, [], log, top=clip_budget(cfg.top, duration), title=name, channel=name,
                   visual=visual_local if cfg.audio else None)
     from .caption import detect_language
     lang = cfg.language or detect_language([m.text for m in msgs], name)
@@ -765,7 +803,13 @@ def process_local(video: str, chat_path: str, cfg: Settings, log=print) -> list[
             tmp = os.path.join(work, base + ".mp4")
             meta = {"streamer": name, "title": name, "top_messages": h.top_messages, "lang": lang,
                     "pad": getattr(h, "pad", None)}
-            d["caption"] = _make_short(seg, tmp, cfg, log, meta)
+            try:
+                d["caption"] = _make_short(seg, tmp, cfg, log, meta)
+            except ClipRejected as e:
+                log(f"💤 пропущен момент {_fmt(h.peak)} у {name} — {e}")
+                if not cfg.keep_raw and os.path.exists(seg):
+                    os.remove(seg)
+                continue
             _apply_trim(d, meta)
             d["transcript"], d["lang"] = meta.get("transcript", ""), lang
             d["rating"] = _final_rating(d, meta)

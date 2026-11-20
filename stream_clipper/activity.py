@@ -237,6 +237,10 @@ class ActivityPanel(ttk.Frame):
         if m:
             self.last_path = m.group(1).strip()
             return False
+        m = re.match(r"^💤 (.+)$", line)
+        if m:  # фильтр «стример спит» — видно, что он работает
+            self.event("💤", tr_line(m.group(1)), kind="info")
+            return True
         m = re.match(r"^⏸ (.+?): разобрал до (\S+)", line)
         if m:  # по кругу: стример разобран частично — вернёмся к нему
             c = self.card(m.group(1))

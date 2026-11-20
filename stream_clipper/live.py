@@ -384,7 +384,7 @@ class LiveSession:
         return None
 
     def process(self, final: bool = False) -> list[dict]:
-        from .pipeline import _analyze, _fmt, _make_short, _finish, refresh_live, _final_rating, _apply_trim
+        from .pipeline import _analyze, _fmt, _make_short, _finish, refresh_live, _final_rating, _apply_trim, ClipRejected
         refresh_live(self.cfg, self.log)
 
         cfg, log = self.cfg, self.log
@@ -400,7 +400,7 @@ class LiveSession:
         audio_db = self._audio(chunks, duration, final)
         visual = self._audio(chunks, duration, final, kind="visual")
 
-        skip = list(self.done)
+        skip = list(self.done) + list(getattr(self, "rejected", []))
         skip.append({"start": 0.0, "end": max(self.cutoff, chunks[0][1] + cfg.clip_pre)})
         tail = 0.0 if final else cfg.clip_post + cfg.chat_lag + 60
         if tail:
@@ -413,7 +413,8 @@ class LiveSession:
             log(f"[{self.channel}] лимит клипов на это время эфира набран — жду дальше")
             self._save_chat()
             return []
-        hl = _analyze(msgs, duration, audio_db, cfg, skip, log, top=allowed, visual=visual)
+        hl = _analyze(msgs, duration, audio_db, cfg, skip, log, top=allowed, visual=visual, title=self.title,
+                      channel=self.channel)
         from .caption import detect_language
         lang = cfg.language or detect_language([m.text for m in msgs], self.title)
         from .caption import lang_allowed
@@ -460,6 +461,13 @@ class LiveSession:
                 from .pipeline import _clip_no
                 log(f"✅ {self.channel}: клип {_clip_no(d['file'])} готов — «{d.get('caption') or ''}»")
                 new.append(d)
+            except ClipRejected as e:
+                log(f"💤 пропущен момент {_fmt(h.peak)} у {self.channel} — {e}")
+                self.rejected = list(getattr(self, "rejected", [])) + [{"start": h.start, "end": h.end}]
+                try:
+                    os.remove(seg)
+                except (OSError, NameError):
+                    pass
             except Exception as e:
                 log(f"  ошибка: {e}")
                 daily.log_event(cfg.out_dir, f"{self.channel}: не удалось сделать клип {_fmt(h.start)} — {e}")

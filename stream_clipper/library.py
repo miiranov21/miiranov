@@ -379,7 +379,8 @@ def record_published(path: str, platform: str, title: str, description: str, pos
     """when — время, на которое публикацию запланировали в приложении (иначе — сейчас)."""
     import time
     data = load_published()
-    rec = {"title": title, "description": description, "time": when or time.strftime("%Y-%m-%dT%H:%M:%S")}
+    rec = {"title": title, "description": description, "time": when or time.strftime("%Y-%m-%dT%H:%M:%S"),
+           "confirmed_at": time.strftime("%Y-%m-%dT%H:%M:%S")}  # план (слот) и факт (когда отметили)
     if when:
         rec["scheduled"] = True
     if post_id:
@@ -396,3 +397,26 @@ def record_published(path: str, platform: str, title: str, description: str, pos
     data.setdefault(os.path.normpath(path), {})[platform] = rec
     with open(_published_file(), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=1)
+
+
+def record_url(path: str, platform: str, url: str) -> bool:
+    """Ссылка на уже выложенное видео (прислали боту) — в запись о публикации."""
+    import time
+    from . import team
+    if team.enabled():
+        cur = team.load_merged("published", "t").get(os.path.normpath(path)) or {}
+        if platform not in cur:
+            return False
+        cur = dict(cur, t=time.time())
+        cur[platform] = dict(cur[platform], url=url, url_at=time.strftime("%Y-%m-%dT%H:%M:%S"))
+        team.put("published", path, cur)
+        return True
+    data = load_published()
+    rec = data.get(os.path.normpath(path), {}).get(platform)
+    if rec is None:
+        return False
+    rec["url"] = url
+    rec["url_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    with open(_published_file(), "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1)
+    return True

@@ -38,7 +38,8 @@ HINT_SCHEDULE = (
     "«Запланировать» → дата и время → «Загрузить Short».\n"
     "• Instagram: «+» → «Reels» → выбери видео → «Далее» → вставь подпись → «Дополнительные настройки» → "
     "«Запланировать» → дата и время → «Запланировать». Если написано «🧪 пробный Reels» — включи «Пробный Reels».\n\n"
-    "Время в приложении — московское (как на телефоне). Потом нажми здесь «✅ Запланировал».")
+    "Время в приложении — московское (как на телефоне). Потом нажми здесь «✅ Запланировал».\n\n"
+    "Когда видео выйдет, можно ответить на пост ссылкой на него — она попадёт в журнал публикаций.")
 HINT = ("📌 Как выкладывать: нажми на видео → «Поделиться» → TikTok / Instagram / YouTube → вставь текст "
         "(нажми на блок с текстом — он скопируется) → «Опубликовать». Потом нажми здесь «✅ Выложил».")
 
@@ -257,7 +258,7 @@ def recipients(c: dict) -> list[dict]:
 def _send(c: dict, jid: str, job: dict, channel: str) -> None:
     """Видео и текст с кнопками — каждому получателю (видео загружается один раз, остальным уходит по file_id)."""
     target = _target(c)
-    hint_v = "schedule2" if job.get("schedule") else True
+    hint_v = "schedule3" if job.get("schedule") else True
     if c.get("assist_hint") != hint_v:
         for r in recipients(c):
             try:
@@ -355,6 +356,29 @@ def handle_updates(st: dict, c: dict, event) -> int:
         st["offset"] = max(st.get("offset", 0), u["update_id"] + 1)
         msg = u.get("message") or {}
         chat = msg.get("chat") or {}
+        reply_to = (msg.get("reply_to_message") or {}).get("message_id")
+        if msg and reply_to and chat.get("id") in known | {c["chat_id"]}:
+            import re as _re
+            m_url = _re.search(r"https?://\S+", msg.get("text") or "")
+            job = next((j for j in st["jobs"].values() for m in (j.get("msgs") or [])
+                        if str(m.get("chat")) == str(chat.get("id")) and reply_to in (m.get("msg"), m.get("video"))), None)
+            if m_url and job:  # ответили на пост ссылкой на выложенное видео — записываем в журнал публикаций
+                if job.get("status") != "posted":
+                    library.set_posted(job["path"], True, job["platform"])
+                    library.record_published(job["path"], job["platform"], job.get("title", ""),
+                                             job.get("description", ""), when=job.get("when", "") if job.get("schedule") else "")
+                    job["status"] = "posted"
+                    _sync_autopilot(job, "published")
+                library.record_url(job["path"], job["platform"], m_url.group(0))
+                job["url"] = m_url.group(0)
+                event("🔗", f"{os.path.basename(job['path'])[:-4]}: ссылка на {NAMES[job['platform']]} сохранена", job["path"], "clip")
+                try:
+                    telegram._call(c["token"], "sendMessage", data={"chat_id": chat["id"], "text": "🔗 Ссылка сохранена — Аналитик увидит, как зашло видео.",
+                                                                    "reply_to_message_id": msg["message_id"]})
+                except Exception:
+                    pass
+                n += 1
+                continue
         if msg and chat.get("type") == "private" and chat.get("id") not in known:
             # кто-то нажал «Старт» у бота — посты он получит только после подтверждения в программе
             pend = c.setdefault("pending_chats", [])

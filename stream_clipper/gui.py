@@ -515,7 +515,9 @@ class App:
         for key, text in (("subs", T("Субтитры (речь стримера)")),
                           ("caption", T("Надпись-плашка с подписью к моменту")),
                           ("facecam", T("Вебка стримера сверху")),
-                          ("audio", T("Искать по звуку и картинке (без чата)"))):
+                          ("audio", T("Искать по звуку и картинке (без чата)")),
+                          ("cold_open", T("Холодный старт: пик момента в самом начале")),
+                          ("punch_zoom", T("Резкий зум на лицо на пике"))):
             self.v[key] = tk.BooleanVar(value=bool(self.cfg.get(key)))
             row = ttk.Frame(opt)
             row.pack(anchor="w", pady=1)
@@ -524,6 +526,8 @@ class App:
             w.pack(side="left")
             self._doc_reg(key, w)
             self.v[key].trace_add("write", lambda *a: self._on_live_setting(quick=True))
+            if key in ("cold_open", "punch_zoom"):
+                self.v[key].trace_add("write", lambda *a: self._on_post_setting())
         grid = ttk.Frame(opt)
         grid.pack(anchor="w", pady=(6, 0))
         digits = (self.root.register(lambda p: p == "" or (p.isdigit() and len(p) <= 3)), "%P")
@@ -3956,7 +3960,7 @@ class App:
         self.root.after(4000, self._exchange_tick)
 
     # ---------- настройки клипов от «Доктора» (strategy.json → clip_settings) ----------
-    DOC_KEYS = ("subs", "caption", "facecam", "audio", "top", "length", "quality", "game_view",
+    DOC_KEYS = ("subs", "caption", "facecam", "audio", "cold_open", "punch_zoom", "top", "length", "quality", "game_view",
                 "wm_on", "wm_text", "wm_pos", "wm_op", "credit_auto", "credit_pos")
     DOC_NAMES = {"subs": "субтитры", "caption": "надпись-плашка", "facecam": "вебка сверху",
                  "audio": "поиск по звуку и картинке", "top": "клипов за час", "length": "длина клипа",
@@ -3968,7 +3972,8 @@ class App:
                "audio": ("audio",), "top": ("top",), "length": ("length",), "auto_length": ("length",),
                "quality": ("quality",), "game_view": ("game_view",), "credit": ("credit_auto",),
                "credit_pos": ("credit_pos",), "watermark_text": ("wm_on", "wm_text"),
-               "watermark_pos": ("wm_pos",), "watermark_opacity": ("wm_op",)}
+               "watermark_pos": ("wm_pos",), "watermark_opacity": ("wm_op",), "cold_open": ("cold_open",),
+               "punch_in_zoom": ("punch_zoom",)}
 
     def _doc_reg(self, key: str, widget):
         """Поле, которое может выбирать «Доктор»: запоминаем его и вешаем подсказку «выбирает Доктор: причина»."""
@@ -4027,6 +4032,11 @@ class App:
         op = d.get("watermark_opacity")
         if isinstance(op, (int, float)) and not isinstance(op, bool):
             out["wm_op"] = min(WM_OP, key=lambda lab: abs(WM_OP[lab] - op))
+        if isinstance(d.get("cold_open"), bool):
+            out["cold_open"] = d["cold_open"]
+        z = d.get("punch_in_zoom")
+        if z is not None:
+            out["punch_zoom"] = isinstance(z, (int, float)) and not isinstance(z, bool) and z > 1
         return out
 
     def _doctor_reasons(self, cs: dict, keys) -> dict:
@@ -4089,6 +4099,7 @@ class App:
     OWN_GROUPS = {"subs": ("subs",), "caption": ("caption",), "facecam": ("facecam",), "audio": ("audio",),
                   "top": ("top",), "length": ("length",), "quality": ("quality",), "game_view": ("game_view",),
                   "watermark": ("wm_on", "wm_text", "wm_pos", "wm_op"), "credit": ("credit_auto", "credit_pos"),
+                  "cold_open": ("cold_open",), "punch_zoom": ("punch_zoom",),
                   "ppd": ("ppd_tiktok", "ppd_youtube", "ppd_instagram"),
                   "slots": ("slots_tiktok", "slots_youtube", "slots_instagram")}
 
@@ -4142,7 +4153,8 @@ class App:
     GROUP_NAMES = {"subs": "субтитры", "caption": "надпись-плашка", "facecam": "вебка сверху",
                    "audio": "поиск по звуку и картинке", "top": "клипов за час", "length": "длина клипа",
                    "quality": "качество", "game_view": "игра в кадре", "watermark": "водяной знак",
-                   "credit": "подпись автора", "ppd": "публикаций в день", "slots": "время публикаций"}
+                   "credit": "подпись автора", "ppd": "публикаций в день", "slots": "время публикаций",
+                   "cold_open": "холодный старт", "punch_zoom": "зум на пике"}
 
     def _all_to_doctor(self):
         for g in self.OWN_GROUPS:
@@ -4237,8 +4249,15 @@ class App:
                 if ok:
                     slots[pl] = sorted(set(ok))
             over["autopilot"]["target_slots_et"] = slots
+        cdef = {}
+        if self.v["own_cold_open"].get():  # монтаж делает автопилот по стратегии — твоё значение идёт поверх
+            cdef["cold_open"] = bool(self.v["cold_open"].get())
+        if self.v["own_punch_zoom"].get():
+            cdef["punch_in_zoom"] = 1.15 if self.v["punch_zoom"].get() else 0
+        if cdef:
+            over["clip_settings"] = {"defaults": cdef}
         if not over["autopilot"]:
-            over = {}
+            over.pop("autopilot")
         strategy.save_user_overrides(over)
 
     def _build_post_settings(self, parent):
@@ -4275,7 +4294,7 @@ class App:
 
     def _post_setting_apply(self):
         self._post_job = None
-        if self.v["own_ppd"].get() or self.v["own_slots"].get():
+        if any(self.v[f"own_{g}"].get() for g in ("ppd", "slots", "cold_open", "punch_zoom")):
             self._write_user_overrides()
             self._save_settings()
 

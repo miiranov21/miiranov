@@ -136,6 +136,19 @@ def export_catalog(path: str | None = None) -> str:
         json.dump({"version": 1, "generated": datetime.now().isoformat(timespec="seconds"), "clips": out}, f,
                   ensure_ascii=False, indent=1)
     os.replace(tmp, path)
+    try:  # журнал реальных публикаций: план (время слота) и факт (когда отметили, ссылка) — для Аналитика и «Доктора»
+        log = []
+        for p_, plats in library.load_published().items():
+            for pl, r in (plats or {}).items():
+                if pl in PLATFORMS and isinstance(r, dict):
+                    log.append({"id": clip_id(p_), "platform": pl, "title": r.get("title", ""), "planned": r.get("time"),
+                                "confirmed_at": r.get("confirmed_at"), "scheduled": bool(r.get("scheduled")),
+                                "url": r.get("url", ""), "post_id": r.get("id", "")})
+        log.sort(key=lambda x: x.get("planned") or "")
+        with open(os.path.join(exchange_dir(), "published_log.json"), "w", encoding="utf-8") as f:
+            json.dump({"generated": time.strftime("%Y-%m-%dT%H:%M:%S"), "published": log}, f, ensure_ascii=False, indent=1)
+    except Exception:
+        pass
     return path
 
 

@@ -242,7 +242,7 @@ frames, are subtitles inside safe zones (not in the bottom 20%, not in the right
 Answer with JSON only: {{"ok": true|false, "problems": ["in Russian"], "fix_edits": [ ...extra edits in the same format... ]}}"""
 
 
-SINGLE = ("cut_silence", "subtitles", "hook", "credit", "progress_bar", "loudness", "loop_end", "cover", "trim")
+SINGLE = ("cut_silence", "subtitles", "hook", "credit", "progress_bar", "loudness", "loop_end", "cover", "trim", "cold_open")
 
 
 def merge_edits(ops: list, extra: list) -> list:
@@ -289,6 +289,16 @@ def ensure_mandatory(ops: list, c: dict, strat: dict, platform: str, duration: f
         add.append({"type": "trim", "cut_start": round(cut_a, 2), "cut_end": round(excess - cut_a, 2)})
     if shape.length_rules().get("cut") and "cut_silence" not in have:
         add.append({"type": "cut_silence", "min_gap": 0.7})
+    cd = ((strat.get("clip_settings") or {}).get("defaults") or {})
+    peak_off = float(c.get("peak", 0) or 0) - float(c.get("start", 0) or 0)
+    if 0 < peak_off < duration:
+        z = cd.get("punch_in_zoom")  # резкий зум на пике
+        if isinstance(z, (int, float)) and not isinstance(z, bool) and z > 1 and "zoom" not in have:
+            add.append({"type": "zoom", "t": round(peak_off, 2), "scale": float(z), "dur": 0.6})
+        if cd.get("cold_open") is True and peak_off > 2 and "cold_open" not in have:
+            add.append({"type": "cold_open", "t": round(peak_off, 2), "dur": 0.8})
+    if cd.get("end_on_peak") is True:  # конец сразу после пика, без затухания-петли
+        ops = [o for o in ops if o.get("type") != "loop_end"]
     if duration > 30 and "progress_bar" not in have:
         add.append({"type": "progress_bar", "on": True})
     return list(ops) + add

@@ -942,5 +942,9 @@
 "Папка копии (копия_ГГГГ-ММ-ДД_…)": "Nüsxə qovluğu (копия_İİİİ-AA-GG_…)",
 "Восстановить": "Bərpa et",
 "Вернуть данные из этой копии? Текущие данные сначала сохранятся отдельной копией. После этого программу нужно перезапустить.": "Məlumatlar bu nüsxədən qaytarılsın? Hazırkı məlumatlar əvvəlcə ayrıca nüsxədə saxlanacaq. Sonra proqramı yenidən başlatmaq lazımdır.",
-"Восстановлено файлов: {0}. Перезапусти программу.": "Bərpa olunan fayl: {0}. Proqramı yenidən başlat."
+"Восстановлено файлов: {0}. Перезапусти программу.": "Bərpa olunan fayl: {0}. Proqramı yenidən başlat.",
+"Холодный старт: пик момента в самом начале": "Soyuq başlanğıc: anın zirvəsi lap əvvəldə",
+"Резкий зум на лицо на пике": "Zirvədə üzə kəskin zum",
+"холодный старт": "soyuq başlanğıc",
+"зум на пике": "zirvədə zum"
 }

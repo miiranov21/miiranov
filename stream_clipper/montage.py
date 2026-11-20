@@ -16,7 +16,7 @@ import subprocess
 import time
 
 ORDER = ["trim", "cut_silence", "speed", "layout", "crop_out", "blur", "zoom", "subtitles", "replace_hook", "hook", "credit",
-         "progress_bar", "mute", "bleep", "bleep_profanity", "replace_audio", "loudness", "loop_end", "cover"]
+         "progress_bar", "mute", "bleep", "bleep_profanity", "replace_audio", "loudness", "cold_open", "loop_end", "cover"]
 AUDIO = ("mute", "bleep", "bleep_profanity", "replace_audio")
 W, H = 1080, 1920
 FLAGS = 0x08000000 if os.name == "nt" else 0
@@ -398,6 +398,25 @@ def _loudness(cur, out, op, tm, dur):
           "-c:a", "aac", "-b:a", "256k", "-ar", "48000", out])
 
 
+def _cold_open(cur, out, op, tm, dur):
+    """Холодный старт: 0,5–1 с самого пика ставим в начало (уже со всем монтажом), потом клип с подводкой."""
+    p = tm.map(float(op.get("t", 0)))
+    if p is None:
+        raise _Skip("пик вырезан раньше")
+    L = max(0.5, min(1.0, float(op.get("dur") or 0.8)))
+    if p < 2.0 or p + L > dur - 0.2:
+        raise _Skip("пик и так в начале клипа")
+    graph = (f"[0:v]split[v1][v2];[0:a]asplit[a1][a2];"
+             f"[v1]trim=start={p:.3f}:end={p + L:.3f},setpts=PTS-STARTPTS[cv];"
+             f"[a1]atrim=start={p:.3f}:end={p + L:.3f},asetpts=PTS-STARTPTS,afade=t=out:st={max(0.0, L - 0.08):.3f}:d=0.08[ca];"
+             f"[v2]setpts=PTS-STARTPTS[mv];[a2]asetpts=PTS-STARTPTS[ma];"
+             f"[cv][ca][mv][ma]concat=n=2:v=1:a=1[v][a]")
+    _run(["ffmpeg", "-y", "-v", "error", "-i", cur, "-filter_complex", graph, "-map", "[v]", "-map", "[a]",
+          *_enc(False), out])
+    tm.apply([(0.0, dur, 1.0)])  # основной клип сдвинулся на L — сдвигаем карту времени
+    tm.pieces = [(s0, s1, c0 + L, c1 + L) for s0, s1, c0, c1 in tm.pieces]
+
+
 def _loop_end(cur, out, op, tm, dur):
     """Петля: последние доли секунды плавно переходят в первый кадр — видео хочется смотреть по кругу."""
     x = max(0.1, min(1.0, float(op.get("crossfade") or 0.3)))
@@ -498,6 +517,8 @@ def render_plan(src: str, out: str, ops: list, words: list | None = None, clip: 
                 _audio(cur, dst, group, tm, dur, words, log)
             elif t == "loudness":
                 _loudness(cur, dst, op, tm, dur)
+            elif t == "cold_open":
+                _cold_open(cur, dst, op, tm, dur)
             elif t == "loop_end":
                 _loop_end(cur, dst, op, tm, dur)
             elif t == "cover":

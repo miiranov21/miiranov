@@ -552,9 +552,21 @@ def free_post(platform: str, streamer: str, hook: str, title: str, transcript: s
     lines.append(_CTA["en" if lang == "en" else "ru"][platform if platform in _CTA["en"] else "tiktok"].format(s=nick))
     desc = "\n".join(dict.fromkeys(l for l in lines if l))
     tag_nick = "#" + "".join(ch for ch in full.lower() if ch.isalnum())
-    tags = [tag_nick]
-    if game:
-        tags += ["#gta6", "#gta"] if "6" in game else ["#gta"]
+    tmpl = (strategy_rules().get("hashtag_templates") or {}).get(platform)
+    if isinstance(tmpl, list) and tmpl:  # шаблоны «Доктора» по площадкам: {streamer} = ник без пробелов
+        bare = tag_nick[1:]
+        tags = []
+        for t in tmpl:
+            t = str(t).replace("{streamer}", bare)
+            if not game and "gta" in t.lower():
+                continue  # игру ставим, только если это правда она
+            tags.append(t if t.startswith("#") else "#" + t)
+        if tag_nick not in tags:
+            tags.insert(0, tag_nick)
+    else:
+        tags = [tag_nick]
+        if game:
+            tags += ["#gta6", "#gta"] if "6" in game else ["#gta"]
     tags += _MOMENT_TAGS.get(cat, ["#streamclips"])
     tags += ["#twitchclips" if lang == "en" else "#стрим", "#streamer"]
     return {"title": t, "description": desc, "hashtags": list(dict.fromkeys(tags))}

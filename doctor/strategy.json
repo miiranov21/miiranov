@@ -625,7 +625,10 @@
       "face_still_max": 0.7,
       "tts_face_still": 0.85,
       "title_keyword_factor": 0.6,
-      "min_chat_messages": 8
+      "min_chat_messages": 8,
+      "deep_changed_max": 0.015,
+      "deep_dark_max": 55,
+      "deep_score_min": 3
     }
   }
 }

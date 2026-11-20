@@ -883,5 +883,8 @@
 "Проверяю все клипы: где стример спит — уберу в архив": "Bütün klipləri yoxlayıram: strimerin yatdığılar arxivə gedəcək",
 "Проверка клипов не удалась: {0}": "Kliplərin yoxlanması alınmadı: {0}",
 "Проверено клипов: {0}, убрано в архив (стример спит): {1}, снято с плана: {2}": "Yoxlanan klip: {0}, arxivə köçürülən (strimer yatır): {1}, plandan çıxarılan: {2}",
-"Готово: убрано в архив {0} клипов, где стример спит": "Hazırdır: strimerin yatdığı {0} klip arxivə köçürüldü"
+"Готово: убрано в архив {0} клипов, где стример спит": "Hazırdır: strimerin yatdığı {0} klip arxivə köçürüldü",
+"Присылать ещё и каждый готовый клип (обычно не нужно — приходят только видео, которые надо выложить)": "Hər hazır klipi də göndər (adətən lazım deyil — yalnız paylaşılmalı videolar gəlir)",
+"✅ Stream Clipper подключён! Сюда будут приходить только видео, которые надо выложить: с текстом и временем публикации.": "✅ Stream Clipper qoşuldu! Bura yalnız paylaşılmalı videolar gələcək: mətn və paylaşım vaxtı ilə.",
+"Приходят только видео, которые надо выложить: с готовым текстом и временем публикации.": "Yalnız paylaşılmalı videolar gəlir: hazır mətn və paylaşım vaxtı ilə."
 }

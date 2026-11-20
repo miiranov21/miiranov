@@ -34,6 +34,12 @@ def enabled() -> bool:
     return bool(c.get("on") and c.get("token") and c.get("chat_id"))
 
 
+def all_clips() -> bool:
+    """Присылать КАЖДЫЙ готовый клип (по умолчанию нет — в Telegram приходят только видео, которые надо выложить)."""
+    c = load()
+    return bool(c.get("all_clips") and c.get("token") and c.get("chat_id"))
+
+
 def _call(token: str, method: str, timeout: float = 30, data: dict | None = None, files: dict | None = None):
     """Запрос к Telegram Bot API на встроенных средствах Python (без сторонних библиотек)."""
     import urllib.error

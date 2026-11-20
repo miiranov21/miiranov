@@ -1042,12 +1042,11 @@ class App:
             "2) Папки по датам (лучше): создай группу → в её настройках включи «Темы» → добавь туда бота\n"
             "    администратором с правом «Управление темами» → напиши в группе любое сообщение.\n"
             "    Без группы: просто открой бота и нажми «Старт».   3) Нажми «Подключить».\n"
-            "Клипы приходят ФАЙЛАМИ (без потери качества); в группе бот сам заводит тему-папку на каждый день.")
+            "Приходят только видео, которые надо выложить: с готовым текстом и временем публикации.")
         )).pack(anchor="w")
         row = ttk.Frame(tg)
         row.pack(fill="x", pady=(6, 0))
-        self.tg_on = tk.BooleanVar(value=bool(cfg.get("on")))
-        ttk.Checkbutton(row, text=T("Отправлять клипы"), variable=self.tg_on, command=self._tg_toggle).pack(side="left")
+        self.tg_on = tk.BooleanVar(value=bool(cfg.get("all_clips")))
         ttk.Label(row, text=T("  Ключ бота:")).pack(side="left")
         self.tg_token = tk.StringVar(value=cfg.get("token", ""))
         ttk.Entry(row, textvariable=self.tg_token, show="•", width=24).pack(side="left", padx=4)
@@ -1056,6 +1055,10 @@ class App:
         self.tg_status = ttk.Label(row, text=(T("✔ подключено: ") + cfg.get("name", "")) if cfg.get("chat_id")
                                    else T("не подключено"), foreground=self.muted)
         self.tg_status.pack(side="left", padx=6)
+        rowc = ttk.Frame(tg)
+        rowc.pack(fill="x", pady=(4, 0))
+        ttk.Checkbutton(rowc, text=T("Присылать ещё и каждый готовый клип (обычно не нужно — приходят только видео, "
+                                     "которые надо выложить)"), variable=self.tg_on, command=self._tg_toggle).pack(side="left")
         rr = ttk.Frame(tg)
         rr.pack(fill="x", pady=(6, 0))
         ttk.Label(rr, foreground=self.muted, wraplength=1050, justify="left", text=T(
@@ -1125,7 +1128,7 @@ class App:
     def _tg_toggle(self):
         from . import telegram
         cfg = telegram.load()
-        cfg["on"] = bool(self.tg_on.get())
+        cfg["all_clips"] = bool(self.tg_on.get())
         telegram.save(cfg)
 
     def _tg_connect(self):
@@ -1139,12 +1142,13 @@ class App:
         def work():
             try:
                 chat_id, name, forum = telegram.find_chat(token)
-                telegram.save({"token": token, "chat_id": chat_id, "name": name, "on": True, "forum": forum})
-                telegram.send_text(T("✅ Stream Clipper подключён! ") + (
-                    T("Клипы будут складываться в темы-папки по датам.") if forum else
-                    T("Сюда будут приходить готовые клипы файлами (для папок по датам подключи группу с темами).")))
+                old = telegram.load()
+                telegram.save(dict(old, token=token, chat_id=chat_id, name=name, on=True, forum=forum,
+                                   all_clips=bool(old.get("all_clips"))))
+                telegram.send_text(T("✅ Stream Clipper подключён! Сюда будут приходить только видео, которые надо "
+                                     "выложить: с текстом и временем публикации."))
                 label = T('✔ группа «{0}» (папки по датам)').format(name) if forum else T('✔ подключено: {0}').format(name)
-                self.root.after(0, lambda: (self.tg_on.set(True), self.tg_status.config(text=label)))
+                self.root.after(0, lambda: self.tg_status.config(text=label))
             except Exception as e:
                 err = str(e)
                 self.root.after(0, lambda: (self.tg_status.config(text=T("не подключено")),

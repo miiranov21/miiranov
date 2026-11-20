@@ -81,7 +81,7 @@ def deliver_clip(root: str, tmp_file: str, clip: dict, channel: str) -> str:
         pass
     try:  # на телефон, если подключён Telegram
         from . import telegram
-        if telegram.enabled():
+        if telegram.all_clips():  # по умолчанию выкл.: в Telegram только посты «выложить» (tg_assist)
             print("    " + telegram.send_clip(dest, clip, channel), flush=True)
     except Exception as e:
         print(f"    в Telegram не отправился: {e}", flush=True)

@@ -914,5 +914,7 @@
 "Другое время": "Başqa vaxt",
 "Сейчас разобрано до {0}.\nДо какого места считать стрим разобранным? (часы:минуты, например 12:30; 0 — с самого начала)\nВсё, что дальше, программа разберёт заново.": "İndi {0}-a qədər baxılıb.\nStrim hansı yerə qədər baxılmış sayılsın? (saat:dəqiqə, məsələn 12:30; 0 — lap əvvəldən)\nDaha sonrasına proqram yenidən baxacaq.",
 "Не понял время. Напиши, например, 12:30.": "Vaxtı başa düşmədim. Məsələn, 12:30 yaz.",
-"Стрим «{0}»: теперь разобран до {1} — дальше разберётся заново.": "«{0}» strimi: indi {1}-a qədər baxılıb — sonrasına yenidən baxılacaq."
+"Стрим «{0}»: теперь разобран до {1} — дальше разберётся заново.": "«{0}» strimi: indi {1}-a qədər baxılıb — sonrasına yenidən baxılacaq.",
+"📋 План — в Telegram": "📋 Plan — Telegram-a",
+"план отправлен в Telegram": "plan Telegram-a göndərildi"
 }

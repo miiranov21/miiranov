@@ -608,10 +608,50 @@ def _deliver_batch(st: dict, c: dict, event, stats: dict, now: datetime) -> None
                 pass
         stats["reminded"] += 1
     st["last_delivery"] = stamp
+    if not extra:
+        send_plan(event, 24)
     if stats["sent"]:
         event("📦", (f"Telegram: новые видео вне пачки — {stats['sent']}, запланируй сейчас" if extra else
                      f"Telegram: пачка на публикацию — {stats['sent']} видео, у каждого время для «Запланировать»"),
               None, "info")
+
+
+def plan_text(hours: float = 24) -> str:
+    """План публикаций текстом для Telegram: время МСК / ET, площадка, стример, название."""
+    from . import autopilot, schedule
+    now = datetime.now()
+    limit = (now + timedelta(hours=hours)).isoformat(timespec="minutes")
+    chans = {os.path.normpath(c["path"]): (c.get("channel", ""), c.get("by", ""))
+             for d in library.list_dates() for c in library.list_clips(d)}
+    rows = [r for r in autopilot.plan_rows() if (r.get("when") or "") <= limit]
+    if not rows:
+        return "📋 План на ближайшие сутки пуст — новые клипы появятся, когда программа нарежет и отберёт их."
+    lines, day = [f"📋 План публикаций на {int(hours)} ч ({len(rows)}):"], None
+    for r in rows:
+        t = datetime.fromisoformat(r["when"])
+        d = schedule.day_label(t)
+        if d != day:
+            day = d
+            lines.append(f"\n{d}:")
+        ch, by = chans.get(os.path.normpath(r["path"]), ("", ""))
+        mark = "📨" if r.get("sent") else "•"
+        lines.append(f"{mark} {schedule.msk(t):%H:%M} МСК ({schedule.et(t):%H:%M} ET) — {NAMES.get(r['platform'], r['platform'])} — "
+                     f"{ch}{' · ' + by if by else ''}: {(r.get('title') or os.path.basename(r['path'])[:-4])[:60]}")
+    lines.append("\n📨 — видео уже в чате")
+    return "\n".join(lines)[:4000]
+
+
+def send_plan(event=None, hours: float = 24) -> None:
+    c = telegram.load()
+    if not (c.get("token") and c.get("chat_id")):
+        return
+    text = plan_text(hours)
+    for r in recipients(c):
+        try:
+            telegram._call(c["token"], "sendMessage", data={"chat_id": r["id"], "text": text,
+                                                            **(_target(c) if r.get("main") else {})})
+        except Exception:
+            pass
 
 
 def send_ahead(event, hours: float = 48) -> dict:
@@ -664,6 +704,7 @@ def send_ahead(event, hours: float = 48) -> dict:
             event("❌", f"Telegram: не отправилось ({NAMES[job['platform']]}) — {e}"[:220], None, "error")
         save(st)
     save(st)
+    send_plan(event, hours)  # и общий план — что и когда выходит
     event("📦", f"Telegram: отправил видео на {int(hours)} ч вперёд — {sent}. Запланируйте их в приложениях.", None, "info")
     return {"sent": sent, "total": len(todo)}
 

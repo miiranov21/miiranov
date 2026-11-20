@@ -1907,6 +1907,7 @@ class App:
         ttk.Button(btns, text=T("▶ Открыть клип"), command=lambda: self._plan_action("open")).pack(side="left")
         ttk.Button(btns, text=T("⟳ Пересобрать план"), command=lambda: self._plan_action("rebuild")).pack(side="right")
         ttk.Button(btns, text=T("📤 Всё на 2 дня — в Telegram"), command=self._send_ahead).pack(side="right", padx=6)
+        ttk.Button(btns, text=T("📋 План — в Telegram"), command=self._plan_to_tg).pack(side="right")
         self.plan_status = ttk.Label(btns, text="", foreground=self.muted)
         self.plan_status.pack(side="right", padx=8)
         cols = ("day", "msk", "et", "platform", "streamer", "clip", "state")
@@ -1944,6 +1945,12 @@ class App:
                                                  f"{os.path.basename(r['path'])[:-4]} — {r.get('title') or ''}", state))
             self.plan_rows[iid] = r
         self.plan_status.config(text=T("в плане: {0}").format(len(rows)))
+
+    def _plan_to_tg(self):
+        from . import tg_assist
+        threading.Thread(target=lambda: (tg_assist.send_plan(None, 48),
+                                         self.root.after(0, lambda: self.plan_status.config(text=T("план отправлен в Telegram")))),
+                         daemon=True).start()
 
     def _send_ahead(self, then=None):
         """Все видео из плана на 2 дня — в Telegram сейчас (перед выключением компьютера)."""
@@ -4905,10 +4912,10 @@ class App:
         from . import autopilot, telegram, tg_assist
         if telegram.load().get("token") and tg_assist.mode() == "telegram_assist" and not getattr(self, "_ahead_done", False):
             ahead = [r for r in autopilot.plan_rows() if not r.get("sent")]
-            if ahead and messagebox.askyesno(T("Выход"), T(
-                    "В плане {0} видео. Пока компьютер выключен, бот их не пришлёт.\n\n"
-                    "Отправить в Telegram (тебе и другу) все видео на ближайшие 2 дня? Запланируете их в приложениях "
-                    "на указанное время — и всё выйдет без компьютера.").format(len(ahead))):
+            if messagebox.askyesno(T("Выход"), T(
+                    "Ещё не отправлено видео из плана: {0}. Пока компьютер выключен, бот их не пришлёт.\n\n"
+                    "Отправить в Telegram (тебе и другу) план и все видео на ближайшие 2 дня? Запланируете их в "
+                    "приложениях на указанное время — и всё выйдет без компьютера.").format(len(ahead))):
                 self._send_ahead(then=self.on_close)
                 return
         self.force_stop()

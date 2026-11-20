@@ -1497,10 +1497,9 @@ class App:
             return
         from . import facecam
         todo = []
-        for spec in names:  # перед стартом — указать вебку тем, у кого она ещё не задана
+        for spec in names:  # перед стартом — вебка у КАЖДОГО: от стрима к стриму она может переехать
             kind, target, key = self._spec_kind(spec)
-            if not facecam.get_entry(key).get("manual"):
-                todo.append((key, kind, target))
+            todo.append((key, kind, target))
 
         def go():
             self._choose_streams(names, lambda: self._run(["watch", *self._flags()], T("Слежу за: ") + ", ".join(names),
@@ -1509,9 +1508,10 @@ class App:
             go()
             return
         if not messagebox.askyesno(T("Вебка стримеров"), T(
-                "Перед стартом укажем, где у стримеров вебка: {0}.\n\nПрограмма возьмёт кадр со стрима — обведи на нём "
-                "вебку мышкой. Если на кадре её не видно — «Другой кадр», если вебки нет совсем — «Нет веб-камеры».\n\n"
-                "Указать сейчас? («Нет» — начать сразу, вебка будет искаться сама)").format(
+                "Перед стартом проверим, где у стримеров вебка в этом стриме: {0}.\n\nПрограмма возьмёт свежий кадр — обведи "
+                "на нём вебку мышкой. Не изменилась — «Оставить как в прошлый раз»; не видно — «Другой кадр»; "
+                "вебки нет — «Нет веб-камеры».\n\n"
+                "Проверить сейчас? («Нет» — начать сразу с прошлыми рамками, новые стримеры — автоматически)").format(
                     ", ".join(k for k, _, _ in todo))):
             go()
             return
@@ -5149,6 +5149,12 @@ class App:
         ttk.Button(bar, text=T("🚫 Нет веб-камеры"), command=no_cam).pack(side="left", padx=6)
         ttk.Button(bar, text=T("🔄 На этом кадре нет веб-камеры — другой кадр"), command=another_frame).pack(side="left")
         ttk.Button(bar, text=T("Пропустить (искать самой)"), command=auto).pack(side="right")
+        if entry.get("manual") and (entry.get("region") or entry.get("none")):
+            def keep():
+                self._append(T('Для {0}: вебка как в прошлый раз.\n').format(channel))
+                win.destroy()
+                finish()
+            ttk.Button(bar, text=T("↩ Оставить как в прошлый раз"), command=keep).pack(side="right", padx=6)
         win.grab_set()
         self.facecam_window = win  # для проверок
 

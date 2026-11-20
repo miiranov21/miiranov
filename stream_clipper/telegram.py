@@ -72,7 +72,46 @@ def _call(token: str, method: str, timeout: float = 30, data: dict | None = None
         if "Unauthorized" in desc or "Not Found" in desc:
             desc = T("неверный ключ бота — скопируй его из @BotFather целиком")
         raise RuntimeError(desc)
-    return res["result"]
+    out = res["result"]
+    if method.startswith("send") and isinstance(out, dict) and out.get("message_id"):
+        _log_sent((data or {}).get("chat_id") or (out.get("chat") or {}).get("id"), out["message_id"])
+    return out
+
+
+def _sent_path() -> str:
+    return os.path.join(paths.default_work_dir(), "tg_sent.json")
+
+
+def _log_sent(chat, mid) -> None:
+    """Что бот отправил (чат, номер сообщения, время) — чтобы потом можно было убрать всё из чата."""
+    import time
+    try:
+        try:
+            with open(_sent_path(), encoding="utf-8") as f:
+                log = json.load(f)
+        except Exception:
+            log = []
+        log.append([str(chat), int(mid), time.time()])
+        log = [x for x in log if time.time() - x[2] < 3 * 86400][-5000:]
+        with open(_sent_path(), "w", encoding="utf-8") as f:
+            json.dump(log, f)
+    except Exception:
+        pass
+
+
+def sent_log() -> list:
+    try:
+        with open(_sent_path(), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def clear_sent_log() -> None:
+    try:
+        os.remove(_sent_path())
+    except OSError:
+        pass
 
 
 def find_chat(token: str) -> tuple[int, str, bool]:

@@ -733,6 +733,7 @@ class App:
         self.root.after(15000, self._assist_tick)
         self.root.after(3000, self._doctor_settings_tick)
         self.root.after(40000, lambda: self.sweep_sleepy(auto=True))
+        self.root.after(25000, self._tg_on_start)
         self.root.after(2500, self.check_updates)
 
     # ---------- горячие клавиши и меню правой кнопки ----------
@@ -1852,6 +1853,40 @@ class App:
             self.refresh_archive()
         elif i == 4:
             self.refresh_plan()
+
+    CLEAR_CHAT_V = 1
+
+    def _tg_on_start(self):
+        """Включили программу: один раз — очистить чат бота (по просьбе), потом сразу прислать файлы на сегодня."""
+        from . import telegram, tg_assist
+        if not telegram.load().get("token") or tg_assist.mode() != "telegram_assist":
+            return
+        if paths.team_dir() and not self.v["team_main"].get():
+            return
+        if getattr(self, "_assist_busy", False):
+            self.root.after(15000, self._tg_on_start)
+            return
+        self._assist_busy = True
+
+        def event(icon, text, path=None, kind="info"):
+            self.root.after(0, lambda: self.activity.event(icon, tr_line(text), path, kind))
+
+        def work():
+            try:
+                c = telegram.load()
+                if c.get("cleared_v") != self.CLEAR_CHAT_V:
+                    tg_assist.clear_chat(event)
+                    c = telegram.load()
+                    c["cleared_v"] = self.CLEAR_CHAT_V
+                    telegram.save(c)
+                tg_assist.send_today(event)
+            except Exception as e:
+                event("❌", T("Telegram: не получилось прислать видео на сегодня — {0}").format(e), None, "error")
+            self.root.after(0, done)
+
+        def done():
+            self._assist_busy = False
+        threading.Thread(target=work, daemon=True).start()
 
     def sweep_sleepy(self, auto: bool = False):
         """Проверить ВСЕ клипы фильтрами «стример спит» и убрать не прошедшие в архив (один раз — сам при запуске)."""

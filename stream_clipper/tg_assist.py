@@ -664,7 +664,7 @@ def send_plan(event=None, hours: float = 24) -> None:
             pass
 
 
-def send_ahead(event, hours: float = 24) -> dict:
+def send_ahead(event, hours: float = 24, intro: str = "") -> dict:
     """Компьютер выключают: прислать в Telegram (тебе и другу) ВСЕ видео из плана на ближайшие hours часов —
     каждое со временем «Запланировать на …». Их ставят на отложенную публикацию в приложениях, и дальше
     компьютер не нужен."""
@@ -692,11 +692,11 @@ def send_ahead(event, hours: float = 24) -> dict:
     try:
         telegram._call(c["token"], "sendMessage", data={
             "chat_id": c["chat_id"], **_target(c),
-            "text": f"🖥 Компьютер выключается. Вот все видео на ближайшие {int(hours)} ч: {len(todo)}. "
+            "text": f"{intro or '🖥 Компьютер выключается. Видео на ближайшие ' + str(int(hours)) + ' ч'}: {len(todo)}. "
                     "Запланируй каждое в приложении на указанное время — дальше всё выйдет само."})
         for r in recipients(c)[1:]:
             telegram._call(c["token"], "sendMessage", data={
-                "chat_id": r["id"], "text": f"🖥 Компьютер выключается. Видео на ближайшие {int(hours)} ч: {len(todo)}."})
+                "chat_id": r["id"], "text": f"{intro or '🖥 Компьютер выключается. Видео на ближайшие ' + str(int(hours)) + ' ч'}: {len(todo)}."})
     except Exception:
         pass
     for jid, job in todo:
@@ -765,6 +765,70 @@ def cleanup_future(c: dict, st: dict, event=None, hours: float = 24) -> int:
     if n and event:
         event("🧹", f"Telegram: убрал из чата {n} видео на будущие дни — придут файлами в свой день", None, "info")
     return n
+
+
+def clear_chat(event=None) -> int:
+    """Убрать из чата всё, что прислал бот (Telegram даёт удалять сообщения не старше 48 ч).
+    Неразмещённые посты возвращаются в план и придут заново файлами."""
+    c = telegram.load()
+    if not (c.get("token") and c.get("chat_id")):
+        return 0
+    st = load()
+    ids: dict = {}
+    for chat, mid, _t in telegram.sent_log():
+        ids.setdefault(str(chat), set()).add(int(mid))
+    for job in st["jobs"].values():
+        for m in job.get("msgs") or []:
+            for k in ("msg", "video"):
+                if m.get(k):
+                    ids.setdefault(str(m["chat"]), set()).add(int(m[k]))
+    removed = 0
+    for chat, known in ids.items():
+        if not known:
+            continue
+        # всё между первым и последним сообщением бота — тоже его (обложки, подсказки, план, старые пачки)
+        rng = list(range(min(known), max(known) + 1))
+        if len(rng) > 3000:
+            rng = sorted(known)
+        for i in range(0, len(rng), 100):
+            chunk = rng[i:i + 100]
+            try:
+                telegram._call(c["token"], "deleteMessages",
+                               data={"chat_id": chat, "message_ids": json.dumps(chunk)})
+                removed += len([x for x in chunk if x in known])
+            except Exception:
+                for mid in chunk:  # старый Bot API — по одному
+                    if mid in known:
+                        try:
+                            telegram._call(c["token"], "deleteMessage", data={"chat_id": chat, "message_id": mid})
+                            removed += 1
+                        except Exception:
+                            pass
+    for job in st["jobs"].values():
+        if job.get("status") == "sent":
+            job.update({"status": "pending", "msgs": [], "msg_id": None})
+    st.pop("last_delivery", None)
+    save(st)
+    telegram.clear_sent_log()
+    c = telegram.load()
+    c.pop("assist_hint", None)  # подсказку пришлём заново
+    telegram.save(c)
+    if event:
+        event("🧹", f"Telegram: чат очищен — убрано сообщений: {removed}", None, "info")
+    return removed
+
+
+def send_today(event) -> dict:
+    """Включили компьютер — сразу прислать файлы на сегодня (ближайшие сутки), не дожидаясь дневной пачки."""
+    res = send_ahead(event, hours=24, intro="🖥 Компьютер включён. Видео на сегодня")
+    from . import schedule, strategy
+    st = load()
+    last, _ = schedule.deliveries((strategy.get().get("autopilot") or {}).get("telegram_delivery_msk") or [],
+                                  datetime.now())
+    if last:
+        st["last_delivery"] = last.isoformat(timespec="minutes")  # эта пачка уже отправлена — второй раз не шлём
+    save(st)
+    return res
 
 
 def overview() -> list[dict]:

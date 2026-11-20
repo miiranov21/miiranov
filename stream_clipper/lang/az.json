@@ -926,5 +926,6 @@
 "Нажми «⚡ Заполнить план сейчас» — автопилот сразу отберёт и смонтирует клипы.": "«⚡ Planı indi doldur» düyməsini bas — avtopilot klipləri dərhal seçib montaj edəcək.",
 "Все свободные клипы ниже порога оценки — «⚡ Заполнить план сейчас» возьмёт лучшие из них.": "Bütün boş kliplər qiymət həddindən aşağıdır — «⚡ Planı indi doldur» onlardan ən yaxşılarını götürəcək.",
 "автопилот уже работает — подожди": "avtopilot artıq işləyir — gözlə",
-"заполняю план: отбираю и монтирую клипы...": "planı doldururam: klipləri seçir və montaj edirəm..."
+"заполняю план: отбираю и монтирую клипы...": "planı doldururam: klipləri seçir və montaj edirəm...",
+"Telegram: не получилось прислать видео на сегодня — {0}": "Telegram: bugünkü videoları göndərmək alınmadı — {0}"
 }

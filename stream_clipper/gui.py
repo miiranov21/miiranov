@@ -1414,6 +1414,7 @@ class App:
                         st_ = T("ещё не разбирали")
                     when = time.strftime("%d.%m %H:%M", time.localtime(v["ts"])) if v.get("ts") else ""
                     label = f"{when} · {(v.get('title') or '')[:55]} · {progress.fmt(dur) if dur else '?'} · {st_}"
+                    v = dict(v, resume_from=(sm["upto"] if sm and not sm["finished"] else 0))
                     opts[label] = v
                 self.root.after(0, lambda spec=spec, opts=opts: fill(spec, opts))
             self.root.after(0, lambda: status.config(text=T("Готово. Не разобранные отмечены «ещё не разбирали».")))
@@ -1433,7 +1434,7 @@ class App:
                 v = choices.get(spec, {}).get(var.get())
                 if v:
                     vods.append({"url": v["url"], "key": str(v.get("key") or ""), "channel": key,
-                                 "title": v.get("title") or ""})
+                                 "title": v.get("title") or "", "from": float(v.get("resume_from") or 0)})
             try:
                 path = os.path.join(paths.default_work_dir(), "extra_vods.json")
                 os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -1477,8 +1478,12 @@ class App:
         else:
             self.status.config(text=T("Список сохранён: ") + (", ".join(names) or T("пусто")))
 
-    def start_watch(self):
+    def start_watch(self, quiet: bool = False):
         names = self._save_streamers()
+        if quiet:  # продолжение после обновления программы — без окон, сразу работать
+            if names:
+                self._run(["watch", *self._flags()], T("Слежу за: ") + ", ".join(names), job=["watch"])
+            return
         self._lang_warning(names)
         if not names:
             messagebox.showwarning(T("Нет стримеров"), T("Впиши хотя бы одного стримера во вкладку Twitch или YouTube."))
@@ -1826,7 +1831,7 @@ class App:
             self.url.set(job[1])
             self.start_vod()
         else:
-            self.start_watch()
+            self.start_watch(quiet=True)
 
     def _restart(self):
         self._append(T("Перезапускаю программу...\n"))
@@ -2009,7 +2014,8 @@ class App:
                    command=self.continue_stream).pack(side="left", padx=(0, 6))
         ttk.Button(btns, text=T("🔗  Открыть стрим на этом месте"), command=self.open_stream).pack(side="left", padx=(0, 6))
         ttk.Button(btns, text=T("✔  Отметить досмотренным"), command=self.mark_stream_done).pack(side="left", padx=(0, 6))
-        ttk.Button(btns, text=T("🗑  Убрать из списка"), command=self.forget_stream).pack(side="left")
+        ttk.Button(btns, text=T("⏪  Другое время (отмотать)"), command=self.rewind_stream).pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text=T("🗑  Забыть стрим (разобрать заново)"), command=self.forget_stream).pack(side="left")
         frame = ttk.Frame(parent)
         frame.pack(fill="both", expand=True, pady=6)
         cols = ("date", "title", "link", "upto", "live")
@@ -3602,12 +3608,38 @@ class App:
     def forget_stream(self):
         from . import progress
         r = self._stream_selected()
-        if r and messagebox.askyesno(T("Стримы"), T("Убрать этот стрим из списка? Клипы не удалятся — программа просто "
-                                               "забудет, какой кусок разобран.")):
-            progress.forget(r["key"])
-            for vods in self.online_streams.values():
-                vods[:] = [v for v in vods if v["key"] != r["key"]]
+        if r and messagebox.askyesno(T("Стримы"), T(
+                "Забыть всё, что разобрано в этом стриме?\n\nСледующий разбор начнётся с самого начала, как будто стрим "
+                "новый. Клипы в папке не удалятся, и те же моменты второй раз нарезаны не будут — найдутся новые.")):
+            progress.reset_memory(r["key"], r.get("url", ""))
+            self._append(T("Память о стриме «{0}» очищена — разбор начнётся заново.").format(r.get("title") or r["key"]) + "\n")
             self.refresh_streams()
+
+    def rewind_stream(self):
+        """«Другое время»: считать разобранным только до указанного места — дальше разобрать заново."""
+        from tkinter import simpledialog
+        from . import progress
+        r = self._stream_selected()
+        if not r:
+            return
+        upto = int(r["summary"].get("upto") or 0)
+        cur = f"{upto // 3600}:{upto % 3600 // 60:02d}"
+        ans = simpledialog.askstring(T("Другое время"), T(
+            "Сейчас разобрано до {0}.\nДо какого места считать стрим разобранным? (часы:минуты, например 12:30; "
+            "0 — с самого начала)\nВсё, что дальше, программа разберёт заново.").format(cur), initialvalue=cur,
+            parent=self.root)
+        if ans is None:
+            return
+        try:
+            parts = [int(x) for x in ans.strip().replace(".", ":").split(":")] if ans.strip() not in ("", "0") else [0, 0]
+            sec = parts[0] * 3600 + (parts[1] if len(parts) > 1 else 0) * 60
+        except ValueError:
+            messagebox.showwarning(T("Другое время"), T("Не понял время. Напиши, например, 12:30."))
+            return
+        progress.reset_memory(r["key"], r.get("url", ""), upto=float(sec))
+        self._append(T("Стрим «{0}»: теперь разобран до {1} — дальше разберётся заново.").format(
+            r.get("title") or r["key"], f"{sec // 3600}:{sec % 3600 // 60:02d}") + "\n")
+        self.refresh_streams()
 
     # ---------- вкладка «Клипы» ----------
     def _build_clips(self, parent):

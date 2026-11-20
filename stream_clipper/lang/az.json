@@ -906,5 +906,13 @@
 "Готово. Не разобранные отмечены «ещё не разбирали».": "Hazırdır. Baxılmayanlar «hələ baxılmayıb» kimi qeyd olunub.",
 "прошлых записей не нашлось": "keçmiş yazılar tapılmadı",
 "Прошлые стримы к разбору: {0}": "Baxılacaq keçmiş strimlər: {0}",
-"▶ Начать": "▶ Başla"
+"▶ Начать": "▶ Başla",
+"⏪  Другое время (отмотать)": "⏪  Başqa vaxt (geri sar)",
+"🗑  Забыть стрим (разобрать заново)": "🗑  Strimi unut (yenidən bax)",
+"Забыть всё, что разобрано в этом стриме?\n\nСледующий разбор начнётся с самого начала, как будто стрим новый. Клипы в папке не удалятся, и те же моменты второй раз нарезаны не будут — найдутся новые.": "Bu strimdə baxılanların hamısı unudulsun?\n\nNövbəti baxış lap əvvəldən başlayacaq, sanki strim yenidir. Qovluqdakı kliplər silinməyəcək və eyni anlar ikinci dəfə kəsilməyəcək — yeniləri tapılacaq.",
+"Память о стриме «{0}» очищена — разбор начнётся заново.": "«{0}» strimi haqqında yaddaş təmizləndi — baxış yenidən başlayacaq.",
+"Другое время": "Başqa vaxt",
+"Сейчас разобрано до {0}.\nДо какого места считать стрим разобранным? (часы:минуты, например 12:30; 0 — с самого начала)\nВсё, что дальше, программа разберёт заново.": "İndi {0}-a qədər baxılıb.\nStrim hansı yerə qədər baxılmış sayılsın? (saat:dəqiqə, məsələn 12:30; 0 — lap əvvəldən)\nDaha sonrasına proqram yenidən baxacaq.",
+"Не понял время. Напиши, например, 12:30.": "Vaxtı başa düşmədim. Məsələn, 12:30 yaz.",
+"Стрим «{0}»: теперь разобран до {1} — дальше разберётся заново.": "«{0}» strimi: indi {1}-a qədər baxılıb — sonrasına yenidən baxılacaq."
 }

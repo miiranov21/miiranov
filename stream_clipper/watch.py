@@ -228,7 +228,9 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
         progress: dict = {}
         try:
             log(f"[{name}] прошлый стрим: {item.get('title') or url}")
+            start = float(item.get("from") or 0) or None  # разобранное раньше (или до «отмотанного» места) не трогаем
             new = process_vod(url, cfg, done=done, live=False, log=log, on_clip=on_clip, progress=progress,
+                              start_at=start,
                               slice_sec=SLICE if (len(sources) + len(load_extra())) > 1 else None)
         except Exception as e:
             log(f"[{name}] ошибка обработки прошлого стрима: {e}")

@@ -80,6 +80,65 @@ def forget(key: str) -> None:
             _save(data)
 
 
+def _json(path: str) -> dict:
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _json_save(path: str, data: dict) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
+def reset_memory(key: str, url: str = "", upto: float | None = None) -> None:
+    """Вся память о разборе стрима: upto=None — забыть целиком (разбор начнётся с нуля),
+    иначе — «отмотать»: считать разобранным только до upto секунд, дальше разобрать заново.
+    Клипы в папке остаются; уже нарезанные моменты повторно не режутся (проверка похожих моментов)."""
+    work = paths.default_work_dir()
+    with _lock:
+        data = load()
+        if upto is None:
+            data.pop(key, None)
+        elif key in data:
+            e = data[key]
+            e["ranges"] = [[a, min(b, upto)] for a, b in merge(e.get("ranges") or []) if a < upto]
+            e["live"] = False
+        _save(data)
+    keep = (lambda d: False) if upto is None else (lambda d: float(d.get("start", 0)) < upto)
+    # слежка: готовые клипы этого стрима и выбранное «начать с»
+    wp = os.path.join(work, "watch_state.json")
+    ws = _json(wp)
+    changed = False
+    for k in list(ws):
+        if k == key or (url and k == url):
+            ws[k] = [d for d in ws[k] if isinstance(d, dict) and keep(d)] if isinstance(ws[k], list) else ws[k]
+            if not ws[k]:
+                ws.pop(k)
+            changed = True
+        elif k in (f"{key}__from", f"{key}__from_text"):
+            ws.pop(k)
+            changed = True
+    if changed:
+        _json_save(wp, ws)
+    # нарезка по ссылке: готовые клипы по этой ссылке
+    vp = os.path.join(work, "vod_state.json")
+    vs = _json(vp)
+    hit = [u for u in vs if (url and u.split("?")[0] == url.split("?")[0]) or (key and key in u)]
+    for u in hit:
+        vs[u] = [d for d in vs[u] if isinstance(d, dict) and keep(d)]
+        if not vs[u]:
+            vs.pop(u)
+    if hit:
+        _json_save(vp, vs)
+
+
 def set_done(key: str) -> None:
     """Пометить стрим полностью разобранным (вручную)."""
     with _lock:

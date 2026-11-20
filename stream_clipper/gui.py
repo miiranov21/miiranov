@@ -732,6 +732,7 @@ class App:
         self.root.after(20000, self._autopilot_tick)
         self.root.after(15000, self._assist_tick)
         self.root.after(3000, self._doctor_settings_tick)
+        self.root.after(40000, lambda: self.sweep_sleepy(auto=True))
         self.root.after(2500, self.check_updates)
 
     # ---------- горячие клавиши и меню правой кнопки ----------
@@ -1723,6 +1724,46 @@ class App:
             self.refresh_archive()
         elif i == 4:
             self.refresh_plan()
+
+    def sweep_sleepy(self, auto: bool = False):
+        """Проверить ВСЕ клипы фильтрами «стример спит» и убрать не прошедшие в архив (один раз — сам при запуске)."""
+        from . import autopilot
+        if getattr(self, "_sweep_busy", False):
+            return
+        if paths.team_dir() and not self.v["team_main"].get():
+            return
+        st = autopilot.load_state()
+        if auto and st.get("sweep_all_v") == autopilot.SWEEP_V:
+            return
+        self._sweep_busy = True
+        self.activity.event("💤", T("Проверяю все клипы: где стример спит — уберу в архив"))
+
+        def say(msg):
+            self.root.after(0, lambda: self.status.config(text=tr_line(msg)[:140]))
+
+        def event(icon, text, path=None, kind="info"):
+            self.root.after(0, lambda: self.activity.event(icon, tr_line(text), path, kind))
+
+        def work():
+            try:
+                res, err = autopilot.sweep_all(event, say), None
+                st2 = autopilot.load_state()
+                st2["sweep_all_v"] = autopilot.SWEEP_V
+                autopilot.save_state(st2)
+            except Exception as e:
+                res, err = {}, e
+            self.root.after(0, lambda: done(res, err))
+
+        def done(res, err):
+            self._sweep_busy = False
+            if err:
+                self.activity.event("❌", T("Проверка клипов не удалась: {0}").format(err), kind="error")
+                return
+            self.activity.event("💤", T("Проверено клипов: {0}, убрано в архив (стример спит): {1}, снято с плана: {2}")
+                                .format(res["checked"], res["archived"], res["plan_removed"]))
+            self.status.config(text=T("Готово: убрано в архив {0} клипов, где стример спит").format(res["archived"]))
+            self.refresh_clips()
+        threading.Thread(target=work, daemon=True).start()
 
     # ---------- вкладка «План»: что и когда выйдет ----------
     def _build_plan(self, parent):
@@ -3483,6 +3524,7 @@ class App:
         mm.add_command(label=T("📥  Загрузить решения аналитика из файла…"), command=self.import_decisions_file)
         mm.add_command(label=T("🗑  Удалить, что советует аналитик…"), command=self.delete_advised)
         mm.add_command(label=T("⛔  Снять с публикации (выложенные с нарушениями)…"), command=self.unpublish_window)
+        mm.add_command(label=T("💤  Убрать в архив клипы, где стример спит (проверить все)"), command=self.sweep_sleepy)
         mm.add_separator()
         mm.add_command(label=T("☑  Выбрать все"), command=self.select_all_clips)
         mm.add_command(label=T("✍  Описание и хэштеги"), command=self.post_texts)

@@ -878,5 +878,10 @@
 "ждёт": "gözləyir",
 "в плане: {0}": "planda: {0}",
 "Выбери строку в плане.": "Planda sətir seç.",
-"План": "Plan"
+"План": "Plan",
+"💤  Убрать в архив клипы, где стример спит (проверить все)": "💤  Strimerin yatdığı klipləri arxivə köçür (hamısını yoxla)",
+"Проверяю все клипы: где стример спит — уберу в архив": "Bütün klipləri yoxlayıram: strimerin yatdığılar arxivə gedəcək",
+"Проверка клипов не удалась: {0}": "Kliplərin yoxlanması alınmadı: {0}",
+"Проверено клипов: {0}, убрано в архив (стример спит): {1}, снято с плана: {2}": "Yoxlanan klip: {0}, arxivə köçürülən (strimer yatır): {1}, plandan çıxarılan: {2}",
+"Готово: убрано в архив {0} клипов, где стример спит": "Hazırdır: strimerin yatdığı {0} klip arxivə köçürüldü"
 }

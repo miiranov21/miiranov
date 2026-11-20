@@ -409,6 +409,17 @@ def _clip_age_h(path: str) -> float:
         return 1e9
 
 
+def _channel_lang_ok(c: dict) -> bool:
+    """Канал под один язык (account.streamers_language): клип стримера на другом языке в план не ставим."""
+    acc = strategy.get().get("account") or {}
+    need = (acc.get("streamers_language") or acc.get("language") or "").lower()
+    if not need:
+        return True
+    from .caption import streamer_langs
+    lang = streamer_langs().get((c.get("channel") or "").lower().lstrip("@")) or c.get("lang") or need
+    return lang == need
+
+
 def _alive(path: str, pl: str, live: dict, archived: set, posted: dict) -> str | None:
     """None — клип живой; иначе — почему его нельзя ставить в план."""
     p = os.path.normpath(path)
@@ -418,6 +429,8 @@ def _alive(path: str, pl: str, live: dict, archived: set, posted: dict) -> str |
         return "удалён или в корзине"
     if (posted.get(p) or {}).get(pl):
         return "уже выложен"
+    if not _channel_lang_ok(live[p]):
+        return "стример не англоязычный"
     return None
 
 
@@ -443,6 +456,8 @@ def rebuild_schedule(now: datetime | None = None, event=None) -> dict:
             job = jobs_by.get((os.path.normpath(path), pl), (None, {}))[1]
             status = "sent" if job.get("status") in ("sent",) else ("published" if job.get("status") == "posted"
                                                                      else q.get("status"))
+            if status == "sent" and os.path.normpath(path) in live and not _channel_lang_ok(live[os.path.normpath(path)]):
+                status = "waiting"  # уже ушло в Telegram, но стример не англоязычный — тоже снимаем
             if status in FIXED:
                 t = _parse(q.get("when"))
                 if t:
@@ -489,7 +504,8 @@ def rebuild_schedule(now: datetime | None = None, event=None) -> dict:
     changed = False
     for path, pl, why in removed:
         jid, job = jobs_by.get((os.path.normpath(path), pl), (None, None))
-        if jid and job.get("status") in ("pending", "error", "blocked"):
+        if jid and (job.get("status") in ("pending", "error", "blocked")
+                    or (job.get("status") == "sent" and why == "стример не англоязычный")):
             tst["jobs"].pop(jid, None)
             changed = True
         exchange.drop_platform(path, pl)
@@ -676,34 +692,56 @@ def unpublish_flagged(st: dict, event) -> None:
                      "how": how})
 
 
-def quality_sweep(clips: list, st: dict, event, say=None, limit: int = 8) -> int:
-    """Готовые клипы, которые ещё не проверяли фильтрами качества: не прошедшие (и нигде не выложенные) — в архив."""
+SWEEP_V = 2
+
+
+def quality_sweep(clips: list, st: dict, event, say=None, limit: int | None = 25) -> int:
+    """Готовые клипы, которые ещё не проверяли фильтрами качества: не прошедшие (и нигде не выложенные) — в архив.
+    Проверка: чат момента про сон (топ сообщений клипа) + картинка, вебка и голос стримера. limit=None — все сразу."""
     from . import quality
     if not quality.enabled():
         return 0
     checked = st.setdefault("quality_checked", {})
-    n = done = 0
-    for c in clips:
+    rs = quality.rules().get("reject_sleep") or {}
+    hit = quality._matcher([w.lower() for w in (rs.get("chat_keywords") or quality.DEFAULT_SLEEP_WORDS)])
+    todo = [c for c in clips if os.path.exists(c["path"])
+            and (checked.get(os.path.normpath(c["path"])) or {}).get("v") != SWEEP_V
+            and not any((c.get("posted") or {}).values())]
+    n = 0
+    for i, c in enumerate(todo[:limit] if limit else todo, 1):
         p = os.path.normpath(c["path"])
-        if p in checked or not os.path.exists(c["path"]):
-            continue
-        if done >= limit:
-            break
-        done += 1
         if say:
-            say(f"💤 проверяю, не спит ли стример: {c.get('channel', '')} {os.path.basename(p)[:-4]}")
-        why, m = quality.check_clip(c["path"], (0.0, 0.0, 1.0, 0.42), c.get("words") or [])
-        if m.get("face_seen", 0) < 0.1:  # в верхней части лица нет вовсе — клип без вебки, судим без неё
-            why = quality.verdict(m, m.get("voice", 0), False, by_energy=m.get("by") == "energy")
-        checked[p] = {"why": why, "m": m, "t": time.time()}
-        if why and not any((c.get("posted") or {}).values()):
+            say(f"💤 проверяю, не спит ли стример ({i}/{len(todo) if not limit else min(limit, len(todo))}): "
+                f"{c.get('channel', '')} {os.path.basename(p)[:-4]}")
+        why = None
+        top = [m for m in (c.get("top_messages") or []) if m]
+        if top and sum(1 for m in top if hit(m)) / len(top) >= 0.5:
+            why = f"стример спит (чат: {', '.join(top[:3])})"
+            m = {"chat": top[:5]}
+        else:
+            why, m = quality.check_clip(c["path"], (0.0, 0.0, 1.0, 0.42), c.get("words") or [])
+            if m.get("face_seen", 0) < 0.1:  # в верхней части лица нет вовсе — клип без вебки, судим без неё
+                why = quality.verdict(m, m.get("voice", 0), False, by_energy=m.get("by") == "energy")
+        checked[p] = {"why": why, "m": m, "t": time.time(), "v": SWEEP_V}
+        if why:
             reason = f"стример спит / нет активности: {why}"
             event("💤", f"{c.get('channel', '')} {os.path.basename(p)[:-4]}: {why} — убираю в архив", c["path"], "info")
             st["clips"].pop(c["path"], None)
             _to_archive(c, reason, st, event)
             n += 1
+        if i % 5 == 0:
+            save_state(st)
     save_state(st)
     return n
+
+
+def sweep_all(event, say=None) -> dict:
+    """Кнопка «💤 Убрать спящих»: проверить сразу все клипы и пересобрать план."""
+    st = load_state()
+    clips = [c for d in library.list_dates() for c in library.list_clips(d)]
+    n = quality_sweep(clips, st, event, say, limit=None)
+    r = rebuild_schedule(event=event)
+    return {"checked": len(clips), "archived": n, "plan_removed": r.get("removed", 0)}
 
 
 def _to_archive(c: dict, reason: str, st: dict, event):

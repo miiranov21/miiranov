@@ -253,3 +253,95 @@ def check_clip(path: str, facecam: tuple | None, words: list | None = None) -> t
     voice = voice_ratio_words(words, dur) if words else voice_ratio_energy(path)
     m = dict(vis, voice=round(voice, 2), by="subs" if words else "energy")
     return verdict(vis, voice, bool(facecam), by_energy=not words), m
+
+
+# ---------- вторая, строгая проверка «спит ли стример» (сумма признаков) ----------
+def _gray_small(path: str, fps: float = 2.0, w: int = 270):
+    fr = _frames(path, fps=fps, w=w)
+    return None if fr is None else fr.mean(axis=3)
+
+
+def deep_metrics(path: str) -> dict:
+    """still — медиана доли «сильно изменившихся» пикселей между соседними кадрами (без полосы субтитров):
+    у спящего стрима почти ноль, даже если мигают таймер и алерты; dark — средняя яркость;
+    face_seen / face_still — самое крупное лицо в любом месте кадра."""
+    g = _gray_small(path)
+    if g is None or len(g) < 3:
+        return {}
+    n, h, w = g.shape
+    keep = np.ones((h, w), dtype=bool)
+    if h > w:  # вертикальный клип: полоса субтитров и надписи меняется сама — её не считаем
+        keep[int(h * 0.52):int(h * 0.82)] = False
+    d = np.abs(np.diff(g, axis=0))[:, keep]
+    changed = (d > 14).mean(axis=1)  # доля пикселей, где картинка заметно поменялась
+    out = {"changed": round(float(np.median(changed)), 4), "dark": round(float(g.mean()), 1)}
+    from . import facecam as fc
+    big = _frames(path, fps=1.0, w=480)
+    if big is not None:
+        seen = still = 0
+        prev = None
+        for i in range(len(big)):
+            img = np.ascontiguousarray(big[i])
+            faces = fc._faces(img, img.shape[1], img.shape[0])
+            if not faces:
+                prev = None
+                continue
+            seen += 1
+            fx, fy, fw, fh = max(faces, key=lambda f: f[2] * f[3])
+            H, W = img.shape[:2]
+            box = (int(fx * W), int(fy * H), max(6, int(fw * W)), max(6, int(fh * H)))
+            crop = img[box[1]:box[1] + box[3], box[0]:box[0] + box[2]].mean(axis=2)
+            if prev is not None:
+                pb, pc = prev
+                if abs(box[0] - pb[0]) + abs(box[1] - pb[1]) <= 3 and pc.shape == crop.shape \
+                        and float(np.abs(crop - pc).mean()) < th("face_still") * 1.5:
+                    still += 1
+            prev = (box, crop)
+        out["face_seen"] = round(seen / len(big), 2)
+        out["face_still"] = round(still / max(1, seen - 1), 2) if seen > 1 else (1.0 if seen else 0.0)
+    return out
+
+
+def sleep_score(m: dict, voice: float, voice_by_words: bool, title: str = "", chat_hits: int = 0) -> tuple[int, list]:
+    """Сколько признаков сна набралось и какие. Отказ — от 3 (или чат явно про сон)."""
+    why = []
+    if m.get("changed", 1) < float((rules().get("thresholds") or {}).get("deep_changed_max", 0.015)):
+        why.append("картинка почти не меняется")
+    if m.get("dark", 255) < float((rules().get("thresholds") or {}).get("deep_dark_max", 55)):
+        why.append("в кадре темно")
+    if m.get("face_seen", 0) < 0.3:
+        why.append("лица почти не видно")
+    elif m.get("face_still", 0) > 0.6:
+        why.append("лицо не двигается")
+    if voice_by_words and voice < 0.25:
+        why.append(f"стример почти не говорит ({voice:.0%})")
+    elif not voice_by_words and m.get("face_seen", 0) >= 0.3 and m.get("face_still", 0) > 0.6:
+        why.append("голос — не стримера (озвучка/музыка)")
+    words = [w.lower() for w in ((rules().get("reject_sleep") or {}).get("title_keywords") or DEFAULT_TITLE_WORDS)]
+    if any(w in (title or "").lower() for w in words) or "sleep" in (title or "").lower():
+        why.append("в названии стрима — сон/24/7")
+    if chat_hits:
+        why.append("чат пишет про сон")
+    return len(why), why
+
+
+def deep_check(path: str, words: list | None = None, title: str = "", top_messages: list | None = None) -> tuple[str | None, dict]:
+    """Строгая проверка готового клипа или куска: None — оставить, иначе причина."""
+    rs = rules().get("reject_sleep") or {}
+    hit = _matcher([w.lower() for w in (rs.get("chat_keywords") or DEFAULT_SLEEP_WORDS)])
+    top = [t for t in (top_messages or []) if t][:3]
+    chat_hits = sum(1 for t in top if hit(t))
+    if chat_hits >= 2 or (top and chat_hits / len(top) >= 0.5):
+        return f"стример спит (чат: {', '.join(top)})", {"chat": top}
+    m = deep_metrics(path)
+    if not m:
+        return None, {}
+    dur = duration(path)
+    by_words = bool(words)
+    voice = voice_ratio_words(words, dur) if by_words else voice_ratio_energy(path)
+    n, why = sleep_score(m, voice, by_words, title, chat_hits)
+    m.update(voice=round(voice, 2), score=n, signs=why)
+    need = int((rules().get("thresholds") or {}).get("deep_score_min", 3))
+    if n >= need:
+        return "стример спит: " + ", ".join(why), m
+    return None, m

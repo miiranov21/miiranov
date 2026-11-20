@@ -692,7 +692,7 @@ def unpublish_flagged(st: dict, event) -> None:
                      "how": how})
 
 
-SWEEP_V = 2
+SWEEP_V = 3
 
 
 def quality_sweep(clips: list, st: dict, event, say=None, limit: int | None = 25) -> int:
@@ -715,13 +715,17 @@ def quality_sweep(clips: list, st: dict, event, say=None, limit: int | None = 25
                 f"{c.get('channel', '')} {os.path.basename(p)[:-4]}")
         why = None
         top = [m for m in (c.get("top_messages") or []) if m]
-        if top and sum(1 for m in top if hit(m)) / len(top) >= 0.5:
+        if top and (sum(1 for m in top if hit(m)) / len(top) >= 0.5 or sum(1 for m in top[:3] if hit(m)) >= 2):
             why = f"стример спит (чат: {', '.join(top[:3])})"
             m = {"chat": top[:5]}
         else:
             why, m = quality.check_clip(c["path"], (0.0, 0.0, 1.0, 0.42), c.get("words") or [])
             if m.get("face_seen", 0) < 0.1:  # в верхней части лица нет вовсе — клип без вебки, судим без неё
                 why = quality.verdict(m, m.get("voice", 0), False, by_energy=m.get("by") == "energy")
+            if not why:  # вторая, строгая проверка — сумма признаков сна
+                why, m2 = quality.deep_check(c["path"], c.get("words") or [], c.get("vod_title") or "",
+                                             c.get("top_messages") or [])
+                m = dict(m, deep=m2)
         checked[p] = {"why": why, "m": m, "t": time.time(), "v": SWEEP_V}
         if why:
             reason = f"стример спит / нет активности: {why}"

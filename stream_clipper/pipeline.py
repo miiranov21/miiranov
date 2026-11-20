@@ -178,6 +178,18 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
                 except OSError:
                     pass
             raise ClipRejected(f"{why} (голос {v:.0%})")
+    if meta.get("check_quality", True) and not meta.get("caption_text"):
+        from . import quality, subtitles as _sb2
+        if quality.enabled():  # вторая, строгая проверка: сумма признаков сна (темно, всё стоит, лицо неподвижно…)
+            why, _m = quality.deep_check(segment, list(_sb2.LAST_WORDS) if transcript else [],
+                                         meta.get("title", ""), meta.get("top_messages") or [])
+            if why:
+                for p_ in ass_files:
+                    try:
+                        os.remove(p_)
+                    except OSError:
+                        pass
+                raise ClipRejected(why)
     text = ""
     if cfg.caption:
         from .caption import _api_key, make_caption, streamer_quote

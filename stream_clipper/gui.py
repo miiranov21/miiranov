@@ -4142,6 +4142,10 @@ class App:
             self._tg_refresh_recipients()
             if stats.get("posted"):
                 self.refresh_clips()
+            if stats.get("need_more") and not getattr(self, "_autopilot_busy", False) \
+                    and time.time() - getattr(self, "_need_more_t", 0) > 120:
+                self._need_more_t = time.time()  # «Не выкладывать», а замены в плане нет — автопилот подберёт клип сейчас
+                self._autopilot_tick(force=True)
         threading.Thread(target=work, daemon=True).start()
 
     def _check_trends(self):

@@ -180,8 +180,51 @@ def _buttons(job: dict, jid: str) -> str:
     done = "✅ Запланировал" if job.get("schedule") else "✅ Выложил"
     return json.dumps({"inline_keyboard": [
         [{"text": f"📲 Открыть {NAMES[job['platform']]}", "url": OPEN_URL[job["platform"]]}],
-        [{"text": done, "callback_data": f"ok:{jid}"}, {"text": "⏭ Пропустить", "callback_data": f"skip:{jid}"}]]},
+        [{"text": done, "callback_data": f"ok:{jid}"}, {"text": "⏭ Пропустить", "callback_data": f"skip:{jid}"}],
+        [{"text": "🚫 Не выкладывать: мат", "callback_data": f"nobad:{jid}"},
+         {"text": "🚫 Не залетит", "callback_data": f"noweak:{jid}"}]]},
         ensure_ascii=False)
+
+
+REJECT_WHY = {"nobad": "мат / плохое слово", "noweak": "не залетит"}
+
+
+def _edit_all(c: dict, job: dict, note: str) -> None:
+    for m in job.get("msgs") or ([{"chat": c["chat_id"], "msg": job["msg_id"]}] if job.get("msg_id") else []):
+        try:
+            telegram._call(c["token"], "editMessageReplyMarkup", data={
+                "chat_id": m["chat"], "message_id": m["msg"],
+                "reply_markup": json.dumps({"inline_keyboard": [[{"text": note, "callback_data": "noop:0"}]]},
+                                           ensure_ascii=False)})
+        except Exception:
+            pass
+
+
+def reject_clip(st: dict, c: dict, job: dict, why: str, who: str, event) -> None:
+    """«Не выкладывать»: клип убирается из плана на ВСЕХ площадках (и из Telegram), автопилот его больше не берёт,
+    «Доктор» видит причину. Освободившиеся слоты получат другие клипы — замену пришлём сразу."""
+    from . import autopilot
+    path = os.path.normpath(job["path"])
+    ap = autopilot.load_state()
+    rec = ap.get("clips", {}).get(job["path"]) or {}
+    plats = set((rec.get("queue") or {}).keys()) | {job["platform"]}
+    ap.setdefault("clips", {})[job["path"]] = dict(rec, stage="rejected_by_user", reason=why, by=who, queue={})
+    autopilot.save_state(ap)
+    for pl in plats:
+        exchange.drop_platform(job["path"], pl)
+    for jid2, j in list(st["jobs"].items()):
+        if os.path.normpath(j.get("path", "")) == path and j.get("status") in ("pending", "sent", "error"):
+            if j.get("status") == "sent" and j is not job:
+                _edit_all(c, j, f"🚫 Не выкладываем ({why})")
+            j["status"] = "rejected"
+            j["why"] = why
+    rep = st.setdefault("replace", {})
+    for pl in plats:
+        rep[pl] = int(rep.get(pl, 0)) + 1
+    autopilot.journal({"clip": exchange.clip_id(job["path"]), "action": "rejected_by_user", "platform": job["platform"],
+                       "why": why, "by": who})
+    event("🚫", f"{os.path.basename(path)[:-4]}: не выкладываем — {why}{' (' + who + ')' if who else ''}; "
+               f"ищу замену", job["path"], "warn")
 
 
 def recipients(c: dict) -> list[dict]:
@@ -354,6 +397,16 @@ def handle_updates(st: dict, c: dict, event) -> int:
             telegram._call(c["token"], "answerCallbackQuery", data={"callback_query_id": cq["id"], "text": note})
         except Exception:
             pass
+        if job and act in REJECT_WHY and job["status"] not in ("posted", "rejected"):
+            why = REJECT_WHY[act]
+            reject_clip(st, c, job, why, who, event)
+            note = f"🚫 Не выкладываем ({why}){': ' + who if who else ''} — пришлю замену"
+            _edit_all(c, job, note)
+            try:
+                telegram._call(c["token"], "answerCallbackQuery", data={"callback_query_id": cq["id"], "text": note})
+            except Exception:
+                pass
+            continue
         if job and act in ("ok", "skip"):  # кнопки меняются у ВСЕХ получателей — второй увидит, что уже выложено
             for m in job.get("msgs") or ([{"chat": c["chat_id"], "msg": job["msg_id"]}] if job.get("msg_id") else []):
                 try:
@@ -459,6 +512,18 @@ def _deliver_batch(st: dict, c: dict, event, stats: dict, now: datetime) -> None
     todo = sorted(((jid, j) for jid, j in st["jobs"].items() if j["status"] == "pending" and j.get("when")),
                   key=lambda kv: kv[1]["when"])
     extra = st.get("last_delivery") == stamp
+    rep = {pl: n for pl, n in (st.get("replace") or {}).items() if n > 0}
+    if rep:  # «Не выкладывать» — замену шлём сразу, не дожидаясь пачки
+        swap = []
+        for pl, n in rep.items():
+            cands = [(jid, j) for jid, j in todo if j["platform"] == pl and (jid, j) not in swap][:n]
+            swap += cands
+            st["replace"][pl] = n - len(cands)
+        if swap:
+            _send_list(st, c, event, stats, swap, "🔁 Замена вместо клипа, который не выкладываем:")
+            todo = [(j_, x) for j_, x in todo if x["status"] == "pending"]
+        if any(n > 0 for n in st["replace"].values()):
+            stats["need_more"] = True  # в плане замены нет — окно попросит автопилот подобрать клип
     if extra and not 9 <= schedule.msk(now).hour < 23:
         return  # ночью не будим: всё, что не успели, уйдёт в утренней пачке (слоты пересоберутся сами)
     if extra:
@@ -583,6 +648,28 @@ def send_ahead(event, hours: float = 48) -> dict:
     save(st)
     event("📦", f"Telegram: отправил видео на {int(hours)} ч вперёд — {sent}. Запланируйте их в приложениях.", None, "info")
     return {"sent": sent, "total": len(todo)}
+
+
+def _send_list(st: dict, c: dict, event, stats: dict, items: list, header: str) -> None:
+    from . import policy
+    try:
+        for r in recipients(c):
+            telegram._call(c["token"], "sendMessage", data={"chat_id": r["id"], "text": f"{header} {len(items)}",
+                                                            **(_target(c) if r.get("main") else {})})
+    except Exception:
+        pass
+    for jid, job in items:
+        if policy.publish_block(job["path"], job.get("applied") or job.get("edits")):
+            job["status"] = "blocked"
+            continue
+        job["schedule"] = schedule_mode()
+        try:
+            _send(c, jid, job, _channel_of(job["path"]))
+            stats["sent"] += 1
+            event("🔁", f"{_channel_of(job['path'])}: замена для {NAMES[job['platform']]} отправлена в Telegram",
+                  job["path"], "info")
+        except Exception as e:
+            event("❌", f"Telegram: не отправилось ({NAMES[job['platform']]}) — {e}"[:220], None, "error")
 
 
 def overview() -> list[dict]:

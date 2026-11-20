@@ -398,6 +398,163 @@ def _target_slot(platform: str, slots: list, st: dict, ap: dict, now: datetime, 
     return earliest.replace(second=0, microsecond=0)
 
 
+# ---------- пересборка всего расписания (queue_rules «Доктора») ----------
+FIXED = ("sent", "published")  # уже ушло в Telegram или выложено — время не трогаем
+
+
+def _clip_age_h(path: str) -> float:
+    try:
+        return max(0.0, (time.time() - os.path.getmtime(path)) / 3600)
+    except OSError:
+        return 1e9
+
+
+def _alive(path: str, pl: str, live: dict, archived: set, posted: dict) -> str | None:
+    """None — клип живой; иначе — почему его нельзя ставить в план."""
+    p = os.path.normpath(path)
+    if p in archived:
+        return "в архиве"
+    if p not in live or not os.path.exists(path):
+        return "удалён или в корзине"
+    if (posted.get(p) or {}).get(pl):
+        return "уже выложен"
+    return None
+
+
+def rebuild_schedule(now: datetime | None = None, event=None) -> dict:
+    """Пересобрать расписание целиком: живые клипы (есть в папке, не в корзине и не в архиве, не выложены на этой
+    площадке) — по слотам «Доктора» с ближайшего; свежие (до 24 ч) первыми, потом по оценке; старше 3 дней —
+    только если свежих нет; «поднятые» пользователем — самыми первыми. Мёртвые снимаются с плана и из Telegram."""
+    from . import archive, tg_assist
+    now = now or datetime.now()
+    strat = strategy.get()
+    ap = strat.get("autopilot") or {}
+    st = load_state()
+    tst = tg_assist.load()
+    live = {os.path.normpath(c["path"]): c for d in library.list_dates() for c in library.list_clips(d)}
+    archived = {os.path.normpath(p) for p in archive.archived_paths()}
+    posted = {os.path.normpath(k): v for k, v in library.load_posted().items()}
+    jobs_by = {(os.path.normpath(j.get("path", "")), j.get("platform")): (jid, j) for jid, j in tst.get("jobs", {}).items()}
+    removed = []
+    want: dict = {}  # площадка → [(приоритет, путь, q)]
+    fixed: dict = {}  # площадка → занятые времена
+    for path, rec in st.get("clips", {}).items():
+        for pl, q in (rec.get("queue") or {}).items():
+            job = jobs_by.get((os.path.normpath(path), pl), (None, {}))[1]
+            status = "sent" if job.get("status") in ("sent",) else ("published" if job.get("status") == "posted"
+                                                                     else q.get("status"))
+            if status in FIXED:
+                t = _parse(q.get("when"))
+                if t:
+                    fixed.setdefault(pl, set()).add(t.replace(second=0, microsecond=0))
+                continue
+            if status != "waiting":
+                continue
+            why = _alive(path, pl, live, archived, posted)
+            if why:
+                q["status"] = "removed"
+                q["why"] = why
+                removed.append((path, pl, why))
+                continue
+            age = _clip_age_h(path)
+            tier = 0 if q.get("pin") else (1 if age <= 24 else (2 if age <= 72 else 3))
+            want.setdefault(pl, []).append(((tier, -(q.get("pin") or 0), -float(rec.get("score") or 0)), path, q))
+    moved = 0
+    from . import schedule
+    for pl, items in want.items():
+        items.sort(key=lambda x: x[0])
+        if any(t[0][0] <= 1 for t in items):  # есть свежие — старше 3 дней ждут
+            items = [t for t in items if t[0][0] < 3] + [t for t in items if t[0][0] >= 3]
+        slots_et = (ap.get("target_slots_et") or {}).get(pl)
+        per_day = int((ap.get("posts_per_day") or {}).get(pl, len(slots_et or []) or 3))
+        earliest = now + timedelta(minutes=30)  # полчаса — успеть загрузить видео и поставить «Запланировать»
+        taken = set(fixed.get(pl, set()))
+        if slots_et:
+            inst = [t for t in schedule.slot_instances_et(list(slots_et)[:max(1, per_day)], now, days=30) if t >= earliest]
+        else:
+            inst = []
+        for _, path, q in items:
+            t = next((x for x in inst if x.replace(second=0, microsecond=0) not in taken), None)
+            if t is None:
+                t = next_slot(pl, {"clips": {f"x{i}": {"queue": {pl: {"when": w.isoformat()}}} for i, w in enumerate(taken)}},
+                              strat, now)
+            t = t.replace(second=0, microsecond=0)
+            taken.add(t)
+            new = t.isoformat(timespec="minutes")
+            if q.get("when") != new:
+                q["when"] = new
+                moved += 1
+    save_state(st)
+    # Telegram: снятые — убрать из очереди; ещё не отправленные — новое время
+    changed = False
+    for path, pl, why in removed:
+        jid, job = jobs_by.get((os.path.normpath(path), pl), (None, None))
+        if jid and job.get("status") in ("pending", "error", "blocked"):
+            tst["jobs"].pop(jid, None)
+            changed = True
+        exchange.drop_platform(path, pl)
+    for path, rec in st.get("clips", {}).items():
+        for pl, q in (rec.get("queue") or {}).items():
+            jid, job = jobs_by.get((os.path.normpath(path), pl), (None, None))
+            if jid and job.get("status") == "pending" and q.get("status") == "waiting" and job.get("when") != q.get("when"):
+                job["when"] = q["when"]
+                changed = True
+    for jid, job in list(tst.get("jobs", {}).items()):  # задания «Доктора» по мёртвым клипам
+        if job.get("status") == "pending" and _alive(job.get("path", ""), job.get("platform"), live, archived, posted):
+            tst["jobs"].pop(jid)
+            exchange.drop_platform(job.get("path", ""), job.get("platform"))
+            changed = True
+    if changed:
+        tg_assist.save(tst)
+    if event and removed:
+        event("🗓", f"План: снял с публикации {len(removed)} (" +
+              ", ".join(sorted({w for _, _, w in removed})) + "), слоты отданы следующим", None, "info")
+    return {"removed": len(removed), "moved": moved}
+
+
+def plan_rows() -> list[dict]:
+    """План публикаций для окна: что, куда и когда (ещё не выложенное)."""
+    from . import tg_assist
+    tst = tg_assist.load()
+    jobs_by = {(os.path.normpath(j.get("path", "")), j.get("platform")): j for j in tst.get("jobs", {}).values()}
+    rows = []
+    for path, rec in load_state().get("clips", {}).items():
+        for pl, q in (rec.get("queue") or {}).items():
+            if q.get("status") != "waiting":
+                continue
+            job = jobs_by.get((os.path.normpath(path), pl)) or {}
+            rows.append({"path": path, "platform": pl, "when": q.get("when"), "title": q.get("title", ""),
+                         "pin": bool(q.get("pin")), "sent": job.get("status") == "sent"})
+    return sorted(rows, key=lambda r: r.get("when") or "")
+
+
+def plan_remove(path: str, platform: str) -> None:
+    st = load_state()
+    q = ((st["clips"].get(path) or {}).get("queue") or {}).get(platform)
+    if q:
+        q["status"] = "removed"
+        q["why"] = "убран пользователем"
+        save_state(st)
+    from . import tg_assist
+    tst = tg_assist.load()
+    for jid, j in list(tst.get("jobs", {}).items()):
+        if os.path.normpath(j.get("path", "")) == os.path.normpath(path) and j.get("platform") == platform \
+                and j.get("status") in ("pending", "sent", "error"):
+            tst["jobs"].pop(jid)
+    tg_assist.save(tst)
+    exchange.drop_platform(path, platform)
+    rebuild_schedule()
+
+
+def plan_raise(path: str, platform: str) -> None:
+    st = load_state()
+    q = ((st["clips"].get(path) or {}).get("queue") or {}).get(platform)
+    if q:
+        q["pin"] = time.time()
+        save_state(st)
+    rebuild_schedule()
+
+
 # ---------- один проход ----------
 def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEWS_PER_RUN) -> dict:
     """Один проход автопилота. say(текст) — что делаю сейчас; event(значок, текст, путь|None, вид) — в ленту."""
@@ -462,8 +619,11 @@ def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEW
                 _to_archive(c, reason, st, event)
                 fresh.remove(c)
                 stats["archived"] += 1
-    cands = sorted([c for c in fresh if c["_score"] >= float(ap.get("min_score_to_post", 55))],
-                   key=lambda c: -c["_score"])
+    cands = [c for c in fresh if c["_score"] >= float(ap.get("min_score_to_post", 55))]
+    # свежие первыми (до 24 ч), потом по оценке; старше 3 дней — только если свежих нет
+    if any(_clip_age_h(c["path"]) <= 24 for c in cands):
+        cands = [c for c in cands if _clip_age_h(c["path"]) <= 72]
+    cands.sort(key=lambda c: (0 if _clip_age_h(c["path"]) <= 24 else 1, -c["_score"]))
     for c in cands[:budget]:
         try:
             _process_clip(c, st, strat, key, say, event, stats)
@@ -473,6 +633,10 @@ def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEW
             journal({"clip": exchange.clip_id(c["path"]), "action": "error", "why": str(e)[:300]})
         save_state(st)
     save_state(st)
+    try:
+        rebuild_schedule(event=event)
+    except Exception as e:
+        event("❌", f"План публикаций не пересобрался: {e}"[:200], None, "error")
     return stats
 
 

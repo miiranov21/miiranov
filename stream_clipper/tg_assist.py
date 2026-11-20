@@ -371,6 +371,12 @@ def tick(paused: bool, event) -> dict:
     c = telegram.load()
     if not (c.get("token") and c.get("chat_id")):
         return {"error": "Telegram не подключён"}
+    if schedule_mode():
+        try:  # расписание пересобирается при каждом изменении: удалённые/архивные клипы снимаются, слоты сдвигаются
+            from . import autopilot
+            autopilot.rebuild_schedule(event=event)
+        except Exception as e:
+            event("❌", f"План публикаций не пересобрался: {e}"[:200], None, "error")
     st = load()
     stats = {"sent": 0, "posted": 0, "reminded": 0}
     try:
@@ -441,7 +447,7 @@ def _deliver_batch(st: dict, c: dict, event, stats: dict, now: datetime) -> None
     запланировать. Слот, который уже прошёл, а видео так и не ушло, — переносим на следующий свободный."""
     from . import policy, schedule, strategy
     ap = strategy.get().get("autopilot") or {}
-    last, _ = schedule.deliveries(ap.get("telegram_delivery_msk") or [], now)
+    last, nxt = schedule.deliveries(ap.get("telegram_delivery_msk") or [], now)
     if not last:
         return
     stamp = last.isoformat(timespec="minutes")
@@ -450,11 +456,20 @@ def _deliver_batch(st: dict, c: dict, event, stats: dict, now: datetime) -> None
         if job["status"] == "pending" and job.get("when") and job["when"] <= now_s:
             job["when"] = _next_when(st, job["platform"])
             _sync_autopilot(job, "waiting", job["when"])
-    if st.get("last_delivery") == stamp:
-        return
     todo = sorted(((jid, j) for jid, j in st["jobs"].items() if j["status"] == "pending" and j.get("when")),
                   key=lambda kv: kv[1]["when"])
-    unconfirmed = [j for j in st["jobs"].values() if j["status"] == "sent" and (j.get("when") or "") > now_s]
+    extra = st.get("last_delivery") == stamp
+    if extra and not 9 <= schedule.msk(now).hour < 23:
+        return  # ночью не будим: всё, что не успели, уйдёт в утренней пачке (слоты пересоберутся сами)
+    if extra:
+        # пачка уже была — новые видео, слот которых раньше следующей пачки, шлём сразу отдельным сообщением
+        limit = (nxt + timedelta(hours=1)).isoformat(timespec="minutes") if nxt else "9999"
+        todo = [(jid, j) for jid, j in todo if j["when"] < limit]
+        if not todo:
+            return
+        unconfirmed = []
+    else:
+        unconfirmed = [j for j in st["jobs"].values() if j["status"] == "sent" and (j.get("when") or "") > now_s]
     if not todo and not unconfirmed:
         st["last_delivery"] = stamp
         return
@@ -468,10 +483,14 @@ def _deliver_batch(st: dict, c: dict, event, stats: dict, now: datetime) -> None
     try:
         telegram._call(c["token"], "sendMessage", data={
             "chat_id": c["chat_id"], **_target(c),
-            "text": f"📦 Пачка на публикацию: {len(todo)} видео. У каждого написано, на какое время его запланировать "
-                    "в приложении." + (f" Ещё не запланированы из прошлой пачки: {len(unconfirmed)}." if unconfirmed else "")})
+            "text": (f"➕ Новые видео вне пачки: {len(todo)} — их слоты раньше следующей пачки, запланируй сейчас."
+                     if extra else
+                     f"📦 Пачка на публикацию: {len(todo)} видео. У каждого написано, на какое время его запланировать "
+                     "в приложении." + (f" Ещё не запланированы из прошлой пачки: {len(unconfirmed)}." if unconfirmed else ""))})
         for r in recipients(c)[1:]:
-            telegram._call(c["token"], "sendMessage", data={"chat_id": r["id"], "text": f"📦 Пачка на публикацию: {len(todo)} видео."})
+            telegram._call(c["token"], "sendMessage", data={
+                "chat_id": r["id"], "text": (f"➕ Новые видео вне пачки: {len(todo)}" if extra
+                                             else f"📦 Пачка на публикацию: {len(todo)} видео.")})
     except Exception:
         pass
     for jid, job in todo:
@@ -507,7 +526,8 @@ def _deliver_batch(st: dict, c: dict, event, stats: dict, now: datetime) -> None
         stats["reminded"] += 1
     st["last_delivery"] = stamp
     if stats["sent"]:
-        event("📦", f"Telegram: пачка на публикацию — {stats['sent']} видео, у каждого время для «Запланировать»",
+        event("📦", (f"Telegram: новые видео вне пачки — {stats['sent']}, запланируй сейчас" if extra else
+                     f"Telegram: пачка на публикацию — {stats['sent']} видео, у каждого время для «Запланировать»"),
               None, "info")
 
 

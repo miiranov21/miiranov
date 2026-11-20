@@ -276,6 +276,16 @@ def with_author(desc: str, clip: dict, platform: str | None) -> str:
     return desc if line in desc else (desc.rstrip() + "\n\n" + line).strip()
 
 
+def drop_platform(path: str, platform: str) -> None:
+    """Клип больше не выкладываем на эту площадку (снят с плана): убираем «выложить» из сохранённого решения."""
+    store = load_decisions()
+    d = store.get(clip_id(path))
+    if d and platform in (d.get("platforms") or {}):
+        d["platforms"][platform]["post"] = False
+        with open(_store(), "w", encoding="utf-8") as f:
+            json.dump(store, f, ensure_ascii=False, indent=1)
+
+
 def set_decision(path: str, platforms: dict, source: str = "autopilot") -> None:
     """Решение по клипу от автопилота (видно в колонке «Совет» и в «Выложить → По плану»)."""
     store = load_decisions()

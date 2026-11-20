@@ -953,5 +953,6 @@
 "Убрать ВСЕ клипы и начать с нуля?\n\n• все клипы и архив уйдут в корзину (вернуть можно, пока корзину не очистили);\n• план, очередь Telegram, отметки «выложено» и решения агентов очистятся;\n• стримы забудутся — их можно будет разобрать заново.\n\nПеред этим Хранитель данных сделает резервную копию.": "BÜTÜN kliplər silinsin və sıfırdan başlansın?\n\n• bütün kliplər və arxiv səbətə gedəcək (səbət təmizlənməyənə qədər qaytarmaq olar);\n• plan, Telegram növbəsi, «paylaşılıb» qeydləri və agentlərin qərarları təmizlənəcək;\n• strimlər unudulacaq — onlara yenidən baxmaq olar.\n\nBundan əvvəl Məlumat qoruyucusu ehtiyat nüsxə çıxaracaq.",
 "Делаю копию и очищаю...": "Nüsxə çıxarır və təmizləyirəm...",
 "Чистый лист: клипов в корзину — {0}, из архива — {1}. План и отметки очищены.": "Təmiz vərəq: səbətə klip — {0}, arxivdən — {1}. Plan və qeydlər təmizləndi.",
-"Готово — начинаем с чистого листа. Копия: {0}": "Hazırdır — təmiz vərəqdən başlayırıq. Nüsxə: {0}"
+"Готово — начинаем с чистого листа. Копия: {0}": "Hazırdır — təmiz vərəqdən başlayırıq. Nüsxə: {0}",
+"нет связи с Telegram (обрыв соединения — проверь интернет или VPN)": "Telegram ilə əlaqə yoxdur (bağlantı qırıldı — interneti və ya VPN-i yoxla)"
 }

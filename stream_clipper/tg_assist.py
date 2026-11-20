@@ -463,6 +463,9 @@ def handle_updates(st: dict, c: dict, event) -> int:
     return n
 
 
+_NET = {"down": 0.0, "shown": 0.0}
+
+
 def tick(paused: bool, event) -> dict:
     """Один проход: обработать нажатия, отправить то, чему пора, напомнить о непросмотренном."""
     c = telegram.load()
@@ -478,8 +481,15 @@ def tick(paused: bool, event) -> dict:
     stats = {"sent": 0, "posted": 0, "reminded": 0}
     try:
         stats["posted"] = handle_updates(st, c, event)
+        if _NET["down"]:  # связь вернулась — один раз говорим об этом
+            event("✅", "Telegram: связь восстановлена", None, "info")
+        _NET["down"] = 0.0
     except Exception as e:
-        event("❌", f"Telegram: не смог прочитать нажатия кнопок — {e}", None, "error")
+        # одна и та же ошибка связи — в ленту не чаще раза в 15 минут, а не каждые 20 секунд
+        if not _NET["down"] or time.time() - _NET["shown"] > 900:
+            event("⚠", f"Telegram: нет связи, пробую снова сам — {e}", None, "warn")
+            _NET["shown"] = time.time()
+        _NET["down"] = _NET["down"] or time.time()
     sync_jobs(st)
     now = datetime.now()
     if st.get("cleanup_v") != CLEANUP_V:

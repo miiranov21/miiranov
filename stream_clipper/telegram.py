@@ -59,14 +59,23 @@ def _call(token: str, method: str, timeout: float = 30, data: dict | None = None
         req = urllib.request.Request(url, data=body, headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
     else:
         req = urllib.request.Request(url, data=urllib.parse.urlencode(data or {}).encode())
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            res = json.load(r)
-    except urllib.error.HTTPError as e:
+    import time as _time
+    res = None
+    for attempt in range(3):  # обрыв связи (VPN, провайдер) — переподключаемся сами: через 1 и 3 секунды
         try:
-            res = json.load(e)
-        except Exception:
-            raise RuntimeError(f"HTTP {e.code}")
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                res = json.load(r)
+            break
+        except urllib.error.HTTPError as e:
+            try:
+                res = json.load(e)
+            except Exception:
+                raise RuntimeError(f"HTTP {e.code}")
+            break
+        except (urllib.error.URLError, ConnectionError, TimeoutError, OSError) as e:
+            if attempt == 2:
+                raise RuntimeError(T("нет связи с Telegram (обрыв соединения — проверь интернет или VPN)")) from e
+            _time.sleep(1 + attempt * 2)
     if not res.get("ok"):
         desc = res.get("description") or T("ошибка")
         if "Unauthorized" in desc or "Not Found" in desc:

@@ -493,12 +493,34 @@ def rebuild_schedule(now: datetime | None = None, event=None) -> dict:
             inst = [t for t in schedule.slot_instances_et(list(slots_et)[:max(1, per_day)], now, days=30) if t >= earliest]
         else:
             inst = []
-        for _, path, q in items:
+        # streamer_mix: подряд не один и тот же стример (если есть другие), одному — не больше половины слотов за день
+        mix = True
+        chan = lambda p_: ((live.get(os.path.normpath(p_)) or {}).get("channel") or "").lower()
+        cap = max(1, -(-per_day // 2))
+        pool = list(items)
+        last_ch, day_count = None, {}
+        while pool:
             t = next((x for x in inst if x.replace(second=0, microsecond=0) not in taken), None)
             if t is None:
                 t = next_slot(pl, {"clips": {f"x{i}": {"queue": {pl: {"when": w.isoformat()}}} for i, w in enumerate(taken)}},
                               strat, now)
             t = t.replace(second=0, microsecond=0)
+            day = schedule.et(t).date().isoformat()
+            pick = None
+            if mix and len({chan(p_) for _, p_, _ in pool}) > 1:
+                for cand in pool:  # первый по приоритету, кто не повторяет стримера и не превысил долю за день
+                    ch = chan(cand[1])
+                    if ch != last_ch and day_count.get((day, ch), 0) < cap:
+                        pick = cand
+                        break
+                if pick is None:
+                    pick = next((c_ for c_ in pool if chan(c_[1]) != last_ch), None)
+            pick = pick or pool[0]
+            pool.remove(pick)
+            _, path, q = pick
+            ch = chan(path)
+            last_ch = ch
+            day_count[(day, ch)] = day_count.get((day, ch), 0) + 1
             taken.add(t)
             new = t.isoformat(timespec="minutes")
             if q.get("when") != new:
@@ -640,7 +662,9 @@ def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEW
         fresh = [c for c in fresh
                  if (langs.get((c.get("channel") or "").lower()) or c.get("lang") or need) == need]
     if ap.get("auto_delete", True):
-        dups = duplicates(fresh)
+        # тот же момент мог нарезать и друг (общая папка): сравниваем и с уже стоящими в плане — в план идёт один
+        planned = [c for c in clips if c["path"] in st["clips"] and (st["clips"][c["path"]].get("queue") or {})]
+        dups = duplicates(fresh + planned)
         for c in list(fresh):
             reason = None
             if c["path"] in dups:

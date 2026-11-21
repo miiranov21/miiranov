@@ -529,17 +529,7 @@ class App:
             self.v[key].trace_add("write", lambda *a: self._on_live_setting(quick=True))
             if key in ("cold_open", "punch_zoom"):
                 self.v[key].trace_add("write", lambda *a: self._on_post_setting())
-        tricks = ttk.LabelFrame(opt, text=T(" ✂ Приёмы монтажа (против «скучно») "), padding=4)
-        tricks.pack(anchor="w", fill="x", pady=(4, 0))
-        for key, dk, text, on in self.TRICKS_UI:
-            self.v[key] = tk.BooleanVar(value=bool(self.cfg.get(key, True)))
-            row = ttk.Frame(tricks)
-            row.pack(anchor="w", pady=0)
-            self._own_btn(row, key).pack(side="left", padx=(0, 4))
-            w = ttk.Checkbutton(row, text=T(text), variable=self.v[key])
-            w.pack(side="left")
-            self._doc_reg(key, w)
-            self.v[key].trace_add("write", lambda *a: self._on_post_setting())
+
         grid = ttk.Frame(opt)
         grid.pack(anchor="w", pady=(6, 0))
         digits = (self.root.register(lambda p: p == "" or (p.isdigit() and len(p) <= 3)), "%P")
@@ -666,6 +656,7 @@ class App:
         ttk.Label(cr, text=T("  иначе — галочкой в колонке «Автор» на нужных клипах (вкладка «Клипы»)"),
                   foreground=self.muted).pack(side="left")
 
+        self._build_tricks(sett)
         self._build_post_settings(sett)
         self._build_backup_settings(sett)
         self._build_team_settings(sett)
@@ -4365,6 +4356,23 @@ class App:
         if not over["autopilot"]:
             over.pop("autopilot")
         strategy.save_user_overrides(over)
+
+    def _build_tricks(self, parent):
+        """Приёмы монтажа против «скучно»: каждый — 🩺 (решает Доктор) или ✋ (твоё)."""
+        tricks = ttk.LabelFrame(parent, text=T(" ✂ Приёмы монтажа (против «скучно») "), padding=6)
+        tricks.pack(fill="x", pady=(0, 6))
+        cols = [ttk.Frame(tricks), ttk.Frame(tricks)]
+        for c in cols:
+            c.pack(side="left", anchor="n", padx=(0, 24))
+        for i, (key, dk, text, on) in enumerate(self.TRICKS_UI):
+            self.v[key] = tk.BooleanVar(value=bool(self.cfg.get(key, True)))
+            row = ttk.Frame(cols[i % 2])
+            row.pack(anchor="w", pady=1)
+            self._own_btn(row, key).pack(side="left", padx=(0, 4))
+            w = ttk.Checkbutton(row, text=T(text), variable=self.v[key])
+            w.pack(side="left")
+            self._doc_reg(key, w)
+            self.v[key].trace_add("write", lambda *a: self._on_post_setting())
 
     def _build_post_settings(self, parent):
         box = ttk.LabelFrame(parent, text=T(" 🗓 Публикации: сколько в день и во сколько (время США, ET) "), padding=6)

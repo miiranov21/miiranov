@@ -783,8 +783,23 @@
       "deep_changed_max": 0.015,
       "deep_dark_max": 55,
       "deep_score_min": 3,
-      "freeze_max_sec": 1.2,
-      "freeze_share_max": 0.08
+      "freeze_max_sec": 0.6,
+      "freeze_share_max": 0.04,
+      "upscale_max": 1.8,
+      "source_min_height": 720,
+      "letterbox_max_share": 0.05,
+      "loudness_lufs": [
+        -16,
+        -14
+      ],
+      "true_peak_max_dbtp": -1,
+      "first2s_quieter_max_db": 3,
+      "silence_max_sec": 0.35,
+      "video_bitrate_min_mbps": 8,
+      "fps": [
+        30,
+        60
+      ]
     },
     "moment": {
       "min_relative": 0.6,
@@ -800,6 +815,7 @@
         "тихие ухмылки",
         "чтение чата/донатов"
       ]
-    }
+    },
+    "notes": "намеренный стоп-кадр WAIT (0,3–0,5 с) в проверку стоп-кадров не считается; при upscale > upscale_max для game_view center — брать wide; полосы > letterbox_max_share — заливать размытым фоном"
   }
 }

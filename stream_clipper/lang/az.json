@@ -970,5 +970,17 @@
 "Звуки: «вжух» на склейках, бас на зуме": "Səslər: keçidlərdə «vıj», zumda bas",
 "Повтор момента в замедлении после реакции": "Reaksiyadan sonra anın yavaş təkrarı",
 "Лицо на весь кадр на пике": "Zirvədə üz bütün kadrda",
-"Строка контекста из названия стрима (2 с)": "Strimin adından kontekst sətri (2 s)"
+"Строка контекста из названия стрима (2 с)": "Strimin adından kontekst sətri (2 s)",
+"🏆  Оставить лучшие": "🏆  Ən yaxşıları saxla",
+"🏆 Оставить лучшие": "🏆 Ən yaxşıları saxla",
+"Отбираю лучшие клипы: не больше {0} за час стрима, без лага, тихого начала и спящих стримеров": "Ən yaxşı kliplər seçilir: strimin hər saatına {0}-dən çox deyil, laqsız, sakit başlanğıcsız və yatan strimersiz",
+"Все {0} клипов прошли отбор — убирать нечего": "Bütün {0} klip seçimdən keçdi — çıxarılacaq heç nə yoxdur",
+"лагает": "laq edir",
+"тихое начало": "sakit başlanğıc",
+"стример спит": "strimer yatır",
+"слабее или лишние сверх квоты": "zəif və ya limitdən artıq",
+"Из {0} клипов ({1} стримов) оставлю {2} — не больше {3} за час стрима.\n\nВ архив уйдут {4}:\n{5}\n\nВыложенные клипы не трогаю. Вернуть любой можно из вкладки «Архив». Продолжить?": "{0} klipdən ({1} strim) {2} qalacaq — strimin hər saatına {3}-dən çox deyil.\n\nArxivə gedəcək {4}:\n{5}\n\nPaylaşılmış kliplərə toxunmuram. İstənilənini «Arxiv» bölməsindən qaytarmaq olar. Davam edək?",
+"Отбор не получился: {0}": "Seçim alınmadı: {0}",
+"Отбор готов: оставлено {0}, в архив {1}, снято с плана {2}": "Seçim hazırdır: saxlanıldı {0}, arxivə {1}, plandan çıxarıldı {2}",
+"Отбор готов: оставлено {0} лучших клипов": "Seçim hazırdır: {0} ən yaxşı klip saxlanıldı"
 }

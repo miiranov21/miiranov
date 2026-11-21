@@ -435,7 +435,7 @@ def strong_moments(hl: list, have_media: bool, log=print) -> list:
     return out
 
 
-def first_seconds_check(path: str, peak: float, cold_open: bool) -> str | None:
+def first_seconds_check(path: str, peak: float, cold_open: bool, before: float = 0.75, after: float = 0.75) -> str | None:
     """Первые 2 секунды решают, пролистают ли клип (quality_filters.first_seconds).
     Если начало тише среднего по клипу, а яркого пика, который холодный старт поставит первым, нет — клип не берём.
     Без холодного старта: если до пика больше need_context_max_sec секунд подводки — тоже не берём
@@ -453,11 +453,13 @@ def first_seconds_check(path: str, peak: float, cold_open: bool) -> str | None:
     hop = 0.05
     mean = float(np.mean(e))
     first = float(np.mean(e[: int(2 / hop)]))
-    i0, i1 = max(0, int((peak - 0.75) / hop)), min(e.size, int((peak + 0.75) / hop))
+    i0, i1 = max(0, int((peak - before) / hop)), min(e.size, int((peak + after) / hop))
     peak_lvl = float(np.max(e[i0:i1])) if i1 > i0 else -99.0
     loud = float(np.percentile(e, 90))
     if first >= mean:
         return None
+    if i1 > i0:
+        peak = (i0 + int(np.argmax(e[i0:i1]))) * hop  # где реакция громче всего
     if cold_open and peak > 1.5 and peak_lvl >= loud - 1.0:
         return None  # холодный старт поставит громкий пик первым кадром
     if peak <= 2.0 and peak_lvl >= loud - 1.0:

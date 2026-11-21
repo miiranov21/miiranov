@@ -1122,3 +1122,99 @@ def queue_overview() -> list[dict]:
         for pl, q in (rec.get("queue") or {}).items():
             out.append({"path": path, "platform": pl, **{k: q.get(k) for k in ("when", "status", "title", "why")}})
     return sorted(out, key=lambda x: x.get("when") or "")
+
+
+# ---------- «🏆 Оставить лучшие»: разовый отбор среди уже нарезанных клипов ----------
+def _stream_key(c: dict) -> str:
+    return c.get("vod_url") or f"{c.get('channel', '')}|{c.get('date', '')}"
+
+
+def _stream_hours(key: str, group: list) -> float:
+    """Сколько часов этого стрима разобрано: по памяти «что разобрано», иначе по разбросу клипов."""
+    try:
+        from . import progress
+        for e in progress.load().values():
+            if e.get("url") and e.get("url") == key and e.get("ranges"):
+                return max(0.25, sum(b - a for a, b in e["ranges"]) / 3600)
+    except Exception:
+        pass
+    try:
+        a = min(float(c.get("start") or 0) for c in group)
+        b = max(float(c.get("end") or 0) for c in group)
+        return max(0.5, (b - a) / 3600)
+    except ValueError:
+        return 1.0
+
+
+def pick_best(per_hour: int, say=None) -> dict:
+    """Решение (ничего не меняет): какие клипы оставить — не больше per_hour на час стрима, только сильные и
+    без брака (лаг, тихое начало, спящий стример). Выложенные клипы остаются всегда и занимают место в квоте."""
+    from . import quality, strategy
+    from .caption import _category
+    strat = strategy.get()
+    wts = (strat.get("scoring") or {}).get("moment_type_weights") or {}
+    cd = ((strat.get("clip_settings") or {}).get("defaults") or {})
+    rel = float(((quality.rules().get("moment") or {}) if isinstance(quality.rules().get("moment"), dict) else {})
+                .get("min_relative", 0.6))
+    clips = [c for d in library.list_dates() for c in library.list_clips(d) if os.path.exists(c["path"])]
+    st = load_state()
+    checked = st.get("quality_checked") or {}
+    drop, keep = [], []
+    groups: dict = {}
+    streams = {_stream_key(c) for c in clips}
+    for i, c in enumerate(clips, 1):
+        posted = any((c.get("posted") or {}).values())
+        if say:
+            say(f"🏆 смотрю клип {i}/{len(clips)}: {c.get('channel', '')} {os.path.basename(c['path'])[:-4]}")
+        why = None
+        if not posted:
+            prev = checked.get(os.path.normpath(c["path"])) or {}
+            if prev.get("why"):
+                why = f"стример спит / нет активности: {prev['why']}"
+            if not why:
+                why = quality.lag_check(c["path"])
+            if not why and c.get("peak") is not None and c.get("start") is not None:
+                pk = float(c["peak"]) - float(c["start"])
+                if pk > 0:
+                    # у клипов до обновления пик записан по чату (он запаздывает) — ищем крик шире
+                    why = quality.first_seconds_check(c["path"], pk, cd.get("cold_open") is True, 3.0, 4.0)
+        if why:
+            drop.append((c, why))
+            continue
+        cat = _category(c.get("top_messages") or [])
+        sc = float(c.get("score") or 0) or float(c.get("rating") or 0) * 3
+        c["_best"] = round(sc * float(wts.get(cat, 1.0)), 2)
+        c["_posted"] = posted
+        groups.setdefault(_stream_key(c), []).append(c)
+    for key, g in groups.items():
+        quota = max(1, int(per_hour * _stream_hours(key, g) + 0.5))
+        g.sort(key=lambda c: (not c["_posted"], -c["_best"]))
+        best = max((c["_best"] for c in g), default=0)
+        for c in g:
+            if c["_posted"]:
+                keep.append(c)
+                quota -= 1
+            elif quota > 0 and (best <= 0 or c["_best"] >= best * rel):
+                keep.append(c)
+                quota -= 1
+            elif quota <= 0:
+                drop.append((c, f"не в числе {per_hour} лучших за час этого стрима"))
+            else:
+                drop.append((c, f"слабее лучших моментов этого стрима ({c['_best']:.0f} из {best:.0f})"))
+    return {"total": len(clips), "keep": keep, "drop": drop, "streams": len(streams)}
+
+
+def apply_pick(drop: list, event) -> dict:
+    """Не прошедшие отбор — в архив (вернуть можно из вкладки «Архив»), план пересобирается."""
+    st = load_state()
+    n = 0
+    for c, why in drop:
+        try:
+            st["clips"].pop(c["path"], None)
+            _to_archive(c, f"отбор лучших: {why}", st, event)
+            n += 1
+        except Exception as e:
+            event("❌", f"{os.path.basename(c['path'])}: не удалось убрать в архив — {e}", None, "error")
+    save_state(st)
+    r = rebuild_schedule(event=event)
+    return {"archived": n, "plan_removed": r.get("removed", 0)}

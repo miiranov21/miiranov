@@ -2094,6 +2094,79 @@ class App:
             self.refresh_clips()
         threading.Thread(target=work, daemon=True).start()
 
+    def pick_best_clips(self):
+        """«🏆 Оставить лучшие»: из готовых клипов оставить только сильные и без брака — не больше «Клипов за час»
+        на час стрима; остальные — в архив (вернуть можно), выложенные не трогаются."""
+        from . import autopilot
+        if getattr(self, "_pick_busy", False):
+            return
+        try:
+            per_hour = max(1, int(str(self.v["top"].get())))
+        except ValueError:
+            per_hour = 3
+        self._pick_busy = True
+        self.activity.event("🏆", T("Отбираю лучшие клипы: не больше {0} за час стрима, без лага, тихого начала и "
+                                    "спящих стримеров").format(per_hour))
+
+        def say(msg):
+            self.root.after(0, lambda: self.status.config(text=tr_line(msg)[:140]))
+
+        def event(icon, text, path=None, kind="info"):
+            self.root.after(0, lambda: self.activity.event(icon, tr_line(text), path, kind))
+
+        def work():
+            try:
+                res, err = autopilot.pick_best(per_hour, say), None
+            except Exception as e:
+                res, err = None, e
+            self.root.after(0, lambda: ask(res, err))
+
+        def ask(res, err):
+            if err:
+                self._pick_busy = False
+                self.activity.event("❌", T("Отбор не получился: {0}").format(err), kind="error")
+                return
+            drop = res["drop"]
+            if not drop:
+                self._pick_busy = False
+                self.status.config(text=T("Все {0} клипов прошли отбор — убирать нечего").format(res["total"]))
+                self.activity.event("🏆", T("Все {0} клипов прошли отбор — убирать нечего").format(res["total"]))
+                return
+            kinds = {}
+            for _c, why in drop:
+                k = (T("лагает") if "стоп-кадр" in why or "подвис" in why or "лаг" in why
+                     else T("тихое начало") if "первые 2 секунды" in why
+                     else T("стример спит") if "спит" in why or "активност" in why
+                     else T("слабее или лишние сверх квоты"))
+                kinds[k] = kinds.get(k, 0) + 1
+            detail = "\n".join(f"  • {k}: {n}" for k, n in kinds.items())
+            msg = T("Из {0} клипов ({1} стримов) оставлю {2} — не больше {3} за час стрима.\n\n"
+                    "В архив уйдут {4}:\n{5}\n\nВыложенные клипы не трогаю. Вернуть любой можно из вкладки "
+                    "«Архив». Продолжить?").format(res["total"], res["streams"], len(res["keep"]), per_hour,
+                                                    len(drop), detail)
+            if not messagebox.askyesno(T("🏆 Оставить лучшие"), msg):
+                self._pick_busy = False
+                return
+
+            def work2():
+                try:
+                    r, e2 = autopilot.apply_pick(drop, event), None
+                except Exception as e:
+                    r, e2 = None, e
+                self.root.after(0, lambda: done(r, e2, len(res["keep"])))
+            threading.Thread(target=work2, daemon=True).start()
+
+        def done(r, err, kept):
+            self._pick_busy = False
+            if err:
+                self.activity.event("❌", T("Отбор не получился: {0}").format(err), kind="error")
+                return
+            self.activity.event("🏆", T("Отбор готов: оставлено {0}, в архив {1}, снято с плана {2}")
+                                .format(kept, r["archived"], r["plan_removed"]))
+            self.status.config(text=T("Отбор готов: оставлено {0} лучших клипов").format(kept))
+            self.refresh_clips()
+        threading.Thread(target=work, daemon=True).start()
+
     # ---------- вкладка «План»: что и когда выйдет ----------
     def _build_plan(self, parent):
         top = ttk.Frame(parent)
@@ -3982,6 +4055,7 @@ class App:
         ttk.Button(btns, text=T("🗑  Удалить"), command=self.delete_clip).pack(side="left", padx=(0, 6))
         self.b_trash = ttk.Button(btns, text=T("♻  Корзина"), command=self.open_trash)
         self.b_trash.pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text=T("🏆  Оставить лучшие"), command=self.pick_best_clips).pack(side="left", padx=(0, 6))
         more = ttk.Menubutton(btns, text=T("Ещё ▾"))
         mm = tk.Menu(more, tearoff=0)
         mm.add_command(label=T("🩺  Обмен с «Доктором шортсов»: открыть папку"),

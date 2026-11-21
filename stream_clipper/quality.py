@@ -350,3 +350,73 @@ def deep_check(path: str, words: list | None = None, title: str = "", top_messag
     if n >= need:
         return "стример спит: " + ", ".join(why), m
     return None, m
+
+
+# ---------- подвисания: стоп-кадры в куске (лаг стрима, реклама Twitch, рваная запись) ----------
+def freezes(path: str, noise: float = 0.002, min_dur: float = 0.6) -> list[tuple[float, float]]:
+    """Отрезки, где ВЕСЬ кадр стоит (картинка не меняется вообще, вебка тоже): [(начало, конец)]."""
+    r = subprocess.run(["ffmpeg", "-v", "info", "-i", path, "-vf", f"freezedetect=n={noise}:d={min_dur}", "-map", "0:v:0",
+                        "-f", "null", "-"], capture_output=True, text=True, creationflags=FLAGS)
+    out, start = [], None
+    for line in r.stderr.splitlines():
+        if "freeze_start" in line:
+            try:
+                start = float(line.rsplit(":", 1)[1])
+            except ValueError:
+                start = None
+        elif "freeze_end" in line and start is not None:
+            try:
+                out.append((start, float(line.rsplit(":", 1)[1])))
+            except ValueError:
+                pass
+            start = None
+    if start is not None:
+        out.append((start, duration(path)))
+    return out
+
+
+def lag_check(path: str) -> str | None:
+    """None — видео идёт ровно; иначе причина (клип с подвисаниями не берём)."""
+    fr = freezes(path)
+    if not fr:
+        return None
+    dur = duration(path) or 1.0
+    total = sum(b - a for a, b in fr)
+    longest = max(b - a for a, b in fr)
+    t = rules().get("thresholds") or {}
+    if longest >= float(t.get("freeze_max_sec", 1.2)) or total / dur >= float(t.get("freeze_share_max", 0.08)):
+        return f"видео подвисает (стоп-кадр {longest:.1f} с, всего {total:.1f} с) — лаг стрима или записи"
+    return None
+
+
+# ---------- только яркие моменты ----------
+def strong_moments(hl: list, have_media: bool, log=print) -> list:
+    """Отсеиваем «средние» моменты: клип берём, только если реакция заметно сильнее обычного.
+    Правила (strategy.json → quality_filters.moment, можно менять):
+      min_relative — не слабее этой доли от лучшего момента этого куска (по умолчанию 0,6);
+      need_two_signals — кроме чата должен «выстрелить» звук (крик, смех) или картинка (взрыв, авария);
+      chat_only_z — если чат взорвался очень сильно, хватит одного чата."""
+    if not hl:
+        return hl
+    m = (rules().get("moment") or {}) if isinstance(rules().get("moment"), dict) else {}
+    rel = float(m.get("min_relative", 0.6))
+    two = bool(m.get("need_two_signals", True)) and have_media
+    chat_only = float(m.get("chat_only_z", 4.0))
+    sig = float(m.get("signal_z", 1.5))
+    best = max(float(getattr(h, "score", 0) or 0) for h in hl)
+    out = []
+    from .pipeline import _fmt
+    for h in hl:
+        sc = float(getattr(h, "score", 0) or 0)
+        other = max(float(getattr(h, "audio_z", 0) or 0), float(getattr(h, "jump_z", 0) or 0), float(getattr(h, "vis_z", 0) or 0))
+        chat = float(getattr(h, "chat_z", 0) or 0)
+        why = None
+        if best > 0 and sc < best * rel:
+            why = f"слабее лучшего момента ({sc:.1f} из {best:.1f})"
+        elif two and chat < chat_only and other < sig:
+            why = "реагирует только чат, а стример и картинка — нет"
+        if why:
+            log(f"  ⤼ пропущен скучный момент {_fmt(h.peak)}: {why}")
+            continue
+        out.append(h)
+    return out

@@ -119,6 +119,10 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
     base = os.path.splitext(out)[0]
     q_vis = None
     if meta.get("check_quality", True) and not meta.get("caption_text"):
+        from . import quality as _q
+        lag = _q.lag_check(segment)  # стоп-кадры (лаг стрима, реклама, рваная запись) — такой клип не нужен
+        if lag:
+            raise ClipRejected(lag)
         from . import quality
         if quality.enabled():
             q_vis = quality.visual_metrics(segment, facecam if layout == "facecam" else None)
@@ -478,6 +482,7 @@ def _analyze(msgs: list[ChatMessage], duration: float, audio_db, cfg: Settings, 
     from . import quality
     if quality.enabled():  # чат про сон («wake up», «zzz») — такие моменты не берём
         hl = quality.filter_highlights(hl, msgs, title, channel, cfg.chat_lag, log)
+    hl = quality.strong_moments(hl, audio_db is not None, log)  # скучные моменты — мимо: только яркие
     if cfg.auto_length:
         _auto_length(hl, msgs, audio_db, duration)
     for h in hl:

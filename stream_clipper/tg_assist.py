@@ -775,6 +775,7 @@ def send_ahead(event, hours: float = 24, intro: str = "") -> dict:
     except Exception:
         pass
     failed = 0
+    retry = []
     for i, (jid, job) in enumerate(todo, 1):
         if (library.load_posted().get(os.path.normpath(job["path"])) or {}).get(job["platform"]):
             job["status"] = "posted"
@@ -788,9 +789,19 @@ def send_ahead(event, hours: float = 24, intro: str = "") -> dict:
             _send(c, jid, job, _channel_of(job["path"]))
             sent += 1
         except Exception as e:
-            failed += 1
-            event("❌", f"Telegram: не отправилось ({NAMES[job['platform']]}) — {e}"[:220], None, "error")
+            retry.append((jid, job))
+            event("⚠", f"Telegram: видео {i} не ушло ({e}) — попробую ещё раз в конце"[:220], None, "warn")
         save(st)
+    if retry:  # связь моргнула — ещё одна попытка через полминуты
+        time.sleep(30)
+        for jid, job in retry:
+            try:
+                _send(c, jid, job, _channel_of(job["path"]))
+                sent += 1
+            except Exception as e:
+                failed += 1
+                event("❌", f"Telegram: не отправилось ({NAMES[job['platform']]}) — {e}"[:220], None, "error")
+            save(st)
     save(st)
     try:
         telegram._call(c["token"], "sendMessage", data={

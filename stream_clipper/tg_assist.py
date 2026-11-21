@@ -148,10 +148,39 @@ def _render_for(job: dict) -> str:
     ops = autopilot.ensure_mandatory(base, clip, strategy.get(), job["platform"], autopilot._dur(clip))
     out = os.path.join(paths.default_work_dir(), "tg_assist", f"{job['platform']}_{os.path.basename(clip['path'])}")
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    res = edits.build_variant(clip, ops, out, log=lambda m: None, platform=job["platform"])
+    try:
+        res = edits.build_variant(clip, ops, out, log=lambda m: None, platform=job["platform"])
+    except Exception:  # полный монтаж не собрался — обязательный минимум (подпись, мат, громкость), без приёмов
+        simple = [o for o in ops if o.get("type") in ("trim", "credit", "loudness", "bleep", "bleep_profanity", "mute",
+                                                      "blur", "subtitles", "hook", "replace_hook")]
+        res = edits.build_variant(clip, simple, out, log=lambda m: None, platform=job["platform"])
     job["applied"] = res.get("applied", [])
     job["file"] = out
     return out
+
+
+def _ready(job: dict) -> bool:
+    """Видео для площадки уже смонтировано (отправка будет мгновенной)."""
+    return bool(job.get("file") and os.path.exists(job["file"])
+                and _types(job.get("applied") or []) & {"bleep_profanity", "bleep", "mute"})
+
+
+def prerender(st: dict, event=None, hours: float = 36, limit: int = 1) -> int:
+    """Заранее смонтировать видео из плана на ближайшие часы — чтобы при выключении компьютера отправка в Telegram
+    была мгновенной, а не ждала монтажа каждого видео."""
+    now = datetime.now()
+    lim = (now + timedelta(hours=hours)).isoformat(timespec="minutes")
+    todo = sorted(((jid, j) for jid, j in st["jobs"].items() if j.get("status") == "pending" and j.get("when")
+                   and j["when"] <= lim and not _ready(j)), key=lambda kv: kv[1]["when"])
+    n = 0
+    for jid, job in todo[:limit]:
+        try:
+            _render_for(job)
+            n += 1
+        except Exception as e:
+            job["prerender_error"] = str(e)[:200]
+        save(st)
+    return n
 
 
 def _cover_for(job: dict) -> str | None:
@@ -502,6 +531,10 @@ def tick(paused: bool, event) -> dict:
         if not paused:
             _deliver_batch(st, c, event, stats, now)
         save(st)
+        try:  # в свободное время — монтаж видео на ближайшие полтора дня заранее
+            stats["prerendered"] = prerender(st, event)
+        except Exception:
+            pass
         return stats
     if not paused:
         from . import policy
@@ -723,20 +756,30 @@ def send_ahead(event, hours: float = 24, intro: str = "") -> dict:
                    if j["status"] == "pending" and j.get("when") and now_s < j["when"] <= limit),
                   key=lambda kv: kv[1]["when"])
     sent = 0
+    head_msg = None
+    ready = sum(1 for _, j in todo if _ready(j))
     try:
-        telegram._call(c["token"], "sendMessage", data={
+        head_msg = telegram._call(c["token"], "sendMessage", data={
             "chat_id": c["chat_id"], **_target(c),
             "text": f"{intro or '🖥 Компьютер выключается. Видео на ближайшие ' + str(int(hours)) + ' ч'}: {len(todo)}. "
-                    "Запланируй каждое в приложении на указанное время — дальше всё выйдет само."})
+                    "Запланируй каждое в приложении на указанное время — дальше всё выйдет само."
+                    + (f"\n⏳ Монтирую ещё {len(todo) - ready} — видео будут приходить по одному, не выключай "
+                       "компьютер, пока не придёт «✅ Все видео отправлены»." if len(todo) - ready else "")})
         for r in recipients(c)[1:]:
             telegram._call(c["token"], "sendMessage", data={
                 "chat_id": r["id"], "text": f"{intro or '🖥 Компьютер выключается. Видео на ближайшие ' + str(int(hours)) + ' ч'}: {len(todo)}."})
     except Exception:
         pass
-    for jid, job in todo:
+    try:
+        send_plan(event, hours)  # сначала общий план — что и когда выходит (даже если видео ещё монтируются)
+    except Exception:
+        pass
+    failed = 0
+    for i, (jid, job) in enumerate(todo, 1):
         if (library.load_posted().get(os.path.normpath(job["path"])) or {}).get(job["platform"]):
             job["status"] = "posted"
             continue
+        event("📦", f"Telegram: готовлю и отправляю видео {i} из {len(todo)} ({NAMES[job['platform']]})...", None, "info")
         if _block_after_render(job):
             job["status"] = "blocked"
             continue
@@ -745,10 +788,17 @@ def send_ahead(event, hours: float = 24, intro: str = "") -> dict:
             _send(c, jid, job, _channel_of(job["path"]))
             sent += 1
         except Exception as e:
+            failed += 1
             event("❌", f"Telegram: не отправилось ({NAMES[job['platform']]}) — {e}"[:220], None, "error")
         save(st)
     save(st)
-    send_plan(event, hours)  # и общий план — что и когда выходит
+    try:
+        telegram._call(c["token"], "sendMessage", data={
+            "chat_id": c["chat_id"], **_target(c),
+            "text": (f"✅ Все видео отправлены: {sent} из {len(todo)}. Можно выключать компьютер."
+                     if not failed else f"⚠ Отправлено {sent} из {len(todo)}, не ушло {failed} — подробности в окне программы.")})
+    except Exception:
+        pass
     event("📦", f"Telegram: отправил видео на {int(hours)} ч вперёд — {sent}. Запланируйте их в приложениях.", None, "info")
     return {"sent": sent, "total": len(todo)}
 

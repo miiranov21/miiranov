@@ -45,7 +45,7 @@ def _enc(final: bool) -> list:
         return ["-c:v", "libx264", "-profile:v", "high", "-preset", "medium", "-crf", "18", "-maxrate", "12M",
                 "-bufsize", "24M", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
                 "-movflags", "+faststart"]
-    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "15", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "256k",
+    return ["-c:v", "libx264", "-preset", "superfast", "-crf", "14", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "256k",
             "-ar", "48000"]
 
 

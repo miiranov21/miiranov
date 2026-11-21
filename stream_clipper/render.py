@@ -28,11 +28,14 @@ CAM_SHARE = {"full": 0.42, "wide": 0.35, "center": 0.35}
 
 def build_filter(layout: str, facecam: tuple[float, float, float, float] | None = None,
                  zoom: float = 1.0, cam_share: float | None = None, game_view: str | None = None,
-                 face_peak: tuple[float, float] | None = None) -> str:
+                 face_peak: tuple[float, float] | None = None,
+                 game_crop: tuple[float, float, float, float] | None = None) -> str:
     z = GAME_ZOOM.get(game_view, zoom) if game_view else zoom
+    gc = (f"crop=iw*{game_crop[2]:.4f}:ih*{game_crop[3]:.4f}:iw*{game_crop[0]:.4f}:ih*{game_crop[1]:.4f},"
+          if game_crop else "")  # чёрные полосы исходника — срезаем у игры и фона
     cam_share = cam_share or CAM_SHARE.get(game_view, 0.35)
     gw = int(W * z) // 2 * 2
-    bg = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
+    bg = (f"{gc}scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
           f"boxblur=25:2,eq=brightness=-0.08")
     if layout == "crop":
         return f"[0:v]scale=-2:{H},crop={W}:{H}[v]"
@@ -55,13 +58,13 @@ def build_filter(layout: str, facecam: tuple[float, float, float, float] | None 
                 # вебка маленькая — растягиваем качественно (lanczos) и чуть добавляем резкости
                 f"scale={W}:{ch}:force_original_aspect_ratio=increase:flags=lanczos,crop={W}:{ch},"
                 f"hqdn3d=1.5:1.5:3:3,unsharp=5:5:0.9:5:5:0.0[cam];"
-                f"[c]scale={gw}:-2:flags=lanczos,crop={W}:'min(ih,{H - ch})'[game];"
+                f"[c]{gc}scale={gw}:-2:flags=lanczos,crop={W}:'min(ih,{H - ch})'[game];"
                 f"[bg][cam]overlay=0:0[t];"
                 f"[t][game]overlay=0:{ch}" + ("[g2]" + full if face_peak else "[v]"))
     # blur: игра по центру, сверху/снизу размытый фон
     return (f"[0:v]split=2[a][b];"
             f"[a]{bg}[bg];"
-            f"[b]scale={gw}:-2:flags=lanczos,crop={W}:'min(ih,{H})'[fg];"
+            f"[b]{gc}scale={gw}:-2:flags=lanczos,crop={W}:'min(ih,{H})'[fg];"
             f"[bg][fg]overlay=(W-w)/2:(H-h)/2[v]")
 
 
@@ -200,8 +203,10 @@ def render_vertical(src: str, out: str, layout: str = "blur", facecam=None, zoom
                     ass_paths: list[str] | None = None, preset: str = "medium",
                     logo: str | None = None, logo_pos: str = "moving", logo_opacity: float = 0.4,
                     logo_with_text: bool = False, game_view: str | None = None,
-                    face_peak: tuple[float, float] | None = None) -> str:
-    vf = build_filter(layout, facecam, zoom, game_view=game_view, face_peak=face_peak if layout == "facecam" else None)
+                    face_peak: tuple[float, float] | None = None,
+                    game_crop: tuple[float, float, float, float] | None = None) -> str:
+    vf = build_filter(layout, facecam, zoom, game_view=game_view, face_peak=face_peak if layout == "facecam" else None,
+                      game_crop=game_crop)
     cwd = None
     inputs = ["-i", os.path.abspath(src)]
     if logo and os.path.exists(logo):

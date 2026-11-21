@@ -168,6 +168,33 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
         cfg = copy.copy(cfg)
         cfg.game_view = gv
         log(f"    кадр: {shape.VIEW_NAMES.get(gv, gv)} — {why}")
+    game_crop = None
+    try:  # качество картинки по порогам «Доктора»: исходник не ниже 720p, увеличение игры не больше 1,8, без чёрных полос
+        from . import quality as _qq, render as _rr, shape
+        thr = _qq.rules().get("thresholds") or {}
+        sw, sh = _qq.source_size(segment)
+        min_h = int(thr.get("source_min_height", 0) or 0)
+        if meta.get("check_quality", True) and not meta.get("caption_text") and sh and min_h and sh < min_h * 0.95:
+            raise ClipRejected(f"исходник {sh}p — ниже {min_h}p, в вертикальном видео будет мыло")
+        game_crop = _qq.letterbox(segment)
+        if game_crop:
+            log("    у исходника чёрные полосы — срезаю их")
+            sw = int(sw * game_crop[2]) if sw else sw
+        up_max = float(thr.get("upscale_max", 0) or 0)
+        if sw and up_max:
+            import copy
+            for gv_try in (cfg.game_view, "wide", "full"):
+                if _rr.GAME_ZOOM.get(gv_try, 1.0) * _rr.W / sw <= up_max:
+                    break
+            if gv_try != cfg.game_view:
+                log(f"    кадр «{shape.VIEW_NAMES.get(cfg.game_view, cfg.game_view)}» дал бы мыло (увеличение больше "
+                    f"{up_max}) — беру «{shape.VIEW_NAMES.get(gv_try, gv_try)}»")
+                cfg = copy.copy(cfg)
+                cfg.game_view = gv_try
+    except ClipRejected:
+        raise
+    except Exception:
+        pass
     ass_files, transcript = [], ""
     use_subs = cfg.subs
     if use_subs is None:
@@ -270,7 +297,7 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
     render.render_vertical(segment, out, layout, facecam, cfg.zoom, ass_files, cfg.preset,
                            logo=cfg.watermark_image or None, logo_pos=cfg.watermark_pos,
                            logo_opacity=cfg.watermark_opacity, logo_with_text=bool(cfg.watermark_text.strip()),
-                           game_view=cfg.game_view, face_peak=face_peak)
+                           game_view=cfg.game_view, face_peak=face_peak, game_crop=game_crop)
     for p in ass_files + ([trimmed] if trimmed else []):
         try:
             os.remove(p)

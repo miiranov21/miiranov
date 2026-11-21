@@ -450,8 +450,21 @@ def _audio(cur, out, ops, tm, dur, words, log):
 
 
 def _loudness(cur, out, op, tm, dur):
+    """Громкость по нормам площадок: два прохода loudnorm — точно в цель (−14 LUFS, пики не выше −1,5 dBTP)."""
+    import json as _json
     lufs = max(-24.0, min(-9.0, float(op.get("lufs") or -14)))
-    _run(["ffmpeg", "-y", "-v", "error", "-i", cur, "-af", f"loudnorm=I={lufs}:TP=-1.5:LRA=11", "-c:v", "copy",
+    tp = -1.5
+    af = f"loudnorm=I={lufs}:TP={tp}:LRA=11"
+    try:
+        err = subprocess.run(["ffmpeg", "-v", "info", "-i", cur, "-af", af + ":print_format=json", "-vn", "-f", "null", "-"],
+                             capture_output=True, text=True, creationflags=FLAGS).stderr
+        m = _json.loads(err[err.rindex("{"):err.rindex("}") + 1])
+        if float(m["input_i"]) > -70:
+            af += (f":measured_I={m['input_i']}:measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}"
+                   f":measured_thresh={m['input_thresh']}:offset={m['target_offset']}:linear=true")
+    except Exception:
+        pass
+    _run(["ffmpeg", "-y", "-v", "error", "-i", cur, "-af", af + ",aresample=48000", "-c:v", "copy",
           "-c:a", "aac", "-b:a", "256k", "-ar", "48000", out])
 
 

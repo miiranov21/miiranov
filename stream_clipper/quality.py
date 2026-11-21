@@ -376,8 +376,14 @@ def freezes(path: str, noise: float = 0.002, min_dur: float = 0.6) -> list[tuple
 
 
 def lag_check(path: str) -> str | None:
-    """None — видео идёт ровно; иначе причина (клип с подвисаниями не берём)."""
-    fr = freezes(path)
+    """None — видео идёт ровно; иначе причина (клип с подвисаниями не берём).
+    Проверяется сырой кусок или базовый клип — стоп-кадр «WAIT…» из монтажа сюда не попадает."""
+    t0 = rules().get("thresholds") or {}
+    try:
+        md = max(0.3, min(0.6, float(t0.get("freeze_max_sec", 1.2))))
+    except (TypeError, ValueError):
+        md = 0.6
+    fr = freezes(path, min_dur=md)
     if not fr:
         return None
     dur = duration(path) or 1.0
@@ -456,7 +462,11 @@ def first_seconds_check(path: str, peak: float, cold_open: bool, before: float =
     i0, i1 = max(0, int((peak - before) / hop)), min(e.size, int((peak + after) / hop))
     peak_lvl = float(np.max(e[i0:i1])) if i1 > i0 else -99.0
     loud = float(np.percentile(e, 90))
-    if first >= mean:
+    try:
+        quieter = float((rules().get("thresholds") or {}).get("first2s_quieter_max_db", 3))
+    except (TypeError, ValueError):
+        quieter = 3.0
+    if first >= mean - quieter:  # начало тише среднего не больше чем на N дБ — нормально
         return None
     if i1 > i0:
         peak = (i0 + int(np.argmax(e[i0:i1]))) * hop  # где реакция громче всего
@@ -466,3 +476,36 @@ def first_seconds_check(path: str, peak: float, cold_open: bool, before: float =
         return None  # пик и так в начале
     return ("первые 2 секунды тихие, а громкой реакции, которую можно поставить в начало, нет — "
             "такой клип пролистают")
+
+
+def letterbox(path: str) -> tuple[float, float, float, float] | None:
+    """Чёрные полосы в исходнике: (x, y, w, h) полезной картинки в долях кадра, если полосы занимают больше
+    letterbox_max_share кадра (по умолчанию 5%); иначе None."""
+    try:
+        mx = float((rules().get("thresholds") or {}).get("letterbox_max_share", 0.05))
+    except (TypeError, ValueError):
+        mx = 0.05
+    r = subprocess.run(["ffmpeg", "-v", "info", "-t", "8", "-i", path, "-vf", "fps=2,cropdetect=limit=24:round=2:reset=0",
+                        "-an", "-f", "null", "-"], capture_output=True, text=True, creationflags=FLAGS)
+    crops = re.findall(r"crop=(\d+):(\d+):(\d+):(\d+)", r.stderr)
+    size = re.search(r"Video:.*?(\d{3,5})x(\d{3,5})", r.stderr)
+    if not crops or not size:
+        return None
+    W0, H0 = int(size.group(1)), int(size.group(2))
+    w, h, x, y = (int(v) for v in crops[-1])
+    if w <= 0 or h <= 0 or W0 <= 0 or H0 <= 0:
+        return None
+    share = 1 - (w * h) / (W0 * H0)
+    if share <= mx or w < W0 * 0.4 or h < H0 * 0.4:
+        return None
+    return x / W0, y / H0, w / W0, h / H0
+
+
+def source_size(path: str) -> tuple[int, int]:
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+                        "-of", "csv=p=0", path], capture_output=True, text=True, creationflags=FLAGS)
+    try:
+        w, h = r.stdout.strip().split(",")[:2]
+        return int(w), int(h)
+    except ValueError:
+        return 0, 0

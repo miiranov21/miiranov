@@ -1,6 +1,8 @@
 """Автосубтитры (крупные слова по центру, как в Shorts) через faster-whisper."""
 from __future__ import annotations
 
+import re
+
 _model = None
 _model_name = None
 LAST_WORDS: list = []  # слова последнего клипа: (начало, конец, слово) — для цитаты стримера в надписи
@@ -70,6 +72,44 @@ def _get_model(name: str):
     return _model
 
 
+KEYWORDS = {"no", "what", "wait", "bro", "yo", "oh", "insane", "crazy", "dead", "run", "stop", "help", "why", "god", "omg",
+            "lets", "let's", "go", "bruh", "nah", "yes", "wow", "never", "huh", "how", "dude", "chill", "please", "won",
+            "lost", "win", "lose", "fire", "scared", "crying", "jesus", "nooo", "noo", "boom", "gg", "rip", "hell",
+            "нет", "что", "стоп", "блин", "жесть", "капец", "давай", "беги", "помогите", "почему", "боже", "вау", "да"}
+HL_CUR = "&H0000E5FF&"   # текущее слово — жёлтое
+HL_KEY = "&H0066FF00&"   # ключевое слово — зелёное и крупнее
+
+
+def is_keyword(word: str) -> bool:
+    w = (word or "").strip()
+    core = re.sub(r"[^\w']", "", w.lower())
+    if not core:
+        return False
+    return core in KEYWORDS or w.endswith(("!", "?")) or core.isdigit() or re.search(r"(.)\1\1", core) is not None
+
+
+def styled_words(texts: list[str], raw: list[str], cur: int | None) -> str:
+    """Строка субтитров: ключевые слова зелёные и крупнее, текущее слово — жёлтое."""
+    out = []
+    for j, (t, r) in enumerate(zip(texts, raw)):
+        key = is_keyword(r)
+        if j == cur:
+            out.append("{\\c" + HL_CUR + ("\\fscx118\\fscy118" if key else "\\fscx108\\fscy108") + "}" + t
+                       + "{\\c&H00FFFFFF&\\fscx100\\fscy100}")
+        elif key:
+            out.append("{\\c" + HL_KEY + "\\fscx115\\fscy115}" + t + "{\\c&H00FFFFFF&\\fscx100\\fscy100}")
+        else:
+            out.append(t)
+    return " ".join(out)
+
+
+def _clean_word(w: str, censor: bool = True) -> str:
+    if censor:
+        from .policy import censor_text
+        w = censor_text(w)
+    return w.upper().replace("{", "(").replace("}", ")").replace("\n", " ")
+
+
 def make_ass(media: str, ass_path: str, model: str = "small", language: str | None = None,
              words_per_line: int = 3, censor: bool = True) -> str:
     """Распознаёт речь и пишет .ass файл. Возвращает распознанный текст ('' — речи нет)."""
@@ -89,6 +129,11 @@ def make_ass(media: str, ass_path: str, model: str = "small", language: str | No
     LAST_WORDS = [(float(w.start), float(w.end), w.word) for w in words]
     if not words:
         return ""
+    try:
+        from .shape import trick
+        highlight = bool(trick("subtitle_keyword_highlight", True))
+    except Exception:
+        highlight = False
     lines, cur = [], []
     for w in words:
         if cur and (len(cur) >= words_per_line or w.start - cur[-1].end > 0.6):
@@ -104,6 +149,15 @@ def make_ass(media: str, ass_path: str, model: str = "small", language: str | No
             end = ln[-1].end + 0.15
             if i + 1 < len(lines):
                 end = min(end, lines[i + 1][0].start)
+            if highlight:  # пословно: текущее слово жёлтое, ключевые — зелёные и крупнее
+                raw = [w.word.strip() for w in ln]
+                texts = [_clean_word(r, censor) for r in raw]
+                for wi, w in enumerate(ln):
+                    a = w.start if wi else start
+                    b = ln[wi + 1].start if wi + 1 < len(ln) else end
+                    if b > a:
+                        f.write(f"Dialogue: 0,{_ts(a)},{_ts(b)},Default,,0,0,0,,{styled_words(texts, raw, wi)}\n")
+                continue
             text = " ".join(w.word.strip() for w in ln)
             if censor:  # мат и оскорбления в субтитрах — звёздочками (платформы читают и текст на видео)
                 from .policy import censor_text

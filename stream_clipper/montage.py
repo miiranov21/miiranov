@@ -275,11 +275,12 @@ def _subtitles(cur, out, op, tm, dur, words, log):
         if not karaoke:
             ev.append(f"Dialogue: 0,{_ts(ln[0][0])},{_ts(end_line)},Sub,,0,0,0,,{{\\an5\\pos(540,{y})}}{' '.join(texts)}")
             continue
+        from .subtitles import styled_words
         for wi, w in enumerate(ln):
             a = w[0]
             b = ln[wi + 1][0] if wi + 1 < len(ln) else end_line
-            parts = [("{\\c&H0000E5FF&}" + t + "{\\c&H00FFFFFF&}") if j == wi else t for j, t in enumerate(texts)]
-            ev.append(f"Dialogue: 0,{_ts(a)},{_ts(b)},Sub,,0,0,0,,{{\\an5\\pos(540,{y})}}{' '.join(parts)}")
+            ev.append(f"Dialogue: 0,{_ts(a)},{_ts(b)},Sub,,0,0,0,,{{\\an5\\pos(540,{y})}}"
+                      f"{styled_words(texts, [w_[2] for w_ in ln], wi)}")
     _burn_ass(cur, out, ASS_HEAD.format(styles=styles) + "\n".join(ev) + "\n")
 
 

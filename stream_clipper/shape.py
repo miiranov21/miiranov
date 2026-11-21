@@ -21,6 +21,26 @@ def length_rules() -> dict:
         return {}
 
 
+TRICKS = ("pattern_interrupt_sec", "speed_talk", "hook_from_frame0", "subtitle_keyword_highlight", "voice_over_game_db",
+          "question_overlay", "freeze_wait", "sfx_accents", "instant_replay", "face_fullscreen_on_peak", "context_line")
+
+
+def defaults() -> dict:
+    """clip_settings.defaults из стратегии «Доктора» (с твоими ✋-значениями поверх)."""
+    try:
+        from . import strategy
+        d = (strategy.get().get("clip_settings") or {}).get("defaults") or {}
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def trick(name: str, default=False):
+    """Значение приёма монтажа: False/0 — выключен; True или число — включён."""
+    v = defaults().get(name, default)
+    return v
+
+
 def min_max() -> tuple[float, float]:
     r = length_rules()
     try:

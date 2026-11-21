@@ -49,8 +49,20 @@ class ActivityPanel(ttk.Frame):
         self.current = None        # над каким стримером сейчас идёт работа
         self.last_path = None      # путь последнего готового клипа (строка «готово -> ...» идёт перед «✅»)
         self.images: list = []     # чтобы картинки не пропадали
-        self.cards_box = ttk.Frame(self)
-        self.cards_box.pack(fill="x")
+        # карточки стримеров — в прокручиваемой области: видно всех, сколько бы их ни было
+        cards_wrap = ttk.Frame(self)
+        cards_wrap.pack(fill="x")
+        self.cards_canvas = tk.Canvas(cards_wrap, highlightthickness=0, bg=self.c_field, height=80)
+        self.cards_sb = ttk.Scrollbar(cards_wrap, orient="vertical", command=self.cards_canvas.yview)
+        self.cards_canvas.configure(yscrollcommand=self.cards_sb.set)
+        self.cards_canvas.pack(side="left", fill="x", expand=True)
+        self.cards_box = ttk.Frame(self.cards_canvas)
+        self._cards_win = self.cards_canvas.create_window(0, 0, window=self.cards_box, anchor="nw")
+        self.cards_box.bind("<Configure>", lambda e: self._fit_cards())
+        self.cards_canvas.bind("<Configure>", lambda e: (self.cards_canvas.itemconfigure(self._cards_win, width=e.width),
+                                                         self._layout()))
+        self.cards_canvas.bind("<MouseWheel>", lambda e: self.cards_canvas.yview_scroll(-1 if e.delta > 0 else 1, "units"))
+        self.max_card_rows = 2
         self.empty = ttk.Label(self.cards_box, foreground=self.c_muted, text=T(
             "Нажми «Следить за стримерами» или «Нарезать» — здесь будет видно, что происходит."))
         self.empty.pack(anchor="w", pady=4)
@@ -116,11 +128,32 @@ class ActivityPanel(ttk.Frame):
         av.create_text(20, 20, text=(c["name"][:1] or "?").upper(), fill="#ffffff", font=("Segoe UI", 15, "bold"))
 
     def _layout(self):
-        cols = 3
+        width = max(300, self.cards_canvas.winfo_width())
+        cols = max(2, min(6, width // 260))  # шире окно — больше карточек в ряд
+        for col in range(6):
+            self.cards_box.columnconfigure(col, weight=1 if col < cols else 0, uniform="cards" if col < cols else "")
         for i, k in enumerate(self.order):
             self.cards[k]["frame"].grid(row=i // cols, column=i % cols, sticky="ew", padx=4, pady=4)
-        for col in range(cols):
-            self.cards_box.columnconfigure(col, weight=1, uniform="cards")
+        self._cols = cols
+        self._fit_cards()
+
+    def set_rows(self, n: int):
+        """Сколько рядов карточек показывать без прокрутки (больше — если «Что происходит» развёрнут)."""
+        self.max_card_rows = n
+        self._fit_cards()
+
+    def _fit_cards(self):
+        self.cards_canvas.configure(scrollregion=self.cards_canvas.bbox("all"))
+        self.cards_box.update_idletasks()
+        need = self.cards_box.winfo_reqheight()
+        rows = max(1, -(-len(self.order) // max(1, getattr(self, "_cols", 3)))) if self.order else 1
+        row_h = need / rows if self.order else need
+        h = int(min(need, row_h * self.max_card_rows + 4)) or 40
+        self.cards_canvas.configure(height=h)
+        if need > h + 2:
+            self.cards_sb.pack(side="left", fill="y")
+        else:
+            self.cards_sb.pack_forget()
 
     def _set(self, c, state: str | None = None, what: str | None = None):
         if state:

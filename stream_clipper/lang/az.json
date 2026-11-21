@@ -957,5 +957,7 @@
 "нет связи с Telegram (обрыв соединения — проверь интернет или VPN)": "Telegram ilə əlaqə yoxdur (bağlantı qırıldı — interneti və ya VPN-i yoxla)",
 "↩ Оставить как в прошлый раз": "↩ Keçən dəfəki kimi saxla",
 "Для {0}: вебка как в прошлый раз.\n": "{0} üçün: veb-kamera keçən dəfəki kimi.\n",
-"Перед стартом проверим, где у стримеров вебка в этом стриме: {0}.\n\nПрограмма возьмёт свежий кадр — обведи на нём вебку мышкой. Не изменилась — «Оставить как в прошлый раз»; не видно — «Другой кадр»; вебки нет — «Нет веб-камеры».\n\nПроверить сейчас? («Нет» — начать сразу с прошлыми рамками, новые стримеры — автоматически)": "Başlamazdan əvvəl bu strimdə strimerlərin veb-kamerasının harada olduğunu yoxlayaq: {0}.\n\nProqram təzə kadr götürəcək — veb-kameranı siçanla çərçivəyə al. Dəyişməyibsə — «Keçən dəfəki kimi saxla»; görünmürsə — «Başqa kadr»; veb-kamera yoxdursa — «Veb-kamera yoxdur».\n\nİndi yoxlansın? («Xeyr» — dərhal keçən çərçivələrlə başla, yeni strimerlər — avtomatik)"
+"Перед стартом проверим, где у стримеров вебка в этом стриме: {0}.\n\nПрограмма возьмёт свежий кадр — обведи на нём вебку мышкой. Не изменилась — «Оставить как в прошлый раз»; не видно — «Другой кадр»; вебки нет — «Нет веб-камеры».\n\nПроверить сейчас? («Нет» — начать сразу с прошлыми рамками, новые стримеры — автоматически)": "Başlamazdan əvvəl bu strimdə strimerlərin veb-kamerasının harada olduğunu yoxlayaq: {0}.\n\nProqram təzə kadr götürəcək — veb-kameranı siçanla çərçivəyə al. Dəyişməyibsə — «Keçən dəfəki kimi saxla»; görünmürsə — «Başqa kadr»; veb-kamera yoxdursa — «Veb-kamera yoxdur».\n\nİndi yoxlansın? («Xeyr» — dərhal keçən çərçivələrlə başla, yeni strimerlər — avtomatik)",
+"⤢ Во всё окно": "⤢ Bütün pəncərəyə",
+"⤡ Показать настройки": "⤡ Ayarları göstər"
 }

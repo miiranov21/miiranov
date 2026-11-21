@@ -485,6 +485,7 @@ class App:
 
         top = ttk.Frame(main)
         top.pack(fill="x")
+        self.main_top = top
         # стримеры
         box = ttk.LabelFrame(top, text=T(" За кем следим (Twitch и YouTube — одновременно) "), padding=6)
         box.pack(side="left", fill="both", expand=True, padx=(0, 6))
@@ -674,12 +675,14 @@ class App:
         # нарезка по ссылке
         vod = ttk.LabelFrame(main, text=T(" Нарезать один стрим по ссылке (запись Twitch или YouTube) "), padding=6)
         vod.pack(fill="x", pady=4)
+        self.main_vod = vod
         self.url = tk.StringVar()
         ttk.Entry(vod, textvariable=self.url).pack(side="left", fill="x", expand=True)
         self.b_vod = ttk.Button(vod, text=T("✂  Нарезать"), command=self.start_vod)
         self.b_vod.pack(side="left", padx=6)
         fromrow = ttk.Frame(main)
         fromrow.pack(fill="x", pady=(0, 4))
+        self.main_from = fromrow
         ttk.Label(fromrow, text=T("Для ссылки — начать с:")).pack(side="left")
         self.v["start_from"] = tk.StringVar(value=self.cfg.get("start_from") or T("с начала"))
         ttk.Combobox(fromrow, textvariable=self.v["start_from"], width=11,
@@ -708,6 +711,8 @@ class App:
         ttk.Button(logbar, text=T("⚡ Проход сейчас"), command=lambda: self._autopilot_tick(force=True)).pack(side="left", padx=8)
         self.b_hide_log = ttk.Button(logbar, text=T("Скрыть ▴"), command=self._toggle_log)
         self.b_hide_log.pack(side="right", padx=(6, 0))
+        self.b_big_log = ttk.Button(logbar, text=T("⤢ Во всё окно"), command=self._toggle_big_log)
+        self.b_big_log.pack(side="right", padx=(6, 0))
         self.b_details = ttk.Button(logbar, text=T("📄 Подробный журнал"), command=self._toggle_details)
         self.b_details.pack(side="right")
         from .activity import ActivityPanel
@@ -1681,6 +1686,24 @@ class App:
     def _log_body(self):
         return self.log if self.log_detailed.get() else self.activity
 
+    def _toggle_big_log(self, big: bool | None = None):
+        """«Что происходит» во всё окно: прячем список стримеров, настройки и нарезку по ссылке (кнопки остаются)."""
+        big = (not getattr(self, "_log_big", False)) if big is None else big
+        if big == getattr(self, "_log_big", False):
+            return
+        self._log_big = big
+        if big:
+            for w in (self.main_top, self.main_vod, self.main_from):
+                w.pack_forget()
+            self.b_big_log.config(text=T("⤡ Показать настройки"))
+            self.activity.set_rows(6)
+        else:
+            self.main_top.pack(fill="x", before=self.b_watch.master)
+            self.main_vod.pack(fill="x", pady=4, before=self.logf)
+            self.main_from.pack(fill="x", pady=(0, 4), before=self.logf)
+            self.b_big_log.config(text=T("⤢ Во всё окно"))
+            self.activity.set_rows(2)
+
     def _toggle_log(self):
         """Свернуть / развернуть окно «Что происходит» (последнее событие всё равно видно внизу)."""
         body = self._log_body()
@@ -1718,6 +1741,11 @@ class App:
         self.b_stop.config(state="normal" if running else "disabled")
         if running:
             self.status.config(text=what)
+        # во время работы «Что происходит» само разворачивается во всё окно, после «Стоп» — обратно
+        try:
+            self._toggle_big_log(running)
+        except Exception:
+            pass
 
     # ---------- обновления ----------
     def check_updates(self, manual: bool = False):

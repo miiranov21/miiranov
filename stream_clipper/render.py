@@ -27,7 +27,8 @@ CAM_SHARE = {"full": 0.42, "wide": 0.35, "center": 0.35}
 
 
 def build_filter(layout: str, facecam: tuple[float, float, float, float] | None = None,
-                 zoom: float = 1.0, cam_share: float | None = None, game_view: str | None = None) -> str:
+                 zoom: float = 1.0, cam_share: float | None = None, game_view: str | None = None,
+                 face_peak: tuple[float, float] | None = None) -> str:
     z = GAME_ZOOM.get(game_view, zoom) if game_view else zoom
     cam_share = cam_share or CAM_SHARE.get(game_view, 0.35)
     gw = int(W * z) // 2 * 2
@@ -41,7 +42,14 @@ def build_filter(layout: str, facecam: tuple[float, float, float, float] | None 
         fx, fy, fw, fh = facecam
         ch = int(H * cam_share) // 2 * 2
         # вебка сверху, под ней игра (нужной ширины), всё остальное — размытый фон
-        return (f"[0:v]split=3[a][b][c];"
+        full = ""
+        if face_peak:  # лицо на весь кадр на пике (0,5–1 с)
+            a_, b_ = face_peak
+            full = (f";[d]crop=iw*{fw}:ih*{fh}:iw*{fx}:ih*{fy},"
+                    f"scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos,crop={W}:{H},"
+                    f"hqdn3d=1.5:1.5:3:3,unsharp=5:5:0.9:5:5:0.0[full];"
+                    f"[g2][full]overlay=0:0:enable='between(t,{a_:.2f},{b_:.2f})'[v]")
+        return (f"[0:v]split={4 if face_peak else 3}[a][b][c]{'[d]' if face_peak else ''};"
                 f"[a]{bg}[bg];"
                 f"[b]crop=iw*{fw}:ih*{fh}:iw*{fx}:ih*{fy},"
                 # вебка маленькая — растягиваем качественно (lanczos) и чуть добавляем резкости
@@ -49,7 +57,7 @@ def build_filter(layout: str, facecam: tuple[float, float, float, float] | None 
                 f"hqdn3d=1.5:1.5:3:3,unsharp=5:5:0.9:5:5:0.0[cam];"
                 f"[c]scale={gw}:-2:flags=lanczos,crop={W}:'min(ih,{H - ch})'[game];"
                 f"[bg][cam]overlay=0:0[t];"
-                f"[t][game]overlay=0:{ch}[v]")
+                f"[t][game]overlay=0:{ch}" + ("[g2]" + full if face_peak else "[v]"))
     # blur: игра по центру, сверху/снизу размытый фон
     return (f"[0:v]split=2[a][b];"
             f"[a]{bg}[bg];"
@@ -191,8 +199,9 @@ def _logo_xy(pos: str, with_text: bool = False) -> tuple[str, str]:
 def render_vertical(src: str, out: str, layout: str = "blur", facecam=None, zoom: float = 1.0,
                     ass_paths: list[str] | None = None, preset: str = "medium",
                     logo: str | None = None, logo_pos: str = "moving", logo_opacity: float = 0.4,
-                    logo_with_text: bool = False, game_view: str | None = None) -> str:
-    vf = build_filter(layout, facecam, zoom, game_view=game_view)
+                    logo_with_text: bool = False, game_view: str | None = None,
+                    face_peak: tuple[float, float] | None = None) -> str:
+    vf = build_filter(layout, facecam, zoom, game_view=game_view, face_peak=face_peak if layout == "facecam" else None)
     cwd = None
     inputs = ["-i", os.path.abspath(src)]
     if logo and os.path.exists(logo):

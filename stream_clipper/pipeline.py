@@ -98,6 +98,23 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
                 peak -= a
         except Exception as e:
             log(f"    границы по паузам не поставились ({e}) — оставляю как есть")
+    if meta.get("check_quality", True) and not meta.get("caption_text"):
+        try:  # настоящий пик — самая громкая реакция стримера рядом с всплеском чата (чат запаздывает)
+            from .shape import voice_energy
+            e = voice_energy(segment)
+            i0, i1 = max(0, int((peak - 2.0) / 0.05)), min(e.size, int((peak + 3.0) / 0.05))
+            if i1 - i0 > 10:
+                loud = (i0 + int(np.argmax(e[i0:i1]))) * 0.05
+                if abs(loud - peak) > 0.2:
+                    meta["peak_shift"] = round(loud - peak, 2)
+                    peak = loud
+        except Exception:
+            pass
+        from . import quality as _q0
+        from .shape import defaults as _cd
+        why = _q0.first_seconds_check(segment, peak, _cd().get("cold_open") is True)
+        if why:
+            raise ClipRejected(why)
     meta["peak_off"] = peak
     layout, facecam = cfg.layout, cfg.facecam
     if layout == "auto":
@@ -234,10 +251,18 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
     if cfg.caption:
         from .caption import LAST_SCORE
         meta["ai_score"] = LAST_SCORE.get("value")
+    face_peak = None
+    try:
+        from .shape import trick
+        if layout == "facecam" and trick("face_fullscreen_on_peak") and peak > 0.3:
+            face_peak = (max(0.0, peak - 0.1), peak + 0.7)  # лицо на весь кадр на пике
+            meta["face_peak"] = True
+    except Exception:
+        pass
     render.render_vertical(segment, out, layout, facecam, cfg.zoom, ass_files, cfg.preset,
                            logo=cfg.watermark_image or None, logo_pos=cfg.watermark_pos,
                            logo_opacity=cfg.watermark_opacity, logo_with_text=bool(cfg.watermark_text.strip()),
-                           game_view=cfg.game_view)
+                           game_view=cfg.game_view, face_peak=face_peak)
     for p in ass_files + ([trimmed] if trimmed else []):
         try:
             os.remove(p)
@@ -253,6 +278,8 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
 
 def _apply_trim(d: dict, meta: dict) -> None:
     """Границы клипа сдвинулись в паузы речи — поправляем время клипа в записи стрима (для перерезки и ссылок)."""
+    if meta.get("peak_shift") and d.get("peak") is not None:
+        d["peak"] = round(float(d["peak"]) + float(meta["peak_shift"]), 2)
     tr = meta.get("trim")
     if tr:
         s0 = float(d.get("start", 0))

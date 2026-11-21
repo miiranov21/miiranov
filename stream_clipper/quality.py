@@ -403,6 +403,19 @@ def strong_moments(hl: list, have_media: bool, log=print) -> list:
     two = bool(m.get("need_two_signals", True)) and have_media
     chat_only = float(m.get("chat_only_z", 4.0))
     sig = float(m.get("signal_z", 1.5))
+    try:  # веса типов момента от «Доктора»: шок и смех ценнее, чем просто разговор
+        from . import strategy
+        from .caption import _category
+        wts = (strategy.get().get("scoring") or {}).get("moment_type_weights") or {}
+        if wts:
+            for h in hl:
+                cat = _category(list(getattr(h, "top_messages", []) or []))
+                w = float(wts.get(cat, 1.0)) if cat in wts else 1.0
+                if w != 1.0:
+                    h.score = round(float(h.score or 0) * w, 2)
+            hl.sort(key=lambda h: -float(getattr(h, "score", 0) or 0))
+    except Exception:
+        pass
     best = max(float(getattr(h, "score", 0) or 0) for h in hl)
     out = []
     from .pipeline import _fmt
@@ -420,3 +433,34 @@ def strong_moments(hl: list, have_media: bool, log=print) -> list:
             continue
         out.append(h)
     return out
+
+
+def first_seconds_check(path: str, peak: float, cold_open: bool) -> str | None:
+    """Первые 2 секунды решают, пролистают ли клип (quality_filters.first_seconds).
+    Если начало тише среднего по клипу, а яркого пика, который холодный старт поставит первым, нет — клип не берём.
+    Без холодного старта: если до пика больше need_context_max_sec секунд подводки — тоже не берём
+    (монтаж обрежет подводку, но если и после обрезки начало тихое — клип скучный)."""
+    fs = rules().get("first_seconds")
+    if fs is False or (isinstance(fs, dict) and fs.get("on") is False):
+        return None
+    try:
+        from .shape import voice_energy
+        e = voice_energy(path)
+    except Exception:
+        return None
+    if e.size < 60:  # короче 3 с — не судим
+        return None
+    hop = 0.05
+    mean = float(np.mean(e))
+    first = float(np.mean(e[: int(2 / hop)]))
+    i0, i1 = max(0, int((peak - 0.75) / hop)), min(e.size, int((peak + 0.75) / hop))
+    peak_lvl = float(np.max(e[i0:i1])) if i1 > i0 else -99.0
+    loud = float(np.percentile(e, 90))
+    if first >= mean:
+        return None
+    if cold_open and peak > 1.5 and peak_lvl >= loud - 1.0:
+        return None  # холодный старт поставит громкий пик первым кадром
+    if peak <= 2.0 and peak_lvl >= loud - 1.0:
+        return None  # пик и так в начале
+    return ("первые 2 секунды тихие, а громкой реакции, которую можно поставить в начало, нет — "
+            "такой клип пролистают")

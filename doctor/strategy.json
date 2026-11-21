@@ -795,11 +795,10 @@
       "true_peak_max_dbtp": -1,
       "first2s_quieter_max_db": 3,
       "silence_max_sec": 0.35,
-      "video_bitrate_min_mbps": 8,
       "fps": [
-        30,
-        60
-      ]
+        30
+      ],
+      "encode": "CRF 18, maxrate 12 Мбит/с — визуально без потерь и влезает в лимит Telegram 50 МБ"
     },
     "moment": {
       "min_relative": 0.6,

@@ -15,8 +15,9 @@ import shutil
 import subprocess
 import time
 
-ORDER = ["trim", "cut_silence", "speed", "layout", "crop_out", "blur", "zoom", "subtitles", "replace_hook", "hook", "credit",
-         "progress_bar", "mute", "bleep", "bleep_profanity", "replace_audio", "loudness", "cold_open", "loop_end", "cover"]
+ORDER = ["trim", "cut_silence", "speed", "layout", "crop_out", "blur", "zoom", "pattern_interrupt", "subtitles",
+         "replace_hook", "context_line", "credit", "mute", "bleep", "bleep_profanity", "replace_audio", "voice_boost",
+         "instant_replay", "freeze_wait", "cold_open", "hook", "sfx", "progress_bar", "loudness", "loop_end", "cover"]
 AUDIO = ("mute", "bleep", "bleep_profanity", "replace_audio")
 W, H = 1080, 1920
 FLAGS = 0x08000000 if os.name == "nt" else 0
@@ -52,6 +53,21 @@ def _enc(final: bool) -> list:
 class TimeMap:
     def __init__(self, dur: float):
         self.pieces = [(0.0, dur, 0.0, dur)]  # (исх. от, исх. до, тек. от, тек. до)
+        self.marks: list[tuple[str, float]] = []  # звуковые акценты в ТЕКУЩЕМ времени: ("whoosh"|"bass", t)
+
+    def insert(self, at: float, length: float):
+        """В текущую версию вставлено length секунд в точке at (стоп-кадр, повтор, холодный старт)."""
+        new = []
+        for s0, s1, c0, c1 in self.pieces:
+            if c1 <= at:
+                new.append((s0, s1, c0, c1))
+            elif c0 >= at:
+                new.append((s0, s1, c0 + length, c1 + length))
+            else:
+                o = s0 + (at - c0) * (s1 - s0) / (c1 - c0)
+                new += [(s0, o, c0, at), (o, s1, at + length, c1 + length)]
+        self.pieces = new
+        self.marks = [(k, t + length if t >= at else t) for k, t in self.marks]
 
     def map(self, t: float) -> float | None:
         for s0, s1, c0, c1 in self.pieces:
@@ -182,8 +198,10 @@ def _blur(cur, out, op, tm, dur):
 
 def _zoom(cur, out, ops, tm, dur):
     """Зум-панчи: быстрый наезд (×1.1–1.3) на ударном моменте и плавный возврат."""
-    terms = []
+    terms, punches = [], []
     for op in ops:
+        if op.get("type") == "pattern_interrupt":
+            continue
         t = tm.map(float(op.get("t", 0)))
         if t is None:
             continue
@@ -194,6 +212,19 @@ def _zoom(cur, out, ops, tm, dur):
         # 0 → 1 за ramp секунд, держим, обратно за ramp секунд
         env = (f"between(t,{a:.3f},{b:.3f})*min(1,min((t-{a:.3f})/{ramp},({b:.3f}-t)/{ramp}))")
         terms.append(f"{s - 1:.3f}*{env}")
+        punches.append((a, b))
+        tm.marks.append(("bass", a))
+    for op in ops:  # смена картинки каждые ~2,5 с: лёгкий наезд 1,0↔1,08 (не мешает зуму на пике)
+        if op.get("type") != "pattern_interrupt":
+            continue
+        every = max(1.5, min(6.0, float(op.get("every") or 2.5)))
+        sc = max(1.02, min(1.15, float(op.get("scale") or 1.08)))
+        k, ramp = 1, 0.25
+        while k * every < dur - 0.5:
+            a, b = k * every, min(dur, (k + 1) * every)
+            if not any(a < pb + 0.3 and b > pa - 0.3 for pa, pb in punches):
+                terms.append(f"{sc - 1:.3f}*between(t,{a:.3f},{b:.3f})*min(1,min((t-{a:.3f})/{ramp},({b:.3f}-t)/{ramp}))")
+            k += 2
     if not terms:
         raise _Skip("моменты для зума вырезаны раньше")
     z = "1+" + "+".join(terms)
@@ -400,12 +431,12 @@ def _loudness(cur, out, op, tm, dur):
 
 
 def _cold_open(cur, out, op, tm, dur):
-    """Холодный старт: 0,5–1 с самого пика ставим в начало (уже со всем монтажом), потом клип с подводкой."""
+    """Холодный старт: 0,5–1,5 с самого пика ставим в начало (уже со всем монтажом), потом клип с подводкой и пиком."""
     p = tm.map(float(op.get("t", 0)))
     if p is None:
         raise _Skip("пик вырезан раньше")
-    L = max(0.5, min(1.0, float(op.get("dur") or 0.8)))
-    if p < 2.0 or p + L > dur - 0.2:
+    L = max(0.5, min(1.5, float(op.get("dur") or 1.0)))
+    if p < 1.5 or p + L > dur - 0.2:
         raise _Skip("пик и так в начале клипа")
     graph = (f"[0:v]split[v1][v2];[0:a]asplit[a1][a2];"
              f"[v1]trim=start={p:.3f}:end={p + L:.3f},setpts=PTS-STARTPTS[cv];"
@@ -414,8 +445,127 @@ def _cold_open(cur, out, op, tm, dur):
              f"[cv][ca][mv][ma]concat=n=2:v=1:a=1[v][a]")
     _run(["ffmpeg", "-y", "-v", "error", "-i", cur, "-filter_complex", graph, "-map", "[v]", "-map", "[a]",
           *_enc(False), out])
-    tm.apply([(0.0, dur, 1.0)])  # основной клип сдвинулся на L — сдвигаем карту времени
-    tm.pieces = [(s0, s1, c0 + L, c1 + L) for s0, s1, c0, c1 in tm.pieces]
+    tm.insert(0.0, L)  # основной клип сдвинулся на L
+    tm.marks.append(("whoosh", L - 0.15))
+
+
+def _insert(cur, out, at, dur, vchain: str, achain: str, src: tuple[float, float]):
+    """Вставить в точку at кусок, собранный из отрезка src текущей версии (vchain/achain — его обработка)."""
+    a0, a1 = src
+    graph = (f"[0:v]split=3[v1][v2][v3];[0:a]asplit=3[a1][a2][a3];"
+             f"[v1]trim=0:{at:.3f},setpts=PTS-STARTPTS[pv];[a1]atrim=0:{at:.3f},asetpts=PTS-STARTPTS[pa];"
+             f"[v2]trim={a0:.3f}:{a1:.3f},setpts=PTS-STARTPTS,{vchain}[iv];"
+             f"[a2]atrim={a0:.3f}:{a1:.3f},asetpts=PTS-STARTPTS,{achain}[ia];"
+             f"[v3]trim=start={at:.3f},setpts=PTS-STARTPTS[nv];[a3]atrim=start={at:.3f},asetpts=PTS-STARTPTS[na];"
+             f"[pv][pa][iv][ia][nv][na]concat=n=3:v=1:a=1[v][a]")
+    _run(["ffmpeg", "-y", "-v", "error", "-i", cur, "-filter_complex", graph, "-map", "[v]", "-map", "[a]",
+          *_enc(False), out])
+
+
+def _freeze_wait(cur, out, op, tm, dur):
+    """Стоп-кадр 0,3–0,5 с с надписью «WAIT…» прямо перед развязкой (пиком)."""
+    p = tm.map(float(op.get("t", 0)))
+    if p is None or p < 1.5 or p > dur - 0.5:
+        raise _Skip("пик в самом начале или вырезан — стоп-кадр не нужен")
+    L = max(0.3, min(0.6, float(op.get("dur") or 0.4)))
+    f = max(0.0, p - 0.08)
+    text = (op.get("text") or "WAIT…").upper().replace("{", "(").replace("}", ")")
+    work = os.path.dirname(os.path.abspath(out))
+    name = f"m_{int(time.time() * 1000)}_fw.ass"
+    style = "Style: F,Arial,150,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,10,4,5,40,40,0,1"
+    with open(os.path.join(work, name), "w", encoding="utf-8") as fh:
+        fh.write(ASS_HEAD.format(styles=style) + f"Dialogue: 3,0:00:00.00,0:00:05.00,F,,0,0,0,,{{\\an5\\pos(540,960)}}{text}\n")
+    try:
+        vchain = (f"trim=0:0.04,setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration={L:.2f},trim=0:{L:.2f},"
+                  f"eq=saturation=0.6,ass={name}")
+        achain = f"volume=0,apad=whole_dur={L:.2f},atrim=0:{L:.2f}"
+        _insert(os.path.abspath(cur), os.path.abspath(out), f, dur, vchain, achain, (f, min(dur, f + 0.2)))
+    finally:
+        try:
+            os.remove(os.path.join(work, name))
+        except OSError:
+            pass
+    tm.insert(f, L)
+    tm.marks.append(("whoosh", f))
+
+
+def _run_in(cwd, fn, *a):
+    old = os.getcwd()
+    os.chdir(cwd)
+    try:
+        return fn(*a)
+    finally:
+        os.chdir(old)
+
+
+def _instant_replay(cur, out, op, tm, dur):
+    """Повтор: 1–2 с игрового момента перед реакцией — замедленно (0,5×) и крупнее, сразу после реакции."""
+    p = tm.map(float(op.get("t", 0)))
+    if p is None:
+        raise _Skip("пик вырезан раньше")
+    src = max(1.0, min(2.0, float(op.get("src") or 1.5)))
+    a0 = max(0.0, p - src)
+    if p - a0 < 0.8:
+        raise _Skip("до пика слишком мало игры для повтора")
+    rate = max(0.4, min(0.8, float(op.get("rate") or 0.5)))
+    at = min(dur - 0.2, p + float(op.get("after") or 1.6))  # после реакции стримера
+    if at <= p:
+        raise _Skip("клип кончается сразу после пика")
+    z = 1.15
+    vchain = (f"setpts=PTS/{rate},scale=trunc(iw*{z}/2)*2:trunc(ih*{z}/2)*2,crop={W}:{H},"
+              f"drawbox=x=0:y=0:w=iw:h=ih:color=white@0.9:t=8")
+    achain = f"{_atempo(rate)},volume=0.6"
+    _insert(cur, out, at, dur, vchain, achain, (a0, p))
+    L = (p - a0) / rate
+    tm.insert(at, L)
+    tm.marks += [("whoosh", at), ("whoosh", at + L - 0.1)]
+
+
+def _voice_boost(cur, out, op, tm, dur):
+    """Голос стримера громче игры: голосовая полоса поднимается на N дБ, гул и бас игры — ниже."""
+    db = max(1.0, min(8.0, float(op.get("db") or 4)))
+    af = (f"equalizer=f=1200:width_type=o:width=2:g={db:.1f},lowshelf=f=160:g=-{db / 2:.1f},"
+          f"highshelf=f=6000:g=-{db / 2:.1f}")
+    _run(["ffmpeg", "-y", "-v", "error", "-i", cur, "-af", af, "-c:v", "copy", "-c:a", "aac", "-b:a", "256k",
+          "-ar", "48000", out])
+
+
+def _sfx(cur, out, op, tm, dur):
+    """Звуковые акценты (сгенерированы на месте, без чужих прав): «вжух» на склейках, бас-удар на зуме.
+    Тише голоса; не чаще раза в 0,8 с."""
+    marks, last = [], -9.0
+    for k, t in sorted(tm.marks, key=lambda m: m[1]):
+        if 0 <= t < dur - 0.1 and t - last >= 0.8:
+            marks.append((k, t))
+            last = t
+    if not marks:
+        raise _Skip("нет склеек и зумов для звуков")
+    graph, mix = "", ["[0:a]"]
+    for i, (k, t) in enumerate(marks[:8]):
+        ms = int(max(0.0, t) * 1000)
+        if k == "bass":
+            src = ("aevalsrc='0.9*sin(2*PI*(70-40*t)*t)*exp(-7*t)':s=48000:d=0.45,"
+                   "aformat=channel_layouts=stereo,volume=0.55")
+        else:
+            src = ("anoisesrc=d=0.4:c=pink:a=0.5:r=48000,bandpass=f=2500:width_type=o:width=2,"
+                   "afade=t=in:d=0.18,afade=t=out:st=0.18:d=0.22,aformat=channel_layouts=stereo,volume=0.35")
+        graph += f"{src},adelay={ms}|{ms}[s{i}];"
+        mix.append(f"[s{i}]")
+    graph += f"{''.join(mix)}amix=inputs={len(mix)}:duration=first:normalize=0[a]"
+    _run(["ffmpeg", "-y", "-v", "error", "-i", cur, "-filter_complex", graph, "-map", "0:v", "-map", "[a]",
+          "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-ar", "48000", out])
+
+
+def _context_line(cur, out, op, tm, dur):
+    """Строка контекста на 2 с (только из названия стрима или расшифровки — без выдумки), мелко сверху."""
+    text = (op.get("text") or "").strip().replace("{", "(").replace("}", ")")
+    if not text:
+        raise _Skip("в названии стрима нечего взять")
+    t0 = tm.map(float(op.get("t", 0))) or 0.0
+    secs = max(1.0, min(3.0, float(op.get("seconds") or 2)))
+    style = "Style: X,Arial,44,&H00FFFFFF,&H00FFFFFF,&H00000000,&H78000000,-1,0,0,0,100,100,0,0,3,10,0,8,90,90,0,1"
+    ev = f"Dialogue: 2,{_ts(t0)},{_ts(t0 + secs)},X,,0,0,0,,{{\\an8\\pos(540,250)\\fad(150,200)}}{text}"
+    _burn_ass(cur, out, ASS_HEAD.format(styles=style) + ev + "\n")
 
 
 def _loop_end(cur, out, op, tm, dur):
@@ -479,8 +629,8 @@ def render_plan(src: str, out: str, ops: list, words: list | None = None, clip: 
         op = known[i]
         t = op["type"]
         group = [op]
-        if t in ("zoom",) + AUDIO:  # все зумы и все звуковые правки — одним проходом
-            kinds = ("zoom",) if t == "zoom" else AUDIO
+        if t in ("zoom", "pattern_interrupt") + AUDIO:  # все зумы и все звуковые правки — одним проходом
+            kinds = ("zoom", "pattern_interrupt") if t in ("zoom", "pattern_interrupt") else AUDIO
             while i + 1 < len(known) and known[i + 1]["type"] in kinds:
                 i += 1
                 group.append(known[i])
@@ -500,8 +650,18 @@ def render_plan(src: str, out: str, ops: list, words: list | None = None, clip: 
                 _crop_out(cur, dst, op, tm, dur)
             elif t == "blur":
                 _blur(cur, dst, op, tm, dur)
-            elif t == "zoom":
+            elif t in ("zoom", "pattern_interrupt"):
                 _zoom(cur, dst, group, tm, dur)
+            elif t == "voice_boost":
+                _voice_boost(cur, dst, op, tm, dur)
+            elif t == "instant_replay":
+                _instant_replay(cur, dst, op, tm, dur)
+            elif t == "freeze_wait":
+                _run_in(os.path.dirname(os.path.abspath(dst)), _freeze_wait, cur, dst, op, tm, dur)
+            elif t == "sfx":
+                _sfx(cur, dst, op, tm, dur)
+            elif t == "context_line":
+                _context_line(cur, dst, op, tm, dur)
             elif t == "subtitles":
                 _subtitles(cur, dst, op, tm, dur, words, log)
             elif t == "hook":

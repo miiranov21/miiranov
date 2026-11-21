@@ -242,7 +242,123 @@ frames, are subtitles inside safe zones (not in the bottom 20%, not in the right
 Answer with JSON only: {{"ok": true|false, "problems": ["in Russian"], "fix_edits": [ ...extra edits in the same format... ]}}"""
 
 
-SINGLE = ("cut_silence", "subtitles", "hook", "credit", "progress_bar", "loudness", "loop_end", "cover", "trim", "cold_open")
+SINGLE = ("cut_silence", "subtitles", "hook", "credit", "progress_bar", "loudness", "loop_end", "cover", "trim", "cold_open",
+          "pattern_interrupt", "voice_boost", "instant_replay", "freeze_wait", "sfx", "context_line")
+
+
+def _end_after_peak(words: list, p: float, dur: float) -> float:
+    """Конец сразу после пика: первая пауза в речи после реакции (или фраза-панчлайн), но не позже пика + 6 с."""
+    ws = []
+    for w in words or []:
+        try:
+            ws.append((float(w[0]), float(w[1])))
+        except (TypeError, ValueError, IndexError):
+            pass
+    ws.sort()
+    after = [w for w in ws if w[1] > p + 1.2]
+    end = None
+    for a, b in zip(after, after[1:]):
+        if b[0] - a[1] >= 0.4:
+            end = a[1] + 0.3
+            break
+    if end is None:
+        end = (after[-1][1] + 0.3) if after else p + 3.0
+    return max(p + 1.5, min(dur, end, p + 6.0))
+
+
+def _context_text(c: dict) -> str:
+    """Строка контекста только из названия стрима — без выдумки: без эмодзи, команд, ссылок и тегов; 2–7 слов."""
+    import re
+    t = c.get("vod_title") or ""
+    t = re.split(r"\s[|•–—-]\s|\|", t)[0]
+    t = re.sub(r"https?://\S+|[@#!]\S+|\[[^\]]*\]|\([^)]*\)", " ", t)
+    t = re.sub(r"[^\w\s'?!.,&:-]", " ", t)
+    words = t.split()
+    if len(words) < 2:
+        return ""
+    t = " ".join(words[:7])
+    return t if len(t) <= 48 else t[:46].rsplit(" ", 1)[0] + "…"
+
+
+def tricks_plan(c: dict, strat: dict, platform: str, duration: float, have: set) -> list:
+    """Длина и приёмы монтажа по clip_settings «Доктора» (с твоими ✋ поверх): обрезка до target площадки
+    (подводка до пика не длиннее need_context_max_sec, конец сразу после пика), паузы, зум, холодный старт,
+    смена картинки, ускорение речи, голос громче игры, повтор, стоп-кадр WAIT, звуки, строка контекста.
+    Приём, который вытолкнет клип за target площадки, пропускается."""
+    from . import shape
+    from .caption import _category
+    cd = ((strat.get("clip_settings") or {}).get("defaults") or {})
+    lr = shape.length_rules()
+    add = []
+    peak = float(c.get("peak", 0) or 0) - float(c.get("start", 0) or 0)
+    has_peak = 0 < peak < duration
+    tgt = shape.target_for(platform)
+    lo, hi = tgt or shape.min_max()
+    try:
+        hi = min(hi, float(lr.get("max_sec") or hi))
+    except (TypeError, ValueError):
+        pass
+    co = cd.get("cold_open") is True
+    start, end = 0.0, duration
+    if "trim" not in have:
+        if has_peak:
+            fs = ((strat.get("quality_filters") or {}).get("first_seconds") or {})
+            ctx = float(fs.get("need_context_max_sec") or 3) if isinstance(fs, dict) else 3.0
+            pre = ctx + 1.0 if co else 1.5  # с холодным стартом — подводка 2–4 с, без него — пик в первые 1,5 с
+            if cd.get("end_on_peak") is True:
+                end = _end_after_peak(c.get("words") or [], peak, duration)
+            start = max(0.0, peak - pre)
+            if end - start < lo + 1.5:  # короче цели площадки — добавляем хвост, потом подводку
+                end = min(duration, start + lo + 1.5)
+                start = max(0.0, min(start, end - lo - 1.5))
+            if end - start > hi:
+                end = start + hi
+        elif duration > hi + 0.5:
+            start, end = (duration - hi) / 2, (duration + hi) / 2
+        if start > 0.3 or duration - end > 0.3:
+            add.append({"type": "trim", "cut_start": round(start, 2), "cut_end": round(max(0.0, duration - end), 2)})
+        else:
+            start, end = 0.0, duration
+    exp = end - start  # ожидаемая длина (без учёта вырезанных пауз)
+    gap = cd.get("cut_silence")
+    if (shape.length_rules().get("cut") or gap) and "cut_silence" not in have:
+        g = float(gap) if isinstance(gap, (int, float)) and not isinstance(gap, bool) and gap > 0 else 0.7
+        add.append({"type": "cut_silence", "min_gap": max(0.25, min(1.5, g))})
+    cat = _category(c.get("top_messages") or [])
+    room = lambda extra: exp + extra <= hi  # приём не выталкивает клип за target
+    if has_peak:
+        z = cd.get("punch_in_zoom")  # резкий зум на пике
+        if isinstance(z, (int, float)) and not isinstance(z, bool) and z > 1 and "zoom" not in have:
+            add.append({"type": "zoom", "t": round(peak, 2), "scale": float(z), "dur": 0.6})
+        st = cd.get("speed_talk")  # речь до реакции — чуть быстрее
+        if isinstance(st, (int, float)) and not isinstance(st, bool) and st > 1 and "speed" not in have:
+            t0, t1 = start, peak - 0.4
+            spoken = sum(max(0.0, min(float(w[1]), t1) - max(float(w[0]), t0)) for w in c.get("words") or []
+                         if isinstance(w, (list, tuple)) and len(w) >= 2)
+            if t1 - t0 >= 2.0 and spoken >= 0.5 * (t1 - t0):
+                add.append({"type": "speed", "t0": round(t0, 2), "t1": round(t1, 2), "rate": min(1.3, float(st))})
+        if cd.get("instant_replay") and cat in ("fail", "shock", "hype") and room(3.0) and peak - start >= 1.0 \
+                and "instant_replay" not in have:
+            add.append({"type": "instant_replay", "t": round(peak, 2), "src": 1.5, "rate": 0.5})
+            exp += 3.0
+        if cd.get("freeze_wait") and peak - start > 2.0 and room(0.4) and "freeze_wait" not in have:
+            add.append({"type": "freeze_wait", "t": round(peak, 2), "dur": 0.4, "text": "WAIT…"})
+            exp += 0.4
+        if co and peak - start > 1.5 and "cold_open" not in have:
+            add.append({"type": "cold_open", "t": round(peak, 2), "dur": 1.0})
+    pi = cd.get("pattern_interrupt_sec")
+    if isinstance(pi, (int, float)) and not isinstance(pi, bool) and pi > 0 and "pattern_interrupt" not in have:
+        add.append({"type": "pattern_interrupt", "every": float(pi), "scale": 1.08})
+    vb = cd.get("voice_over_game_db")
+    if isinstance(vb, (int, float)) and not isinstance(vb, bool) and vb > 0 and "voice_boost" not in have:
+        add.append({"type": "voice_boost", "db": float(vb)})
+    if cd.get("context_line") and "context_line" not in have:
+        txt = _context_text(c)
+        if txt:
+            add.append({"type": "context_line", "text": txt, "t": round(start, 2), "seconds": 2})
+    if cd.get("sfx_accents") and "sfx" not in have:
+        add.append({"type": "sfx"})
+    return add
 
 
 def merge_edits(ops: list, extra: list) -> list:
@@ -280,23 +396,9 @@ def ensure_mandatory(ops: list, c: dict, strat: dict, platform: str, duration: f
             if i.get("kind") == "nudity" and i.get("box") and i.get("severity") == "high":
                 add.append({"type": "blur", "t0": i.get("t0", 0), "t1": i.get("t1", 0), "box": i["box"]})
     from . import shape
-    tgt = shape.target_for(platform)
-    if tgt and duration > tgt[1] + 0.5 and "trim" not in have:
-        # момент длиннее, чем любит площадка — версия короче: режем начало (но не ближе 3 с к пику), остальное — с конца
-        excess = duration - tgt[1]
-        peak_off = float(c.get("peak", 0) or 0) - float(c.get("start", 0) or 0)
-        cut_a = min(excess, max(0.0, peak_off - 3.0)) if peak_off > 0 else excess * 0.5
-        add.append({"type": "trim", "cut_start": round(cut_a, 2), "cut_end": round(excess - cut_a, 2)})
-    if shape.length_rules().get("cut") and "cut_silence" not in have:
-        add.append({"type": "cut_silence", "min_gap": 0.7})
     cd = ((strat.get("clip_settings") or {}).get("defaults") or {})
-    peak_off = float(c.get("peak", 0) or 0) - float(c.get("start", 0) or 0)
-    if 0 < peak_off < duration:
-        z = cd.get("punch_in_zoom")  # резкий зум на пике
-        if isinstance(z, (int, float)) and not isinstance(z, bool) and z > 1 and "zoom" not in have:
-            add.append({"type": "zoom", "t": round(peak_off, 2), "scale": float(z), "dur": 0.6})
-        if cd.get("cold_open") is True and peak_off > 2 and "cold_open" not in have:
-            add.append({"type": "cold_open", "t": round(peak_off, 2), "dur": 0.8})
+    plan = tricks_plan(c, strat, platform, duration, have)
+    add += plan
     if cd.get("end_on_peak") is True:  # конец сразу после пика, без затухания-петли
         ops = [o for o in ops if o.get("type") != "loop_end"]
     if duration > 30 and "progress_bar" not in have:
@@ -339,7 +441,7 @@ def rule_plan(c: dict, strat: dict, info: dict) -> dict:
         post = free_post(pl, c.get("channel", ""), c.get("caption", ""), c.get("vod_title", ""), c.get("transcript", ""),
                          c.get("top_messages") or [], c.get("lang") or "en", c.get("words") or [], peak,
                          display=c.get("credit_name") or "")
-        edits = [{"type": "cut_silence", "min_gap": 0.7}]
+        edits = []  # паузы, зум, холодный старт и прочие приёмы добавит ensure_mandatory по clip_settings
         if not info["has_hook"] and c.get("caption"):
             edits.append({"type": "hook", "text": c["caption"], "seconds": 3})
         if not info["has_subs"]:

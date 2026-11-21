@@ -21,9 +21,11 @@ from . import library, paths
 
 PLATFORMS = ("youtube", "tiktok", "instagram")
 EDIT_TYPES = ("trim", "cut_silence", "speed", "layout", "crop_out", "blur", "zoom", "subtitles", "replace_hook", "hook", "credit",
-              "progress_bar", "mute", "bleep", "bleep_profanity", "replace_audio", "loudness", "loop_end", "cover")
+              "progress_bar", "mute", "bleep", "bleep_profanity", "replace_audio", "loudness", "loop_end", "cover",
+              "cold_open", "pattern_interrupt", "voice_boost", "instant_replay", "freeze_wait", "sfx", "context_line")
 EDIT_KEYS = ("type", "cut_start", "cut_end", "text", "seconds", "pos", "style", "min_gap", "t0", "t1", "rate", "t",
-             "scale", "dur", "box", "all", "sfx", "on", "lufs", "crossfade", "mode", "facecam_box")
+             "scale", "dur", "box", "all", "sfx", "on", "lufs", "crossfade", "mode", "facecam_box",
+             "every", "db", "src", "after")
 
 FORMAT_DOC = """# Обмен Stream Clipper ⇄ «Доктор шортсов» (версия 1)
 
@@ -65,7 +67,9 @@ FORMAT_DOC = """# Обмен Stream Clipper ⇄ «Доктор шортсов» 
   zoom (t, scale=1.2, dur=0.6) → subtitles (style: karaoke|plain, pos: center|lower_center) →
   replace_hook (text) — заменить уже прожжённую надпись-плашку → hook (text, seconds=3, style: plate|outline) → credit (pos: top-left|top-right|bottom-left, text) →
   progress_bar (on) → mute (t0, t1) / bleep (t0, t1) / bleep_profanity (all) / replace_audio (t0, t1, sfx: silence|whoosh) →
-  loudness (lufs=-14) → loop_end (crossfade=0.3) → cover (t, text)
+  voice_boost (db=4) → instant_replay (t, src=1.5, rate=0.5) → freeze_wait (t, dur=0.4, text) → cold_open (t, dur=1.0) →
+  hook → sfx → progress_bar → loudness (lufs=-14) → loop_end (crossfade=0.3) → cover (t, text)
+  Ещё: pattern_interrupt (every=2.5, scale=1.08) — вместе с zoom; context_line (text, t, seconds=2) — после replace_hook.
 Время t/t0/t1 — по исходному клипу (как в каталоге); после вырезания пауз и ускорений пересчитывается само.
 box — [x, y, w, h] в долях кадра 0..1. layout пока не поддерживается (нужна перенарезка из записи) — пропускается.
 Неизвестные приёмы пропускаются и пишутся в журнал. Для площадки можно прислать

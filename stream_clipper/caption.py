@@ -297,8 +297,23 @@ def _pick_fresh(cands: list[tuple[str, str]], spare: list[tuple[str, str]] = ())
     return None
 
 
+_PROMISE = re.compile(r"\b(WAIT FOR|AT THE END|TILL|UNTIL|WATCH TILL)\b|ЖДИ КОНЦОВКУ|ДО КОНЦА|В КОНЦЕ", re.I)
+_QUESTION = re.compile(r"^\s*(\{s\}\s+)?(WILL|CAN|DOES|DID|IS|СМОЖЕТ|ПОЛУЧИТСЯ)\b|\?\s*$", re.I)
+
+
+def _hook_ok(tpl: str, cat: str, peak_frac: float | None, cold_open: bool) -> bool:
+    """Правила банка хуков: обещание «WAIT FOR / AT THE END / TILL» — только если пик в последней трети и без
+    холодного старта (иначе обещание не сбудется); вопросы «WILL/CAN…?» — только для hype и fail."""
+    if _PROMISE.search(tpl) and (cold_open or peak_frac is None or peak_frac < 2 / 3):
+        return False
+    if _QUESTION.search(tpl) and cat not in ("hype", "fail"):
+        return False
+    return True
+
+
 def template_caption(streamer: str, title: str, top_messages: list[str], lang: str,
-                     quote: str | None = None) -> str:
+                     quote: str | None = None, peak_frac: float | None = None, cold_open: bool = False,
+                     question: bool = False) -> str:
     """Надпись без Claude: 1) цензурная цитата стримера 2–6 слов, 2) банк хуков «Доктора», 3) старые шаблоны."""
     lang = "ru" if lang == "ru" else "en"
     bank = hook_bank()
@@ -312,7 +327,10 @@ def template_caption(streamer: str, title: str, top_messages: list[str], lang: s
         if _norm(q) not in hist and _norm(quote) not in " ".join(hist):
             LAST_TPL["value"] = "quote"
             return q
-    hooks = _bank_category(cat, bank.get(lang) or {})
+    hooks = [t for t in _bank_category(cat, bank.get(lang) or {}) if _hook_ok(t, cat, peak_frac, cold_open)]
+    if question and cat in ("hype", "fail"):  # question_overlay: для hype/fail — хук-вопрос, ответ даёт сам клип
+        qs = [t for t in hooks if _QUESTION.search(t)]
+        hooks = qs or hooks
     if hooks:  # хуки банка — заглавными, без «в GTA 6»: игра и так видна
         def fmt(lst):
             out = []
@@ -323,7 +341,8 @@ def template_caption(streamer: str, title: str, top_messages: list[str], lang: s
                     pass
             return out
         bl = bank.get(lang) or {}
-        near = [t for c in ("shock", "laugh", "hype") if c != cat for t in (bl.get(c) or []) if t not in hooks]
+        near = [t for c in ("shock", "laugh", "hype") if c != cat for t in (bl.get(c) or [])
+                if t not in hooks and _hook_ok(t, c, peak_frac, cold_open)]
         got = _pick_fresh(fmt(hooks), fmt(near))
         if got:
             LAST_TPL["value"] = got[1]
@@ -341,7 +360,8 @@ LAST_SCORE: dict = {"value": None}  # оценка Claude для последн�
 
 
 def make_caption(streamer: str, title: str, top_messages: list[str], transcript: str, lang: str,
-                 log=print, frames: list[str] | None = None, quote: str | None = None) -> str:
+                 log=print, frames: list[str] | None = None, quote: str | None = None,
+                 peak_frac: float | None = None, cold_open: bool = False, question: bool = False) -> str:
     lang = account_lang(lang) or lang
     key = _api_key()
     text = None
@@ -356,7 +376,7 @@ def make_caption(streamer: str, title: str, top_messages: list[str], transcript:
     if quote and any(word_kind(w) for w in quote.split()):
         quote = None  # цитата с матом в надписи на экране — нельзя
     if not text:
-        text = template_caption(streamer, title, top_messages, lang, quote)
+        text = template_caption(streamer, title, top_messages, lang, quote, peak_frac, cold_open, question)
     text = censor_text(text)
     try:
         remember_caption(streamer, text)

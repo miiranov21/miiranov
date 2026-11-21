@@ -221,8 +221,16 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
             quote = streamer_quote(subtitles.LAST_WORDS, center)
         keep_text = meta.get("caption_text")  # перерезка клипа: надпись оставляем ту же
         frames = _moment_frames(segment, center, base) if _api_key() and not keep_text else []
+        from . import shape as _sh
+        try:
+            pfrac = peak / max(1.0, _sh._duration(segment))
+        except Exception:
+            pfrac = None
+        cdef = _sh.defaults()
         text = keep_text or make_caption(meta.get("streamer", ""), meta.get("title", ""), meta.get("top_messages", []),
-                                         transcript, meta.get("lang", "en"), log=log, frames=frames, quote=quote)
+                                         transcript, meta.get("lang", "en"), log=log, frames=frames, quote=quote,
+                                         peak_frac=pfrac, cold_open=cdef.get("cold_open") is True,
+                                         question=bool(cdef.get("question_overlay")))
         for p in frames:
             try:
                 os.remove(p)

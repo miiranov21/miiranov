@@ -2141,8 +2141,8 @@ class App:
                 kinds[k] = kinds.get(k, 0) + 1
             detail = "\n".join(f"  • {k}: {n}" for k, n in kinds.items())
             msg = T("Из {0} клипов ({1} стримов) оставлю {2} — не больше {3} за час стрима.\n\n"
-                    "В архив уйдут {4}:\n{5}\n\nВыложенные клипы не трогаю. Вернуть любой можно из вкладки "
-                    "«Архив». Продолжить?").format(res["total"], res["streams"], len(res["keep"]), per_hour,
+                    "В архив уйдут {4}:\n{5}\n\nПлохие снимутся с плана и из Telegram, план переделается под лучшие. "
+                    "Выложенные клипы не трогаю. Вернуть любой можно из вкладки «Архив». Продолжить?").format(res["total"], res["streams"], len(res["keep"]), per_hour,
                                                     len(drop), detail)
             if not messagebox.askyesno(T("🏆 Оставить лучшие"), msg):
                 self._pick_busy = False
@@ -2150,7 +2150,8 @@ class App:
 
             def work2():
                 try:
-                    r, e2 = autopilot.apply_pick(drop, event), None
+                    from .caption import _api_key
+                    r, e2 = autopilot.apply_pick(drop, event, res["keep"], say, _api_key()), None
                 except Exception as e:
                     r, e2 = None, e
                 self.root.after(0, lambda: done(r, e2, len(res["keep"])))
@@ -2161,10 +2162,15 @@ class App:
             if err:
                 self.activity.event("❌", T("Отбор не получился: {0}").format(err), kind="error")
                 return
-            self.activity.event("🏆", T("Отбор готов: оставлено {0}, в архив {1}, снято с плана {2}")
-                                .format(kept, r["archived"], r["plan_removed"]))
-            self.status.config(text=T("Отбор готов: оставлено {0} лучших клипов").format(kept))
+            self.activity.event("🏆", T("Отбор готов: оставлено {0}, в архив {1}, снято с плана {2}. "
+                                        "План переделан: в нём {3} публикаций, только лучшие клипы")
+                                .format(kept, r["archived"], r["plan_removed"], r["planned"]))
+            self.status.config(text=T("Отбор готов: оставлено {0} лучших клипов, в плане {1}").format(kept, r["planned"]))
             self.refresh_clips()
+            try:
+                self.refresh_plan()
+            except Exception:
+                pass
         threading.Thread(target=work, daemon=True).start()
 
     # ---------- вкладка «План»: что и когда выйдет ----------

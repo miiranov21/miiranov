@@ -1204,8 +1204,12 @@ def pick_best(per_hour: int, say=None) -> dict:
     return {"total": len(clips), "keep": keep, "drop": drop, "streams": len(streams)}
 
 
-def apply_pick(drop: list, event) -> dict:
-    """Не прошедшие отбор — в архив (вернуть можно из вкладки «Архив»), план пересобирается."""
+def apply_pick(drop: list, event, keep: list | None = None, say=None, key: str | None = None) -> dict:
+    """Не прошедшие отбор — в архив (вернуть можно из вкладки «Архив»); план переделывается под лучшие:
+    плохие снимаются с плана и из Telegram (у отправленных кнопки меняются на «🗑 Не выкладываем»), их слоты
+    занимают лучшие; лучшие, которых в плане ещё не было, отбираются и монтируются сразу (новый монтаж);
+    у ещё не отправленных — видео пересобирается с новыми приёмами монтажа."""
+    from . import tg_assist
     st = load_state()
     n = 0
     for c, why in drop:
@@ -1215,6 +1219,50 @@ def apply_pick(drop: list, event) -> dict:
             n += 1
         except Exception as e:
             event("❌", f"{os.path.basename(c['path'])}: не удалось убрать в архив — {e}", None, "error")
+    reset = 0
+    keep_paths = {os.path.normpath(c["path"]) for c in keep or []}
+    for c in keep or []:  # лучшие, которых автопилот раньше отложил (низкая оценка, архив, ошибка), — на новый отбор
+        rec = st["clips"].get(c["path"])
+        if rec and rec.get("stage") in ("archived", "rejected", "failed", "skipped") and not any(
+                (q or {}).get("status") in ("waiting", "sent", "published") for q in (rec.get("queue") or {}).values()):
+            st["clips"].pop(c["path"], None)
+            reset += 1
     save_state(st)
+    tst = tg_assist.load()
+    rebuilt = 0
+    for job in tst.get("jobs", {}).values():  # ещё не отправленные видео лучших — пересобрать новым монтажом
+        if os.path.normpath(job.get("path", "")) in keep_paths and job.get("status") == "pending" and job.get("file"):
+            try:
+                if os.path.exists(job["file"]):
+                    os.remove(job["file"])
+            except OSError:
+                pass
+            job.pop("file", None)
+            job.pop("applied", None)
+            rebuilt += 1
+    tg_assist.save(tst)
     r = rebuild_schedule(event=event)
-    return {"archived": n, "plan_removed": r.get("removed", 0)}
+    filled = {}
+    if keep:
+        if say:
+            say("🗓 ставлю лучшие клипы в план и монтирую...")
+        over = strategy.user_overrides()  # отобранные лучшие идут в план, даже если старая оценка ниже порога
+        had = "min_score_to_post" in (over.get("autopilot") or {})
+        old_min = (over.get("autopilot") or {}).get("min_score_to_post")
+        over.setdefault("autopilot", {})["min_score_to_post"] = 0
+        strategy.save_user_overrides(over)
+        try:
+            filled = fill_plan(say or (lambda m: None), event, key, budget=len(keep)) or {}
+        except Exception as e:
+            event("❌", f"план не дозаполнился: {e}", None, "error")
+        finally:
+            over = strategy.user_overrides()
+            if had:
+                over.setdefault("autopilot", {})["min_score_to_post"] = old_min
+            else:
+                (over.get("autopilot") or {}).pop("min_score_to_post", None)
+            strategy.save_user_overrides(over)
+        r2 = rebuild_schedule(event=event)
+        r["removed"] = r.get("removed", 0) + r2.get("removed", 0)
+    return {"archived": n, "plan_removed": r.get("removed", 0), "planned": len(plan_rows()),
+            "re_reviewed": reset, "rebuilt": rebuilt, "queued": (filled or {}).get("queued", 0)}

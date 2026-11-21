@@ -125,12 +125,37 @@ def _keep_render(cur, out, keep):
           "-af", f"aselect='{expr}',asetpts=N/SR/TB", *_enc(False), out])
 
 
+def mean_volume(path: str) -> float:
+    err = subprocess.run(["ffmpeg", "-v", "info", "-i", path, "-af", "highpass=f=200,lowpass=f=4000,volumedetect",
+                          "-f", "null", "-"], capture_output=True, text=True, creationflags=FLAGS).stderr
+    m = re.search(r"mean_volume: (-?[\d.]+) dB", err)
+    return float(m.group(1)) if m else -30.0
+
+
+MAX_CUT_SHARE = 0.35  # паузами можно вырезать не больше трети клипа — иначе это не паузы, а тихий клип
+
+
 def _cut_silence(cur, out, op, tm, dur):
     gap = float(op.get("min_gap") or 0.7)
-    pad = 0.15  # чуть тишины по краям — чтобы слова не обрубались
-    cuts = [(s + pad, e - pad) for s, e in silences(cur, gap) if e - s - 2 * pad > 0.2]
+    pad = 0.12 if gap < 0.5 else 0.15  # чуть тишины по краям — чтобы слова не обрубались
+    mv = mean_volume(cur)
+    if mv < -60:
+        raise _Skip("в клипе почти нет звука")
+    noise = f"{max(-60.0, min(-25.0, mv - 14)):.0f}dB"  # «тишина» — относительно громкости этого клипа
+    cuts = [(s + pad, e - pad) for s, e in silences(cur, gap, noise) if e - s - 2 * pad > 0.1]
     if not cuts:
-        raise _Skip("пауз длиннее %.1f с нет" % gap)
+        raise _Skip("пауз длиннее %.2f с нет" % gap)
+    if sum(e - s for s, e in cuts) > dur * MAX_CUT_SHARE:  # режем только самые длинные паузы
+        cuts.sort(key=lambda x: x[0] - x[1])
+        keep_c, tot = [], 0.0
+        for s_, e_ in cuts:
+            if tot + (e_ - s_) > dur * MAX_CUT_SHARE:
+                continue
+            keep_c.append((s_, e_))
+            tot += e_ - s_
+        cuts = sorted(keep_c)
+        if not cuts:
+            raise _Skip("клип почти весь тихий — паузы не режу")
     keep, pos = [], 0.0
     for s, e in cuts:
         if s > pos:

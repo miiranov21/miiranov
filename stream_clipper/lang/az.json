@@ -959,5 +959,16 @@
 "Для {0}: вебка как в прошлый раз.\n": "{0} üçün: veb-kamera keçən dəfəki kimi.\n",
 "Перед стартом проверим, где у стримеров вебка в этом стриме: {0}.\n\nПрограмма возьмёт свежий кадр — обведи на нём вебку мышкой. Не изменилась — «Оставить как в прошлый раз»; не видно — «Другой кадр»; вебки нет — «Нет веб-камеры».\n\nПроверить сейчас? («Нет» — начать сразу с прошлыми рамками, новые стримеры — автоматически)": "Başlamazdan əvvəl bu strimdə strimerlərin veb-kamerasının harada olduğunu yoxlayaq: {0}.\n\nProqram təzə kadr götürəcək — veb-kameranı siçanla çərçivəyə al. Dəyişməyibsə — «Keçən dəfəki kimi saxla»; görünmürsə — «Başqa kadr»; veb-kamera yoxdursa — «Veb-kamera yoxdur».\n\nİndi yoxlansın? («Xeyr» — dərhal keçən çərçivələrlə başla, yeni strimerlər — avtomatik)",
 "⤢ Во всё окно": "⤢ Bütün pəncərəyə",
-"⤡ Показать настройки": "⤡ Ayarları göstər"
+"⤡ Показать настройки": "⤡ Ayarları göstər",
+" ✂ Приёмы монтажа (против «скучно») ": " ✂ Montaj fəndləri («darıxdırıcı»ya qarşı) ",
+"Смена картинки каждые 2–3 с (лёгкий зум)": "Hər 2–3 saniyədən bir kadr dəyişir (yüngül zum)",
+"Речь до реакции чуть быстрее (1,1×)": "Reaksiyadan əvvəlki danışıq bir az sürətli (1,1×)",
+"Субтитры: текущее слово и ключевые слова цветом": "Subtitrlər: cari söz və açar sözlər rəngli",
+"Голос стримера громче игры": "Strimerin səsi oyundan ucadır",
+"Хук-вопрос для эпика и фейлов": "Epik və uğursuz anlar üçün sual-xuk",
+"Стоп-кадр «WAIT…» перед развязкой": "Sonluqdan əvvəl «WAIT…» stop-kadrı",
+"Звуки: «вжух» на склейках, бас на зуме": "Səslər: keçidlərdə «vıj», zumda bas",
+"Повтор момента в замедлении после реакции": "Reaksiyadan sonra anın yavaş təkrarı",
+"Лицо на весь кадр на пике": "Zirvədə üz bütün kadrda",
+"Строка контекста из названия стрима (2 с)": "Strimin adından kontekst sətri (2 s)"
 }

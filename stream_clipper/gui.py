@@ -529,6 +529,17 @@ class App:
             self.v[key].trace_add("write", lambda *a: self._on_live_setting(quick=True))
             if key in ("cold_open", "punch_zoom"):
                 self.v[key].trace_add("write", lambda *a: self._on_post_setting())
+        tricks = ttk.LabelFrame(opt, text=T(" ✂ Приёмы монтажа (против «скучно») "), padding=4)
+        tricks.pack(anchor="w", fill="x", pady=(4, 0))
+        for key, dk, text, on in self.TRICKS_UI:
+            self.v[key] = tk.BooleanVar(value=bool(self.cfg.get(key, True)))
+            row = ttk.Frame(tricks)
+            row.pack(anchor="w", pady=0)
+            self._own_btn(row, key).pack(side="left", padx=(0, 4))
+            w = ttk.Checkbutton(row, text=T(text), variable=self.v[key])
+            w.pack(side="left")
+            self._doc_reg(key, w)
+            self.v[key].trace_add("write", lambda *a: self._on_post_setting())
         grid = ttk.Frame(opt)
         grid.pack(anchor="w", pady=(6, 0))
         digits = (self.root.register(lambda p: p == "" or (p.isdigit() and len(p) <= 3)), "%P")
@@ -4030,6 +4041,17 @@ class App:
         self.root.after(4000, self._exchange_tick)
 
     # ---------- настройки клипов от «Доктора» (strategy.json → clip_settings) ----------
+    # приёмы монтажа: поле окна, ключ «Доктора», подпись, значение «включено» по умолчанию
+    TRICKS_UI = (("tr_pattern", "pattern_interrupt_sec", "Смена картинки каждые 2–3 с (лёгкий зум)", 2.5),
+                 ("tr_speed", "speed_talk", "Речь до реакции чуть быстрее (1,1×)", 1.1),
+                 ("tr_kw", "subtitle_keyword_highlight", "Субтитры: текущее слово и ключевые слова цветом", True),
+                 ("tr_voice", "voice_over_game_db", "Голос стримера громче игры", 4),
+                 ("tr_question", "question_overlay", "Хук-вопрос для эпика и фейлов", True),
+                 ("tr_freeze", "freeze_wait", "Стоп-кадр «WAIT…» перед развязкой", True),
+                 ("tr_sfx", "sfx_accents", "Звуки: «вжух» на склейках, бас на зуме", True),
+                 ("tr_replay", "instant_replay", "Повтор момента в замедлении после реакции", True),
+                 ("tr_face", "face_fullscreen_on_peak", "Лицо на весь кадр на пике", True),
+                 ("tr_context", "context_line", "Строка контекста из названия стрима (2 с)", True))
     DOC_KEYS = ("subs", "caption", "facecam", "audio", "cold_open", "punch_zoom", "top", "length", "quality", "game_view",
                 "wm_on", "wm_text", "wm_pos", "wm_op", "credit_auto", "credit_pos")
     DOC_NAMES = {"subs": "субтитры", "caption": "надпись-плашка", "facecam": "вебка сверху",
@@ -4044,6 +4066,8 @@ class App:
                "credit_pos": ("credit_pos",), "watermark_text": ("wm_on", "wm_text"),
                "watermark_pos": ("wm_pos",), "watermark_opacity": ("wm_op",), "cold_open": ("cold_open",),
                "punch_in_zoom": ("punch_zoom",)}
+    DOC_MAP.update({dk: (key,) for key, dk, _t, _on in TRICKS_UI})
+    DOC_NAMES.update({key: text for key, _dk, text, _on in TRICKS_UI})
 
     def _doc_reg(self, key: str, widget):
         """Поле, которое может выбирать «Доктор»: запоминаем его и вешаем подсказку «выбирает Доктор: причина»."""
@@ -4107,6 +4131,10 @@ class App:
         z = d.get("punch_in_zoom")
         if z is not None:
             out["punch_zoom"] = isinstance(z, (int, float)) and not isinstance(z, bool) and z > 1
+        for key, dk, _t, _on in self.TRICKS_UI:
+            if dk in d:
+                v = d[dk]
+                out[key] = bool(v) and not (isinstance(v, (int, float)) and not isinstance(v, bool) and v <= 0)
         return out
 
     def _doctor_reasons(self, cs: dict, keys) -> dict:
@@ -4172,6 +4200,7 @@ class App:
                   "cold_open": ("cold_open",), "punch_zoom": ("punch_zoom",),
                   "ppd": ("ppd_tiktok", "ppd_youtube", "ppd_instagram"),
                   "slots": ("slots_tiktok", "slots_youtube", "slots_instagram")}
+    OWN_GROUPS.update({key: (key,) for key, _dk, _t, _on in TRICKS_UI})
 
     def _group_of(self, key: str) -> str:
         return next((g for g, ks in self.OWN_GROUPS.items() if key in ks), key)
@@ -4225,6 +4254,7 @@ class App:
                    "quality": "качество", "game_view": "игра в кадре", "watermark": "водяной знак",
                    "credit": "подпись автора", "ppd": "публикаций в день", "slots": "время публикаций",
                    "cold_open": "холодный старт", "punch_zoom": "зум на пике"}
+    GROUP_NAMES.update({key: text for key, _dk, text, _on in TRICKS_UI})
 
     def _all_to_doctor(self):
         for g in self.OWN_GROUPS:
@@ -4323,7 +4353,13 @@ class App:
         if self.v["own_cold_open"].get():  # монтаж делает автопилот по стратегии — твоё значение идёт поверх
             cdef["cold_open"] = bool(self.v["cold_open"].get())
         if self.v["own_punch_zoom"].get():
-            cdef["punch_in_zoom"] = 1.15 if self.v["punch_zoom"].get() else 0
+            cdef["punch_in_zoom"] = 1.2 if self.v["punch_zoom"].get() else 0
+        doc_def = (strategy.get(raw=True).get("clip_settings") or {}).get("defaults") or {}
+        for key, dk, _t, on in self.TRICKS_UI:
+            if key in self.v and self.v[f"own_{key}"].get():
+                dv = doc_def.get(dk)
+                val = dv if dv and not isinstance(on, bool) and isinstance(dv, (int, float)) else on
+                cdef[dk] = val if self.v[key].get() else (False if isinstance(on, bool) else 0)
         if cdef:
             over["clip_settings"] = {"defaults": cdef}
         if not over["autopilot"]:
@@ -4364,7 +4400,8 @@ class App:
 
     def _post_setting_apply(self):
         self._post_job = None
-        if any(self.v[f"own_{g}"].get() for g in ("ppd", "slots", "cold_open", "punch_zoom")):
+        if any(self.v[f"own_{g}"].get() for g in ("ppd", "slots", "cold_open", "punch_zoom")
+               + tuple(k for k, *_ in self.TRICKS_UI) if f"own_{g}" in self.v):
             self._write_user_overrides()
             self._save_settings()
 

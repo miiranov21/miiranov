@@ -360,7 +360,10 @@
       "{s} — короткий ник, как зовут фанаты: Speed, Кай, Равшан",
       "в русских хуках {s} всегда в именительном падеже: подлежащее, обращение или перед двоеточием",
       "хуки с «GTA 6» и «FIRST» — до 30.11 и не чаще раза в 5 клипов; «HIS» — только для стримеров-мужчин",
-      "21.11: хук должен обещать развязку или ставку, а не описывать эмоцию в общем: лучше «SPEED ALMOST GOT ARRESTED» (если видно), чем «SPEED LOST IT». Цитата стримера ≤6 слов — приоритет №1"
+      "21.11: хук должен обещать развязку или ставку, а не описывать эмоцию в общем: лучше «SPEED ALMOST GOT ARRESTED» (если видно), чем «SPEED LOST IT». Цитата стримера ≤6 слов — приоритет №1",
+      "обещание в хуке обязано сбыться в клипе: «AT THE END», «WAIT FOR», «TILL» — только если пик в последней трети; при cold open (пик первым кадром) — «WASN'T READY», «THIS GOES WRONG»",
+      "вопросы «WILL/CAN/DOES {s}…?» — только для hype/fail, где исход виден в клипе; ответ в конце даёт повтор",
+      "«HE» — только для стримеров-мужчин"
     ],
     "nicknames": {
       "IShowSpeed": "SPEED",
@@ -440,7 +443,11 @@
         "{s} HAD TO WALK AWAY",
         "{s} CAN'T EVEN FINISH TALKING",
         "{s} IS DONE 💀",
-        "{s} HAD TO PAUSE THE GAME"
+        "{s} HAD TO PAUSE THE GAME",
+        "WAIT FOR {s}'S LAUGH",
+        "WATCH {s} TRY TO HOLD IT",
+        "{s} WASN'T READY FOR THIS",
+        "WATCH TILL {s} BREAKS"
       ],
       "shock": [
         "{s} FROZE",
@@ -456,7 +463,12 @@
         "{s} JUMPED OUT HIS SEAT",
         "{s} DID NOT EXPECT THAT",
         "WAIT FOR {s}'S REACTION",
-        "{s}'S FIRST TIME SEEING THIS"
+        "{s}'S FIRST TIME SEEING THIS",
+        "WATCH {s}'S FACE AT THE END",
+        "{s} HAD NO IDEA WHAT'S COMING",
+        "KEEP YOUR EYES ON {s}",
+        "WAIT FOR IT, {s}...",
+        "{s}'S REACTION IS EVERYTHING"
       ],
       "hype": [
         "{s} ACTUALLY DID IT",
@@ -470,7 +482,11 @@
         "{s} MADE IT LOOK EASY",
         "{s} DID THAT FIRST TRY",
         "{s}'S FIRST GTA 6 W",
-        "NOBODY DOES IT LIKE {s}"
+        "NOBODY DOES IT LIKE {s}",
+        "CAN {s} ACTUALLY PULL THIS OFF?",
+        "WILL {s} MAKE IT?",
+        "DOES {s} PULL IT OFF?",
+        "{s} NEEDED THIS ONE"
       ],
       "fail": [
         "{s} RUINED EVERYTHING",
@@ -486,7 +502,12 @@
         "{s} DIDN'T THINK THIS THROUGH",
         "IT WENT WRONG SO FAST",
         "{s} PANICKED AND IT SHOWED",
-        "{s}'S FIRST GTA 6 L"
+        "{s}'S FIRST GTA 6 L",
+        "{s} THOUGHT HE HAD IT",
+        "THIS GOES WRONG FOR {s}",
+        "WATCH {s}'S PLAN FALL APART",
+        "IT WAS GOING SO WELL, {s}",
+        "{s} IS ABOUT TO REGRET THIS"
       ],
       "talk": [
         "{s} SAID TOO MUCH",
@@ -530,7 +551,13 @@
       "speed_talk": 1.1,
       "hook_from_frame0": true,
       "subtitle_keyword_highlight": true,
-      "voice_over_game_db": 4
+      "voice_over_game_db": 4,
+      "question_overlay": true,
+      "freeze_wait": true,
+      "sfx_accents": true,
+      "instant_replay": true,
+      "face_fullscreen_on_peak": true,
+      "context_line": true
     },
     "reasons": {
       "subs": "85% коротких видео смотрят без звука; субтитры поднимают досмотр",
@@ -551,7 +578,13 @@
       "speed_talk": "речь без реакции ускоряется до 1,1× (голос не искажается сильно)",
       "hook_from_frame0": "хук-плашка видна с первого кадра, а не через секунду",
       "subtitle_keyword_highlight": "текущее слово подсвечено, ключевые (WHAT?!, NO WAY) — цветом и крупнее",
-      "voice_over_game_db": "голос и крик стримера громче игры на ~4 дБ, игра приглушается под речь"
+      "voice_over_game_db": "голос и крик стримера громче игры на ~4 дБ, игра приглушается под речь",
+      "question_overlay": "для hype/fail: текст-вопрос сверху на всё начало («WILL HE MAKE IT?»), ответ — в конце клипа",
+      "freeze_wait": "стоп-кадр 0,3–0,5 с с надписью «WAIT…» прямо перед развязкой (только если пик не в начале)",
+      "sfx_accents": "тихие звуковые акценты без авторских прав: whoosh на склейках, бас-удар на зуме-пике; не громче голоса",
+      "instant_replay": "после реакции 1–2 с того же игрового момента в замедлении 0,5× с зумом — для аварий, багов, взрывов",
+      "face_fullscreen_on_peak": "на пике на 0,5–1 с лицо на весь кадр, потом обратно в раскладку вебка/игра",
+      "context_line": "строка контекста сверху на 2 с, если без неё непонятно («FIRST TIME IN GTA 6») — только правда из названия стрима/расшифровки"
     },
     "per_streamer": {
       "IShowSpeed": {

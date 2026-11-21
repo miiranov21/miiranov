@@ -2185,6 +2185,7 @@ class App:
         ttk.Button(btns, text=T("⬆ Поднять выше"), command=lambda: self._plan_action("raise")).pack(side="left")
         ttk.Button(btns, text=T("✕ Убрать из плана"), command=lambda: self._plan_action("remove")).pack(side="left", padx=6)
         ttk.Button(btns, text=T("▶ Открыть клип"), command=lambda: self._plan_action("open")).pack(side="left")
+        ttk.Button(btns, text=T("🔁 Отправить ещё раз"), command=self._plan_resend).pack(side="left", padx=6)
         ttk.Button(btns, text=T("⟳ Пересобрать план"), command=lambda: self._plan_action("rebuild")).pack(side="right")
         ttk.Button(btns, text=T("⚡ Заполнить план сейчас"), command=self._fill_plan).pack(side="right", padx=6)
         ttk.Button(btns, text=T("📤 Видео на сегодня — в Telegram"), command=self._send_ahead).pack(side="right", padx=6)
@@ -2327,6 +2328,42 @@ class App:
                                                   "указанное у каждого.").format(res.get("sent", 0)))
             if then:
                 then()
+        threading.Thread(target=work, daemon=True).start()
+
+    def _plan_resend(self):
+        """Выбранные строки плана (или весь план на сутки) — снова в Telegram, даже если уже отправлялись."""
+        from . import tg_assist
+        sel = self.plan_tree.selection()
+        rows = [self.plan_rows[i] for i in sel if i in self.plan_rows]
+        if rows:
+            items = [(r["path"], r["platform"]) for r in rows]
+            msg = T("Отправить в Telegram ещё раз выбранные видео: {0}?").format(len(items))
+        else:
+            items = None
+            msg = T("Ничего не выбрано. Отправить в Telegram ещё раз ВСЕ видео из плана на ближайшие сутки?")
+        if not messagebox.askyesno(T("🔁 Отправить ещё раз"), msg):
+            return
+        self.plan_status.config(text=T("отправляю в Telegram..."))
+
+        def event(icon, text, path=None, kind="info"):
+            self.root.after(0, lambda: (self.activity.event(icon, tr_line(text), path, kind),
+                                        self.plan_status.config(text=tr_line(text)[:90])))
+
+        def work():
+            try:
+                res, err = tg_assist.resend(items, event), None
+            except Exception as e:
+                res, err = {}, e
+            self.root.after(0, lambda: done(res, err))
+
+        def done(res, err):
+            if err:
+                messagebox.showwarning("Telegram", T("Не получилось отправить: {0}").format(err))
+                return
+            self.plan_status.config(text=T("отправлено ещё раз: {0} из {1}").format(res["sent"], res["total"]))
+            self.activity.event("🔁", T("Telegram: отправлено ещё раз {0} из {1}").format(res["sent"], res["total"])
+                                + (T(", не ушло {0}").format(res["failed"]) if res["failed"] else ""))
+            self.refresh_plan()
         threading.Thread(target=work, daemon=True).start()
 
     def _plan_action(self, what: str):

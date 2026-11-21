@@ -930,3 +930,41 @@ def overview() -> list[dict]:
     st = load()
     return sorted(({"id": k, **{x: v.get(x) for x in ("path", "platform", "when", "status", "title")}}
                    for k, v in st["jobs"].items()), key=lambda x: x.get("when") or "")
+
+
+def resend(items: list | None, event, hours: float = 24) -> dict:
+    """«🔁 Отправить ещё раз»: видео из плана — снова в Telegram, даже если уже отправлялись (сообщение удалили,
+    потерялось, не скачалось). items — [(путь, площадка)]; None — всё из плана на ближайшие hours часов."""
+    c = telegram.load()
+    if not (c.get("token") and c.get("chat_id")):
+        raise RuntimeError("Telegram не подключён")
+    st = load()
+    sync_jobs(st)
+    by = {(os.path.normpath(j.get("path", "")), j.get("platform")): (jid, j) for jid, j in st["jobs"].items()}
+    if items is None:
+        from . import autopilot
+        lim = (datetime.now() + timedelta(hours=hours)).isoformat(timespec="minutes")
+        items = [(r["path"], r["platform"]) for r in autopilot.plan_rows() if (r.get("when") or "") <= lim]
+    sent = failed = 0
+    for i, (path, pl) in enumerate(items, 1):
+        jid, job = by.get((os.path.normpath(path), pl), (None, None))
+        if not job:
+            failed += 1
+            continue
+        if job.get("status") in ("posted", "skipped"):
+            continue
+        event("🔁", f"Telegram: отправляю ещё раз {i} из {len(items)} ({NAMES.get(pl, pl)})...", None, "info")
+        job["schedule"] = bool(schedule_mode() or job.get("schedule"))
+        try:
+            if _block_after_render(job):
+                job["status"] = "blocked"
+                failed += 1
+                continue
+            _send(c, jid, job, _channel_of(path))
+            sent += 1
+        except Exception as e:
+            failed += 1
+            event("❌", f"Telegram: не отправилось ({NAMES.get(pl, pl)}) — {e}"[:220], None, "error")
+        save(st)
+    save(st)
+    return {"sent": sent, "failed": failed, "total": len(items)}

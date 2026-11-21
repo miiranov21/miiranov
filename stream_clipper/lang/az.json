@@ -982,5 +982,12 @@
 "Из {0} клипов ({1} стримов) оставлю {2} — не больше {3} за час стрима.\n\nВ архив уйдут {4}:\n{5}\n\nВыложенные клипы не трогаю. Вернуть любой можно из вкладки «Архив». Продолжить?": "{0} klipdən ({1} strim) {2} qalacaq — strimin hər saatına {3}-dən çox deyil.\n\nArxivə gedəcək {4}:\n{5}\n\nPaylaşılmış kliplərə toxunmuram. İstənilənini «Arxiv» bölməsindən qaytarmaq olar. Davam edək?",
 "Отбор не получился: {0}": "Seçim alınmadı: {0}",
 "Отбор готов: оставлено {0}, в архив {1}, снято с плана {2}": "Seçim hazırdır: saxlanıldı {0}, arxivə {1}, plandan çıxarıldı {2}",
-"Отбор готов: оставлено {0} лучших клипов": "Seçim hazırdır: {0} ən yaxşı klip saxlanıldı"
+"Отбор готов: оставлено {0} лучших клипов": "Seçim hazırdır: {0} ən yaxşı klip saxlanıldı",
+"🔁 Отправить ещё раз": "🔁 Yenidən göndər",
+"Отправить в Telegram ещё раз выбранные видео: {0}?": "Seçilmiş videolar Telegram-a yenidən göndərilsin: {0}?",
+"Ничего не выбрано. Отправить в Telegram ещё раз ВСЕ видео из плана на ближайшие сутки?": "Heç nə seçilməyib. Plandakı yaxın bir sutkanın BÜTÜN videoları Telegram-a yenidən göndərilsin?",
+"отправляю в Telegram...": "Telegram-a göndərilir...",
+"отправлено ещё раз: {0} из {1}": "yenidən göndərildi: {0} / {1}",
+"Telegram: отправлено ещё раз {0} из {1}": "Telegram: yenidən göndərildi {0} / {1}",
+", не ушло {0}": ", getmədi {0}"
 }

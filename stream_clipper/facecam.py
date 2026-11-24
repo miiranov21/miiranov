@@ -62,7 +62,17 @@ def resolve(channel: str, segment: str, log=print):
     entry = get_entry(channel) if channel else {}
     _save_frame(segment, channel)
     if entry.get("manual"):
-        return None if entry.get("none") else tuple(entry["region"])
+        if entry.get("none"):
+            return None
+        # твоя рамка — подсказка: пока вебка на том же месте, берём её; переехала — берём новое место
+        found = detect_facecam(segment, log=log)
+        if found and not _close(entry["region"], found):
+            log(f"    у {channel} вебка переехала — беру новое место")
+            data = load_store()
+            data[channel.lower()] = dict(entry, region=list(found))
+            _save_store(data)
+            return tuple(found)
+        return tuple(entry["region"])
     found = detect_facecam(segment, log=log)
     if found and channel:
         data = load_store()

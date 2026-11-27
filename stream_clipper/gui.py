@@ -14,7 +14,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
-from . import library, paths, updater
+from . import detect, library, paths, updater
 from . import i18n
 from .exchange import exchange_dir
 from .i18n import T, tr_line, untranslate
@@ -4124,16 +4124,16 @@ class App:
         self.preview = VideoPreview(panes, self)  # просмотр клипа прямо в программе
         panes.add(frame, weight=3)
         panes.add(self.preview, weight=2)
-        cols = ("rating", "rules", "author", "advice", "streamer", "moment", "caption", "youtube", "instagram", "tiktok")
+        cols = ("rating", "rules", "author", "advice", "streamer", "moment", "why", "caption", "youtube", "instagram", "tiktok")
         self.tree = ttk.Treeview(frame, columns=cols, show="tree headings", style="Clips.Treeview",
                                  selectmode="extended", height=3)
         self.tree.heading("#0", text=T("Превью"))
         self.tree.column("#0", width=66, stretch=False)
         for c, title, w in (("rating", T("Интерес"), 70), ("rules", T("Правила"), 64), ("author", T("Автор"), 56), ("advice", T("Совет"), 92), ("streamer", T("Стример"), 96), ("moment", T("Момент"), 64),
-                            ("caption", T("Надпись"), 220), ("youtube", "YT", 40), ("instagram", "Inst", 44),
+                            ("why", T("Почему"), 200), ("caption", T("Надпись"), 200), ("youtube", "YT", 40), ("instagram", "Inst", 44),
                             ("tiktok", "TikTok", 50)):
             self.tree.heading(c, text=title)
-            self.tree.column(c, width=w, stretch=(c == "caption"), anchor="w" if c == "caption" else "center")
+            self.tree.column(c, width=w, stretch=(c in ("caption", "why")), anchor="w" if c in ("caption", "why") else "center")
         sb = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=sb.set)
         self.tree.pack(side="left", fill="both", expand=True)
@@ -4763,7 +4763,7 @@ class App:
             values = (f"{c['score10']}/10", self._policy_cell(c), {"on": "☑", "burned": "☑", "off": "☐", "unknown": "?"}[cst],
                       self._advice_cell(c, adv),
                       c.get("channel", "") + (f" · {c['by']}" if c.get("by") and c["by"] != me_safe else ""),
-                      f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}", c.get("caption", "") or "—",
+                      f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}", tr_line(detect.why(c)), c.get("caption", "") or "—",
                       *(self._posted_cell(c, p, by_map) for p in library.PLATFORMS))
             iid = self.tree.insert("", "end", text="", image=img or "", values=values)
             self.clip_by_iid[iid] = c

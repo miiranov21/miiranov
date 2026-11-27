@@ -179,3 +179,22 @@ def find_highlights(msgs: list[ChatMessage], duration: int, *, audio_db: np.ndar
     if not result:
         log(f"  ничего не найдено выше порога {min_score} (попробуй --min-score поменьше)")
     return sorted(result, key=lambda h: h.start)
+
+
+def why(c: dict) -> str:
+    """Почему момент взят — коротко, для колонки «Почему» (из сигналов, по которым его нашли)."""
+    parts = []
+    if c.get("clip_views"):
+        parts.append(f"клип зрителей · {int(c['clip_views']):,} просм.".replace(",", " "))
+    top = [m for m in (c.get("top_messages") or []) if m][:2]
+    if float(c.get("chat_z") or 0) >= 3:
+        parts.append("чат взорвался" + (f": {', '.join(top)}" if top else ""))
+    elif top and float(c.get("chat_z") or 0) >= 1.5:
+        parts.append("чат: " + ", ".join(top))
+    if float(c.get("jump_z") or 0) >= 2:
+        parts.append("стример заорал")
+    elif float(c.get("audio_z") or 0) >= 2:
+        parts.append("громко")
+    if float(c.get("vis_z") or 0) >= 2:
+        parts.append("резко сменилась картинка")
+    return " · ".join(parts) or "—"

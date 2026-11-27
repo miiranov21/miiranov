@@ -989,5 +989,6 @@
 "отправляю в Telegram...": "Telegram-a göndərilir...",
 "отправлено ещё раз: {0} из {1}": "yenidən göndərildi: {0} / {1}",
 "Telegram: отправлено ещё раз {0} из {1}": "Telegram: yenidən göndərildi {0} / {1}",
-", не ушло {0}": ", getmədi {0}"
+", не ушло {0}": ", getmədi {0}",
+"Почему": "Niyə"
 }

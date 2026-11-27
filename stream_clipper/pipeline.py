@@ -117,6 +117,14 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
             raise ClipRejected(why)
     meta["peak_off"] = peak
     layout, facecam = cfg.layout, cfg.facecam
+    if layout == "auto" and meta.get("chatting"):  # стример просто общается — вебка на весь кадр, по центру лица
+        from .facecam import detect_facecam
+        try:
+            facecam = detect_facecam(segment, log=lambda m: None)
+        except Exception:
+            facecam = None
+        layout = "crop"
+        log(f"    {meta.get('category') or 'общение'}: игры нет — стример на весь кадр")
     if layout == "auto":
         from .facecam import resolve
         try:
@@ -729,6 +737,9 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                         meta = {"streamer": channel, "title": title, "top_messages": h.top_messages,
                                 "lang": lang or "en", "platform": "YouTube" if yt else "Twitch",
                                 "credit_name": (info.get("uploader") or channel), "pad": getattr(h, "pad", None)}
+                        if not yt:
+                            meta["category"] = twitch.category_at(twitch.vod_id(url), h.peak)
+                            meta["chatting"] = meta["category"] in twitch.CHAT_CATEGORIES
                         d["caption"] = _make_short(seg, tmp, cfg, log, meta)
                         _apply_trim(d, meta)
                         d["transcript"], d["lang"] = meta.get("transcript", ""), lang or "en"

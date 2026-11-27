@@ -37,8 +37,9 @@ def build_filter(layout: str, facecam: tuple[float, float, float, float] | None 
     gw = int(W * z) // 2 * 2
     bg = (f"{gc}scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
           f"boxblur=25:2,eq=brightness=-0.08")
-    if layout == "crop":
-        return f"[0:v]scale=-2:{H},crop={W}:{H}[v]"
+    if layout == "crop":  # весь кадр — камера (стрим без игры): вертикальная вырезка по центру лица
+        cx = (facecam[0] + facecam[2] / 2) if facecam else 0.5
+        return f"[0:v]scale=-2:{H},crop={W}:{H}:'max(0,min(iw-{W},iw*{cx:.3f}-{W // 2}))':0[v]"
     if layout == "facecam":
         if not facecam:
             raise ValueError("для layout=facecam укажи --facecam x,y,w,h (доли кадра 0..1)")

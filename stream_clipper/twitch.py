@@ -271,6 +271,57 @@ def viewer_clips(login: str, video_id: str | None = None, since: float | None = 
     return out
 
 
+# категории, где на экране только стример (без игры) — ролик делаем вебкой на весь кадр
+CHAT_CATEGORIES = {"Just Chatting", "IRL", "Talk Shows & Podcasts", "ASMR", "Music", "Travel & Outdoors", "Food & Drink"}
+_META_CACHE: dict = {}
+
+
+def _gql(query: str):
+    import requests
+    from .chat import GQL_CLIENT_ID, GQL_URL
+    r = requests.post(GQL_URL, json={"query": query}, headers={"Client-Id": GQL_CLIENT_ID}, timeout=20)
+    r.raise_for_status()
+    return r.json().get("data") or {}
+
+
+def category_at(video_id: str, sec: float) -> str:
+    """Категория записи в эту секунду (по главам записи: «Just Chatting» → «GTA 6» …). '' — не знаем."""
+    key = ("ch", str(video_id))
+    if key not in _META_CACHE:
+        try:
+            d = _gql('query{video(id:"%s"){game{name} moments(momentRequestType:VIDEO_CHAPTER_MARKERS){edges{node{'
+                     'positionMilliseconds durationMilliseconds details{... on GameChangeMomentDetails{game{name}}}}}}}}'
+                     % str(video_id).replace('"', ""))
+            v = d.get("video") or {}
+            ch = []
+            for e in ((v.get("moments") or {}).get("edges") or []):
+                n = e.get("node") or {}
+                a = float(n.get("positionMilliseconds") or 0) / 1000
+                ch.append((a, a + float(n.get("durationMilliseconds") or 0) / 1000,
+                           (((n.get("details") or {}).get("game")) or {}).get("name") or ""))
+            _META_CACHE[key] = (ch, ((v.get("game") or {}).get("name")) or "")
+        except Exception:
+            _META_CACHE[key] = ([], "")
+    ch, whole = _META_CACHE[key]
+    return next((name for a, b, name in ch if a <= sec < b), whole)
+
+
+def live_category(login: str) -> str:
+    """Категория идущего эфира сейчас ('' — эфира нет или не знаем). Кэш на 5 минут."""
+    import time as _t
+    key = ("live", login.lower())
+    hit = _META_CACHE.get(key)
+    if hit and _t.time() - hit[0] < 300:
+        return hit[1]
+    try:
+        name = ((((_gql('query{user(login:"%s"){stream{game{name}}}}' % login.replace('"', "")).get("user") or {})
+                  .get("stream") or {}).get("game")) or {}).get("name") or ""
+    except Exception:
+        name = ""
+    _META_CACHE[key] = (_t.time(), name)
+    return name
+
+
 def list_streams(kind: str, target: str, n: int = 15) -> list[dict]:
     """Последние стримы канала: [{key, url, title, duration, ts}], новые первыми.
     kind — "twitch" (target = логин) или "youtube" (target = @ник или ссылка на канал)."""

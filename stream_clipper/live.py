@@ -451,6 +451,10 @@ class LiveSession:
                         "platform": "YouTube" if self.is_youtube else "Twitch",
                         "credit_name": self.info.get("uploader") or self.info.get("channel") or self.channel,
                         "pad": getattr(h, "pad", None)}
+                if not self.is_youtube:
+                    from . import twitch as _tw
+                    meta["category"] = _tw.live_category(self.channel)
+                    meta["chatting"] = meta["category"] in _tw.CHAT_CATEGORIES
                 d["caption"] = _make_short(seg, tmp, cfg, log, meta)
                 _apply_trim(d, meta)
                 d["transcript"], d["lang"] = meta.get("transcript", ""), lang

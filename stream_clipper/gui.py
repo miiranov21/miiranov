@@ -512,6 +512,8 @@ class App:
         plan_tab = ttk.Frame(self.nb, padding=8)
         self.nb.add(plan_tab, text=T("  План  "))
         self.nb.add(sett_outer, text=T("  Настройки  "))
+        accounts = ttk.Frame(self.nb, padding=12)
+        self.nb.add(accounts, text=T("  Аккаунты  "))
         self.sett = sett
         self._build_clips(clips)
         self._build_streams(streams)
@@ -698,7 +700,7 @@ class App:
         self._build_backup_settings(sett)
         self._build_team_settings(sett)
         self._build_telegram(sett)
-        self._build_publish_settings(sett)
+        self._build_publish_settings(accounts)
 
         # кнопки
         btns = ttk.Frame(main)
@@ -1995,7 +1997,7 @@ class App:
 
     def _on_tab(self, e=None):
         i = self.nb.index(self.nb.select())
-        if getattr(self, "_simple", False) and i in (0, 1, 4):  # простой вид: лишние вкладки снова прячем
+        if getattr(self, "_simple", False) and i in (0, 1, 4, 6):  # простой вид: лишние вкладки снова прячем
             for k in (2, 3, 5):
                 try:
                     self.nb.hide(k)
@@ -3676,11 +3678,12 @@ class App:
     # ---------- настройки: автопубликация через официальные API ----------
     def _build_publish_settings(self, parent):
         from . import publisher
-        box = ttk.LabelFrame(parent, text=T(" 📤 Автопубликация (официальные API площадок) "), padding=6)
+        box = ttk.LabelFrame(parent, text=T(" Аккаунты, куда «Выпускающий» выкладывает видео сам "), padding=6)
         box.pack(fill="x", pady=(0, 6))
         ttk.Label(box, foreground=self.muted, wraplength=1050, justify="left", text=T(
-            "Настраивается один раз. Пошаговая инструкция — файл «АВТОПУБЛИКАЦИЯ — настройка.txt» в папке программы. "
-            "TikTok до проверки их приложения принимает видео только в черновики — останется нажать «Опубликовать» в телефоне.")
+            "Войди один раз — дальше видео из плана выходят сами в своё время. Пароль вводится на странице самой площадки, "
+            "программа его не хранит. Пока площадка не подключена или ждёт проверки, её видео приходят в Telegram. "
+            "Пошаговая инструкция — файл «АВТОПУБЛИКАЦИЯ — настройка.txt» в папке программы.")
                   ).pack(anchor="w")
         self.pub_status: dict = {}
         rows = ttk.Frame(box)
@@ -3688,7 +3691,7 @@ class App:
         # YouTube
         ttk.Label(rows, text="YouTube:", width=11).grid(row=0, column=0, sticky="w")
         ttk.Button(rows, text=T("Подключить (файл client_secret.json)…"), command=self._yt_connect).grid(row=0, column=1, sticky="w")
-        self.pub_status["youtube"] = ttk.Label(rows, text="")
+        self.pub_status["youtube"] = ttk.Label(rows, text="", wraplength=260, justify="left")
         self.pub_status["youtube"].grid(row=0, column=2, sticky="w", padx=8)
         # Instagram
         ttk.Label(rows, text="Instagram:", width=11).grid(row=1, column=0, sticky="w", pady=4)
@@ -3702,7 +3705,7 @@ class App:
         ttk.Label(igf, text=T("Токен:")).pack(side="left")
         ttk.Entry(igf, textvariable=self.ig_token, width=26, show="•").pack(side="left", padx=4)
         ttk.Button(igf, text=T("Подключить"), command=self._ig_connect).pack(side="left")
-        self.pub_status["instagram"] = ttk.Label(rows, text="")
+        self.pub_status["instagram"] = ttk.Label(rows, text="", wraplength=260, justify="left")
         self.pub_status["instagram"].grid(row=1, column=2, sticky="w", padx=8)
         # TikTok
         ttk.Label(rows, text="TikTok:", width=11).grid(row=2, column=0, sticky="w")
@@ -3716,7 +3719,7 @@ class App:
         ttk.Label(ttf, text="Client secret:").pack(side="left")
         ttk.Entry(ttf, textvariable=self.tt_secret, width=18, show="•").pack(side="left", padx=4)
         ttk.Button(ttf, text=T("Подключить"), command=self._tt_connect).pack(side="left")
-        self.pub_status["tiktok"] = ttk.Label(rows, text="")
+        self.pub_status["tiktok"] = ttk.Label(rows, text="", wraplength=260, justify="left")
         self.pub_status["tiktok"].grid(row=2, column=2, sticky="w", padx=8)
         # проверки площадок: пока их нет, YouTube закрывает видео, а TikTok берёт только черновики
         pcfg = publisher.load()
@@ -3725,22 +3728,27 @@ class App:
         chk = ttk.Frame(box)
         chk.pack(fill="x", pady=(6, 0))
         ttk.Checkbutton(chk, text=T("Google проверил приложение — видео на YouTube выходят открытыми"), variable=self.yt_audited,
-                        command=lambda: publisher._update(youtube={"audited": self.yt_audited.get(),
-                                                                   "private_lock": False})).pack(anchor="w")
+                        command=lambda: (publisher._update(youtube={"audited": self.yt_audited.get(), "private_lock": False}),
+                                         self._update_pub_status())).pack(anchor="w")
         ttk.Checkbutton(chk, text=T("TikTok проверил приложение — публиковать сразу, без черновиков и Telegram"),
                         variable=self.tt_direct,
-                        command=lambda: publisher._update(tiktok={"direct": self.tt_direct.get()})).pack(anchor="w")
+                        command=lambda: (publisher._update(tiktok={"direct": self.tt_direct.get()}),
+                                         self._update_pub_status())).pack(anchor="w")
         self._update_pub_status()
 
     def _update_pub_status(self):
         from . import publisher
-        cfg, ok = publisher.load(), publisher.connected()
+        cfg, ok, direct = publisher.load(), publisher.connected(), publisher.direct_platforms()
         for pl, lbl in self.pub_status.items():
-            if ok[pl]:
-                extra = (cfg.get(pl) or {}).get("username") or ""
-                lbl.config(text=T("✔ подключено") + (f" (@{extra})" if extra else ""), foreground="#3ddc84")
+            extra = (cfg.get(pl) or {}).get("username") or ""
+            who = f" (@{extra})" if extra else ""
+            if pl in direct:
+                lbl.config(text=T("✅ выкладывает сам") + who, foreground="#3ddc84")
+            elif ok[pl]:
+                why = T("ждёт проверки Google") if pl == "youtube" else T("ждёт проверки TikTok") if pl == "tiktok" else ""
+                lbl.config(text=T("⏳ подключено, {0} — пока через Telegram").format(why) + who, foreground="#ffcf5c")
             else:
-                lbl.config(text=T("не подключено"), foreground=self.muted)
+                lbl.config(text=T("не подключено — пока через Telegram"), foreground=self.muted)
 
     def _pub_bg(self, platform: str, fn):
         lbl = self.pub_status[platform]

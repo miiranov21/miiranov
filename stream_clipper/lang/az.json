@@ -1004,5 +1004,13 @@
 "Вид окна": "Pəncərə görünüşü",
 "Чтобы сменить вид, окно перезапустится. Перезапустить сейчас?": "Görünüşü dəyişmək üçün pəncərə yenidən açılacaq. İndi açılsın?",
 "Google проверил приложение — видео на YouTube выходят открытыми": "Google tətbiqi yoxladı — YouTube videoları açıq çıxır",
-"TikTok проверил приложение — публиковать сразу, без черновиков и Telegram": "TikTok tətbiqi yoxladı — dərhal paylaş, qaralama və Telegram olmadan"
+"TikTok проверил приложение — публиковать сразу, без черновиков и Telegram": "TikTok tətbiqi yoxladı — dərhal paylaş, qaralama və Telegram olmadan",
+"  Аккаунты  ": "  Hesablar  ",
+" Аккаунты, куда «Выпускающий» выкладывает видео сам ": " «Buraxılışçı»nın videoları özü paylaşdığı hesablar ",
+"Войди один раз — дальше видео из плана выходят сами в своё время. Пароль вводится на странице самой площадки, программа его не хранит. Пока площадка не подключена или ждёт проверки, её видео приходят в Telegram. Пошаговая инструкция — файл «АВТОПУБЛИКАЦИЯ — настройка.txt» в папке программы.": "Bir dəfə daxil ol — sonra plandakı videolar öz vaxtında özü çıxır. Parol platformanın öz səhifəsində yazılır, proqram onu saxlamır. Platforma qoşulmayıb və ya yoxlama gözləyirsə, videoları Telegram-a gəlir. Addım-addım təlimat — proqram qovluğunda «АВТОПУБЛИКАЦИЯ — настройка.txt».",
+"✅ выкладывает сам": "✅ özü paylaşır",
+"ждёт проверки Google": "Google yoxlamasını gözləyir",
+"ждёт проверки TikTok": "TikTok yoxlamasını gözləyir",
+"⏳ подключено, {0} — пока через Telegram": "⏳ qoşulub, {0} — hələlik Telegram ilə",
+"не подключено — пока через Telegram": "qoşulmayıb — hələlik Telegram ilə"
 }

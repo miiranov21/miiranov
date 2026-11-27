@@ -278,7 +278,8 @@ def instagram_upload(file: str, caption: str, log=print, wait: float = 600) -> d
 # ---------- TikTok (черновики) ----------
 def tiktok_connect(client_key: str, client_secret: str, log=print) -> str:
     """Один раз: ключи своего приложения TikTok (Login Kit + Content Posting API, адрес возврата TT_REDIRECT) и вход."""
-    verifier, challenge = _pkce()
+    verifier, _ = _pkce()
+    challenge = hashlib.sha256(verifier.encode()).hexdigest()  # TikTok Login Kit for Desktop ждёт hex, не base64url
     state = secrets.token_urlsafe(16)
     url = TT_AUTH + "?" + urllib.parse.urlencode({
         "client_key": client_key, "scope": "user.info.basic,video.upload,video.publish", "response_type": "code",

@@ -266,6 +266,16 @@ def _end_after_peak(words: list, p: float, dur: float) -> float:
     return max(p + 1.5, min(dur, end, p + 6.0))
 
 
+def _chat_line(c: dict) -> str:
+    """Наша строка-комментарий без выдумки: самая частая реакция чата на этот момент («chat: NO WAY»)."""
+    from .policy import censor_text, word_kind
+    for m in c.get("top_messages") or []:
+        m = re.sub(r"https?://\S+|@\S+|[\U00010000-\U0010FFFF\u2600-\u27BF]", "", str(m)).strip()  # эмодзи шрифт видео не рисует
+        if 2 <= len(m) <= 28 and not any(word_kind(w) for w in m.split()):
+            return "chat: " + censor_text(m).upper()
+    return ""
+
+
 def _context_text(c: dict) -> str:
     """Строка контекста только из названия стрима — без выдумки: без эмодзи, команд, ссылок и тегов; 2–7 слов."""
     import re
@@ -353,9 +363,10 @@ def tricks_plan(c: dict, strat: dict, platform: str, duration: float, have: set)
     if isinstance(vb, (int, float)) and not isinstance(vb, bool) and vb > 0 and "voice_boost" not in have:
         add.append({"type": "voice_boost", "db": float(vb)})
     if cd.get("context_line") and "context_line" not in have:
-        txt = _context_text(c)
+        # строка-комментарий в середине клипа (против «перезалива»): реакция чата, иначе — название стрима
+        txt = _chat_line(c) or _context_text(c)
         if txt:
-            add.append({"type": "context_line", "text": txt, "t": round(start, 2), "seconds": 2})
+            add.append({"type": "context_line", "text": txt, "t": round(start + (end - start) / 2, 2), "seconds": 2})
     if cd.get("sfx_accents") and "sfx" not in have:
         add.append({"type": "sfx"})
     return add

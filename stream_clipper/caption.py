@@ -575,17 +575,14 @@ def _whole_phrase(q: str) -> bool:
 
 def good_title(title: str, description: str, platform: str) -> str:
     """Заголовок не может состоять из одних хэштегов (так вышли 13 Shorts с 12 просмотрами): берём первую
-    строку описания — это хук текстом; на YouTube добавляем #shorts."""
+    строку описания — это хук текстом (≤60 знаков, без тегов)."""
     t = (title or "").strip()
     if t and not all(w.startswith("#") for w in t.split()):
         return t
     first = next((l.strip() for l in (description or "").splitlines() if l.strip() and not l.strip().startswith("#")), "")
     if not first:
         return t
-    tags = [w for w in t.split() if w.startswith("#")]
-    if platform == "youtube" and "#shorts" not in (x.lower() for x in tags):
-        tags.append("#shorts")
-    return (first[:60].rstrip() + (" " + " ".join(tags) if tags else ""))[:100]
+    return first[:60].rstrip()
 
 
 def free_post(platform: str, streamer: str, hook: str, title: str, transcript: str = "",
@@ -662,11 +659,9 @@ def free_post(platform: str, streamer: str, hook: str, title: str, transcript: s
     # проверка подписи (как /ig-caption): без пустых тегов, не больше 5 (лимит Instagram с декабря 2025),
     # первая строка помещается до «… ещё» (~125 знаков); и без машинного следа (как /ig-human)
     from .humanize import clean
-    keep = {"#shorts"} if platform == "youtube" else set()  # на YouTube #shorts нужен (text_rules.youtube_title)
-    tags = [x for x in dict.fromkeys(tags) if x.lower() not in FILLER_TAGS or x.lower() in keep][:HASHTAG_LIMIT]
-    if platform == "youtube":  # заголовок = хук текстом ≤60 знаков + тег стримера + #shorts (не один хэштег)
-        tail = " ".join(x for x in (tag_nick, "#shorts") if x)
-        t = (t[:60].rstrip() + " " + tail)[:100]
+    tags = [x for x in dict.fromkeys(tags) if x.lower() not in FILLER_TAGS][:HASHTAG_LIMIT]
+    if platform == "youtube":  # text_rules.youtube_title: в заголовке только хук ≤60 знаков, теги — в описание
+        t = t[:60].rstrip()
     desc = clean(desc)
     first, _, rest = desc.partition("\n")
     if len(first) > 125:

@@ -187,6 +187,12 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
         game_crop = _qq.letterbox(segment)
         if game_crop:
             log("    у исходника чёрные полосы — срезаю их")
+        from . import strategy as _st
+        if any(k in json.dumps(_st.get().get("risk_rules") or {}, ensure_ascii=False).lower() for k in ("оверле", "overlay")):
+            e = 0.04  # risk_rules: значки Twitch/Kick, алерты и чужие вотермарки сидят по краям — срезаем край игры
+            x, y, w, h = game_crop or (0.0, 0.0, 1.0, 1.0)
+            game_crop = (x + w * e, y + h * e, w * (1 - 2 * e), h * (1 - 2 * e))
+        if game_crop:
             sw = int(sw * game_crop[2]) if sw else sw
         up_max = float(thr.get("upscale_max", 0) or 0)
         if sw and up_max:

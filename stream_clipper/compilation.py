@@ -1,5 +1,5 @@
 """Подборка дня (strategy.autopilot.compilation): 2–3 лучших свежих момента одного стримера в одном ролике
-20–30 с с нумерацией #1–#3 и хуком «{S}'S CRAZIEST MOMENTS TODAY». Наш монтаж поверх чужого стрима —
+20–30 с с нумерацией #1–#3 и хуком из autopilot.compilation.hooks. Наш монтаж поверх чужого стрима —
 против штрафа TikTok за неоригинальность. Подборка встаёт в план как обычный клип (с пометкой compilation).
 """
 from __future__ import annotations
@@ -59,13 +59,28 @@ def _ass(path: str, number: int, hook: str | None) -> None:
         f.write(ASS_HEAD.format(styles=style) + ev)
 
 
-def build(channel: str, parts: list[dict], out: str, length: float = 25.0) -> float:
+def choose_hook(channel: str, parts: list[dict], last: str = "") -> tuple[str, str]:
+    """Хук подборки из autopilot.compilation.hooks: «FAILS» — только если все моменты — fail;
+    вчерашний хук не повторяем."""
+    import random
+    from .caption import _category, short_nick
+    hooks = [h for h in (_cfg().get("hooks") or []) if isinstance(h, str)] or ["{s}'S CRAZIEST MOMENTS TODAY"]
+    all_fail = all(_category(c.get("top_messages") or []) == "fail" for c in parts)
+    ok = [h for h in hooks if ("FAIL" not in h.upper() or all_fail) and h != last] or hooks
+    h = random.choice(ok)
+    try:
+        return h.format(s=short_nick(channel), n=len(parts)).upper(), h
+    except (KeyError, IndexError, ValueError):
+        return h.upper(), h
+
+
+def build(channel: str, parts: list[dict], out: str, length: float = 25.0, hook: str = "") -> float:
     """Склеить куски вокруг пиков с номерами. Возвращает длину ролика."""
     from .caption import short_nick
     from .montage import _enc, _run
     work = os.path.dirname(os.path.abspath(out))
     each = max(6.0, length / len(parts))
-    hook = f"{short_nick(channel)}'S CRAZIEST MOMENTS TODAY".upper().replace("{", "(").replace("}", ")")
+    hook = (hook or f"{short_nick(channel)}'S CRAZIEST MOMENTS TODAY".upper()).replace("{", "(").replace("}", ")")
     inputs, chains, names = [], [], []
     for i, c in enumerate(parts):
         d = _dur(c["path"])
@@ -102,11 +117,11 @@ def make_today(state: dict, clips: list[dict], event) -> str | None:
     channel, parts = got
     tmp = os.path.join(paths.default_work_dir(), f"compilation_{int(time.time())}.mp4")
     os.makedirs(os.path.dirname(tmp), exist_ok=True)
-    dur = build(channel, parts, tmp, (float(lo) + float(hi)) / 2)
-    from .caption import short_nick
+    hook, tpl = choose_hook(channel, parts, state.get("compilation_hook", ""))
+    dur = build(channel, parts, tmp, (float(lo) + float(hi)) / 2, hook)
     first = parts[0]
     d = {"start": 0.0, "end": round(dur, 2), "peak": 1.0, "compilation": True,
-         "caption": f"{short_nick(channel)}'S CRAZIEST MOMENTS TODAY".upper(),
+         "caption": hook,
          "score": max(float(c.get("score") or 0) for c in parts),
          "top_messages": [m for c in parts for m in (c.get("top_messages") or [])[:1]],
          "vod_url": first.get("vod_url", ""), "vod_title": first.get("vod_title", ""),
@@ -114,6 +129,6 @@ def make_today(state: dict, clips: list[dict], event) -> str | None:
          "parts": [os.path.basename(c["path"]) for c in parts]}
     daily.set_state_dir(paths.default_work_dir())  # как у нарезчика (cli): дневник — в служебной папке, его читает библиотека
     path = daily.deliver_clip(paths.default_out_dir(), tmp, d, channel)
-    state["compilation_day"] = time.strftime("%Y-%m-%d")
+    state["compilation_day"], state["compilation_hook"] = time.strftime("%Y-%m-%d"), tpl
     event("🎞", f"{channel}: подборка дня из {len(parts)} моментов готова ({round(dur)} с)", path, "clip")
     return path

@@ -281,7 +281,7 @@ def tiktok_connect(client_key: str, client_secret: str, log=print) -> str:
     verifier, challenge = _pkce()
     state = secrets.token_urlsafe(16)
     url = TT_AUTH + "?" + urllib.parse.urlencode({
-        "client_key": client_key, "scope": "user.info.basic,video.upload", "response_type": "code",
+        "client_key": client_key, "scope": "user.info.basic,video.upload,video.publish", "response_type": "code",
         "redirect_uri": TT_REDIRECT, "state": state, "code_challenge": challenge, "code_challenge_method": "S256"})
     log("Открываю вход в TikTok в браузере...")
     webbrowser.open(url)
@@ -332,6 +332,30 @@ def tiktok_draft(file: str, log=print) -> dict:
     return {"id": data.get("publish_id", ""), "url": "", "draft": True}
 
 
+def tiktok_post(file: str, caption: str, log=print) -> dict:
+    """Сразу опубликовать в TikTok (Direct Post). Работает, когда приложение TikTok прошло их проверку;
+    до проверки TikTok разрешает только приватные посты — тогда видео идёт черновиком (tiktok_draft)."""
+    token = _tt_token()
+    size = os.path.getsize(file)
+    st, _, body = _json(TT_API + "/v2/post/publish/video/init/",
+                        {"post_info": {"title": caption[:2200], "privacy_level": "PUBLIC_TO_EVERYONE",
+                                       "disable_duet": False, "disable_comment": False, "disable_stitch": False,
+                                       "video_cover_timestamp_ms": 500},
+                         "source_info": {"source": "FILE_UPLOAD", "video_size": size, "chunk_size": size,
+                                         "total_chunk_count": 1}}, token)
+    data = (body or {}).get("data") or {} if isinstance(body, dict) else {}
+    if st != 200 or not data.get("upload_url"):
+        raise RuntimeError(f"TikTok: не начал публикацию ({body})")
+    log("Публикую видео в TikTok...")
+    with open(file, "rb") as f:
+        st, _, up = _http(data["upload_url"], f.read(), {"Content-Type": "video/mp4", "Content-Length": str(size),
+                                                         "Content-Range": f"bytes 0-{size - 1}/{size}"}, "PUT",
+                          timeout=1800)
+    if st not in (200, 201):
+        raise RuntimeError(f"TikTok: файл не загрузился ({st}: {up})")
+    return {"id": data.get("publish_id", ""), "url": "", "draft": False}
+
+
 def connected() -> dict:
     cfg = load()
     return {"youtube": bool((cfg.get("youtube") or {}).get("refresh_token")),
@@ -343,7 +367,10 @@ def direct_platforms() -> set:
     """Площадки, куда «Выпускающий» публикует сам (подключены в Настройках). TikTok — только когда приложение
     прошло проверку TikTok (tiktok.direct); до этого TikTok идёт через Telegram, чтобы не плодить черновики."""
     c = connected()
+    cfg = load()
     out = {p for p in ("youtube", "instagram") if c.get(p)}
+    if (cfg.get("youtube") or {}).get("private_lock") and not (cfg.get("youtube") or {}).get("audited"):
+        out.discard("youtube")  # Google ещё не проверил приложение — видео выходили бы закрытыми, пока через Telegram
     if c.get("tiktok") and (load().get("tiktok") or {}).get("direct"):
         out.add("tiktok")
     return out
@@ -352,9 +379,23 @@ def direct_platforms() -> set:
 def publish(platform: str, file: str, title: str, description: str, tags: list, log=print) -> dict:
     """Опубликовать на площадке. Возвращает {"id", "url", ...}; ошибки — исключением с понятным текстом."""
     if platform == "youtube":
-        return youtube_upload(file, title, description, tags, log)
+        res = youtube_upload(file, title, description, tags, log)
+        y = load().get("youtube") or {}
+        if res.get("privacy") == "private" and not y.get("audited"):
+            # приложение Google не проверено: YouTube закрыл видео. Убираем закрытую копию и временно возвращаем
+            # YouTube в Telegram — видео не пропадёт. После проверки Google — галочка в Настройках.
+            try:
+                youtube_delete(res["id"])
+            except Exception:
+                pass
+            _update(youtube={"private_lock": True})
+            raise RuntimeError("YouTube делает видео закрытыми, пока Google не проверил приложение — "
+                               "до проверки YouTube снова идёт через Telegram")
+        return res
     if platform == "instagram":
         return instagram_upload(file, description, log)
+    if platform == "tiktok" and (load().get("tiktok") or {}).get("direct"):
+        return tiktok_post(file, description, log)
     if platform == "tiktok":
         res = tiktok_draft(file, log)
         try:  # описание в черновик через API не передаётся — шлём его в Telegram, чтобы вставить в телефоне

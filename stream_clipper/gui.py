@@ -3718,6 +3718,18 @@ class App:
         ttk.Button(ttf, text=T("Подключить"), command=self._tt_connect).pack(side="left")
         self.pub_status["tiktok"] = ttk.Label(rows, text="")
         self.pub_status["tiktok"].grid(row=2, column=2, sticky="w", padx=8)
+        # проверки площадок: пока их нет, YouTube закрывает видео, а TikTok берёт только черновики
+        pcfg = publisher.load()
+        self.yt_audited = tk.BooleanVar(value=bool((pcfg.get("youtube") or {}).get("audited")))
+        self.tt_direct = tk.BooleanVar(value=bool((pcfg.get("tiktok") or {}).get("direct")))
+        chk = ttk.Frame(box)
+        chk.pack(fill="x", pady=(6, 0))
+        ttk.Checkbutton(chk, text=T("Google проверил приложение — видео на YouTube выходят открытыми"), variable=self.yt_audited,
+                        command=lambda: publisher._update(youtube={"audited": self.yt_audited.get(),
+                                                                   "private_lock": False})).pack(anchor="w")
+        ttk.Checkbutton(chk, text=T("TikTok проверил приложение — публиковать сразу, без черновиков и Telegram"),
+                        variable=self.tt_direct,
+                        command=lambda: publisher._update(tiktok={"direct": self.tt_direct.get()})).pack(anchor="w")
         self._update_pub_status()
 
     def _update_pub_status(self):

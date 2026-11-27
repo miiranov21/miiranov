@@ -52,8 +52,11 @@ THEMES = {
                        accent="#06b6d4", accent_fg="#04212a", border="#2a3a5c", select="#0e7490"),
     T("Светлая мятная"): dict(bg="#f3f7f6", panel="#ffffff", field="#ffffff", fg="#1f2a2e", muted="#6b7c80",
                            accent="#10a37f", accent_fg="#ffffff", border="#d5e2df", select="#bfe9dc"),
+    T("Минимал (как TikTok)"): dict(bg="#000000", panel="#121212", field="#161616", fg="#ffffff", muted="#8a8b91",
+                                  accent="#fe2c55", accent_fg="#ffffff", border="#1e1e1e", select="#2b2b2b", flat=True),
     T("Классическая (серая)"): None,
 }
+SIMPLE_THEME = T("Минимал (как TikTok)")
 GAME_VIEW = {T("целиком"): "full", T("крупнее"): "wide", T("только центр"): "center", T("авто (по кадрам)"): "auto"}
 YT_BROWSERS = {T("не брать"): "", "Firefox": "firefox", "Chrome": "chrome", "Edge": "edge", "Opera": "opera",
                "Brave": "brave", "Vivaldi": "vivaldi"}
@@ -331,6 +334,17 @@ class App:
         self.cfg = {k: T(v) if isinstance(v, str) else v for k, v in _load_json(SETTINGS, DEFAULTS).items()}
         root.title(T("Stream Clipper — нарезки для Shorts"))
         self.v: dict = {}
+        if self.cfg.get("simple_ui", True) and not self.cfg.get("simple_theme_set"):
+            self.cfg["theme"], self.cfg["simple_theme_set"] = SIMPLE_THEME, True
+            try:
+                data = _load_json(SETTINGS, DEFAULTS)
+                data.update(theme=untranslate(SIMPLE_THEME), simple_theme_set=True)
+                with open(SETTINGS, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=1)
+            except Exception:
+                pass
+        self.v["simple_ui"] = tk.BooleanVar(value=bool(self.cfg.get("simple_ui", True)))
+        self.v["simple_theme_set"] = tk.BooleanVar(value=bool(self.cfg.get("simple_theme_set")))
         self.pal = self._apply_theme(self.cfg.get("theme"))
         self.muted = self.pal["muted"] if self.pal else "#666"
         root.geometry("1120x880")
@@ -340,6 +354,7 @@ class App:
         except Exception:
             pass
         self._build()
+        self._simple_ui()
         self._install_shortcuts()
         root.protocol("WM_DELETE_WINDOW", self.on_close)
         root.after(150, self._drain)
@@ -405,6 +420,25 @@ class App:
         style.map("Treeview", background=[("selected", sel)], foreground=[("selected", fg)])
         style.configure("Treeview.Heading", background=panel, foreground=fg, bordercolor=border)
         style.configure("Vertical.TScrollbar", background=panel, arrowcolor=fg, bordercolor=border)
+        if pal.get("flat"):  # минимализм: без рамок, крупнее, вкладки — просто текст, главная кнопка — яркая
+            style.configure(".", font=("Segoe UI", 11))
+            style.configure("TLabelframe", bordercolor=bg, relief="flat")
+            style.configure("TLabelframe.Label", foreground=muted, font=("Segoe UI", 10, "bold"))
+            style.configure("TButton", background=panel, bordercolor=panel, padding=(14, 9), relief="flat")
+            style.map("TButton", background=[("active", sel), ("disabled", bg)], foreground=[("disabled", muted)])
+            style.configure("Big.TButton", font=("Segoe UI", 12, "bold"), padding=(22, 12), bordercolor=acc, relief="flat")
+            style.configure("TMenubutton", background=panel, bordercolor=panel, padding=(14, 9), relief="flat")
+            style.configure("Big.TMenubutton", padding=(18, 10), relief="flat")
+            style.configure("TNotebook", background=bg, bordercolor=bg, tabmargins=(8, 8, 8, 0))
+            style.configure("TNotebook.Tab", background=bg, foreground=muted, padding=(22, 10), bordercolor=bg,
+                            font=("Segoe UI", 12, "bold"))
+            style.map("TNotebook.Tab", background=[("selected", bg)], foreground=[("selected", fg)])
+            style.configure("Treeview", rowheight=30, bordercolor=bg)
+            style.configure("Treeview.Heading", background=bg, foreground=muted, bordercolor=bg, relief="flat")
+            style.configure("TNotebook.Tab", lightcolor=bg, darkcolor=bg)
+            style.configure("TNotebook", lightcolor=bg, darkcolor=bg)
+            for opt, val in (("*Text.highlightThickness", 0), ("*Text.relief", "flat"), ("*Text.borderWidth", 8)):
+                self.root.option_add(opt, val)
         # обычные (не ttk) поля и списки
         for opt, val in (("*Text.background", field), ("*Text.foreground", fg), ("*Text.insertBackground", fg),
                          ("*Text.selectBackground", sel), ("*Listbox.background", field),
@@ -467,6 +501,8 @@ class App:
                                state="readonly")
         cb_lang.pack(side="left", padx=6)
         cb_lang.bind("<<ComboboxSelected>>", self._change_lang)
+        ttk.Checkbutton(themef, text=T("Простой вид (минимум кнопок)"), variable=self.v["simple_ui"],
+                        command=lambda: self._set_simple(self.v["simple_ui"].get())).pack(side="left", padx=(16, 0))
         self.nb.add(main, text=T("  Управление  "))
         streams = ttk.Frame(self.nb, padding=8)
         self.nb.add(clips, text=T("  Клипы  "))
@@ -501,6 +537,7 @@ class App:
 
         # настройки
         opt = ttk.LabelFrame(top, text=T(" Что делать с клипом "), padding=6)
+        self.main_opt = opt
         opt.pack(side="right", fill="y", before=box)  # блоку настроек — его полная ширина
         self._doc_widgets: dict = {}  # настройка → её поля (блокируются, пока выбирает «Доктор»)
         self._doc_reason: dict = {}
@@ -726,6 +763,7 @@ class App:
             self.root.after(50, self._toggle_log)
         bottom = ttk.Frame(main)
         bottom.pack(side="bottom", fill="x", pady=(4, 0), before=logf)
+        self.main_bottom = bottom
         self.v["autoupdate"] = tk.BooleanVar(value=bool(self.cfg.get("autoupdate", True)))
         ttk.Checkbutton(bottom, text=T("Обновляться автоматически"), variable=self.v["autoupdate"]).pack(side="right")
         ttk.Button(bottom, text=T("⟳ Проверить обновления"),
@@ -1701,8 +1739,9 @@ class App:
             self.activity.set_rows(6)
         else:
             self.main_top.pack(fill="x", before=self.b_watch.master)
-            self.main_vod.pack(fill="x", pady=4, before=self.logf)
-            self.main_from.pack(fill="x", pady=(0, 4), before=self.logf)
+            if not getattr(self, "_simple", False):
+                self.main_vod.pack(fill="x", pady=4, before=self.logf)
+                self.main_from.pack(fill="x", pady=(0, 4), before=self.logf)
             self.b_big_log.config(text=T("⤢ Во всё окно"))
             self.activity.set_rows(2)
 
@@ -1879,8 +1918,89 @@ class App:
             messagebox.showinfo(T("Обновление"), T('Обновление установлено. Открой программу заново.\n({0})').format(e))
         self.root.destroy()
 
+    # ---------- простой вид (как в TikTok/Instagram): минимум кнопок на виду, остальное — в «Ещё» ----------
+    def _simple_ui(self):
+        if not self.cfg.get("simple_ui", True):
+            return
+        self._simple = True
+        for w in (self.main_opt, self.main_vod, self.main_from, self.main_bottom, self.b_big_log.master):
+            w.pack_forget()
+        self.nb.tab(0, text=T("  Главная  "))
+        for k in (2, 3, 5):
+            self.nb.hide(k)
+        tabs = self.nb.tabs()
+
+        def open_tab(k):
+            self.nb.add(tabs[k])
+            self.nb.select(tabs[k])
+
+        bar = self.b_watch.master
+        for w in bar.winfo_children():  # «Папка с клипами» — в меню
+            if isinstance(w, ttk.Button) and w not in (self.b_watch, self.b_stop):
+                w.pack_forget()
+        more = ttk.Menubutton(bar, text=T("⋯  Ещё"))
+        m = tk.Menu(more, tearoff=0)
+        m.add_command(label=T("📁  Папка с клипами"), command=self.open_folder)
+        m.add_command(label=T("✂  Нарезать стрим по ссылке"), command=self._simple_show_vod)
+        m.add_command(label=T("📺  Стримы"), command=lambda: open_tab(2))
+        m.add_command(label=T("🗄  Архив"), command=lambda: open_tab(3))
+        m.add_command(label=T("⚙  Настройки"), command=lambda: open_tab(5))
+        m.add_separator()
+        m.add_command(label=T("📄  Подробный журнал"), command=self._toggle_details)
+        m.add_command(label=T("☰  Полный вид (все кнопки)"), command=lambda: self._set_simple(False))
+        more["menu"] = m
+        more.pack(side="right")
+        self._move_to_menu(self.clips_btns, (T("🗑  Удалить"), T("🏆  Оставить лучшие"), T("Ещё ▾")), self.clips_more,
+                           keep_first_menubutton=True)
+        self._move_to_menu(self.plan_btns, (T("🔁 Отправить ещё раз"), T("📤 Видео на сегодня — в Telegram")), None)
+        self.tree["displaycolumns"] = ("rating", "streamer", "why", "caption", "youtube", "instagram", "tiktok")
+
+    def _move_to_menu(self, frame, keep, menu, keep_first_menubutton=False):
+        """Кнопки, которых нет в keep, убираем с панели в меню «Ещё» (работают так же)."""
+        moved, first_mb = [], True
+        for w in frame.winfo_children():
+            if isinstance(w, ttk.Menubutton):
+                if (keep_first_menubutton and first_mb) or w.cget("text") in keep:
+                    first_mb = False
+                    continue
+                moved.append(("cascade", w.cget("text"), w))
+                w.pack_forget()
+            elif isinstance(w, ttk.Button) and w.cget("text") not in keep:
+                moved.append(("cmd", w.cget("text"), w))
+                w.pack_forget()
+        if not moved:
+            return
+        if menu is None:
+            mb = ttk.Menubutton(frame, text=T("Ещё ▾"))
+            menu = tk.Menu(mb, tearoff=0)
+            mb["menu"] = menu
+            mb.pack(side="left", padx=6)
+        else:
+            menu.insert_separator(0)
+        for kind, text, w in reversed(moved):
+            if kind == "cascade":
+                menu.insert_cascade(0, label=text.strip(), menu=self.root.nametowidget(w.cget("menu")))
+            else:
+                menu.insert_command(0, label=text.strip(), command=w.invoke)
+
+    def _simple_show_vod(self):
+        self.main_vod.pack(fill="x", pady=4, before=self.logf)
+        self.main_from.pack(fill="x", pady=(0, 4), before=self.logf)
+
+    def _set_simple(self, on: bool):
+        self.v["simple_ui"].set(on)
+        self._save_settings()
+        if messagebox.askyesno(T("Вид окна"), T("Чтобы сменить вид, окно перезапустится. Перезапустить сейчас?")):
+            self._restart_window()
+
     def _on_tab(self, e=None):
         i = self.nb.index(self.nb.select())
+        if getattr(self, "_simple", False) and i in (0, 1, 4):  # простой вид: лишние вкладки снова прячем
+            for k in (2, 3, 5):
+                try:
+                    self.nb.hide(k)
+                except tk.TclError:
+                    pass
         if i == 1:
             self.refresh_clips()
         elif i == 2:
@@ -2182,6 +2302,7 @@ class App:
                   wraplength=900, justify="left").pack(side="left")
         btns = ttk.Frame(parent)
         btns.pack(fill="x", pady=6)
+        self.plan_btns = btns
         ttk.Button(btns, text=T("⬆ Поднять выше"), command=lambda: self._plan_action("raise")).pack(side="left")
         ttk.Button(btns, text=T("✕ Убрать из плана"), command=lambda: self._plan_action("remove")).pack(side="left", padx=6)
         ttk.Button(btns, text=T("▶ Открыть клип"), command=lambda: self._plan_action("open")).pack(side="left")
@@ -4101,6 +4222,7 @@ class App:
         ttk.Button(btns, text=T("🏆  Оставить лучшие"), command=self.pick_best_clips).pack(side="left", padx=(0, 6))
         more = ttk.Menubutton(btns, text=T("Ещё ▾"))
         mm = tk.Menu(more, tearoff=0)
+        self.clips_btns, self.clips_more = btns, mm
         mm.add_command(label=T("🩺  Обмен с «Доктором шортсов»: открыть папку"),
                        command=lambda: (self._export_catalog(), self._open(exchange_dir())))
         mm.add_command(label=T("📥  Загрузить решения аналитика из файла…"), command=self.import_decisions_file)

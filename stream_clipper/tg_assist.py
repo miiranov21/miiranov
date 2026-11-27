@@ -220,6 +220,8 @@ def _text(job: dict, channel: str) -> str:
                 f"Запланировать на <b>{schedule.day_label(t)} {schedule.label(t)}</b>")
         if job.get("trial"):
             head += "\n🧪 Можно как «Пробный Reels» (покажут не подписчикам)"
+    from .caption import good_title
+    job["title"] = good_title(job.get("title", ""), job.get("description", ""), job["platform"])
     if job["platform"] == "youtube":
         body = (f"Название:\n<code>{e(job.get('title'))}</code>\n\nОписание:\n<code>{e(job.get('description'))}"
                 f"{chr(10) * 2 + e(tags) if tags else ''}</code>")

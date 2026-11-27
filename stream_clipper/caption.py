@@ -573,6 +573,21 @@ def _whole_phrase(q: str) -> bool:
     return last not in _FRAGMENT_END
 
 
+def good_title(title: str, description: str, platform: str) -> str:
+    """Заголовок не может состоять из одних хэштегов (так вышли 13 Shorts с 12 просмотрами): берём первую
+    строку описания — это хук текстом; на YouTube добавляем #shorts."""
+    t = (title or "").strip()
+    if t and not all(w.startswith("#") for w in t.split()):
+        return t
+    first = next((l.strip() for l in (description or "").splitlines() if l.strip() and not l.strip().startswith("#")), "")
+    if not first:
+        return t
+    tags = [w for w in t.split() if w.startswith("#")]
+    if platform == "youtube" and "#shorts" not in (x.lower() for x in tags):
+        tags.append("#shorts")
+    return (first[:60].rstrip() + (" " + " ".join(tags) if tags else ""))[:100]
+
+
 def free_post(platform: str, streamer: str, hook: str, title: str, transcript: str = "",
               top_messages: list | None = None, lang: str = "en", words: list | None = None,
               peak: float | None = None, display: str = "") -> dict:
@@ -631,11 +646,11 @@ def free_post(platform: str, streamer: str, hook: str, title: str, transcript: s
     if isinstance(tmpl, list) and tmpl:  # шаблоны «Доктора» по площадкам: {streamer} = ник без пробелов
         bare = tag_nick[1:]
         tags = []
-        for t in tmpl:
-            t = str(t).replace("{streamer}", bare)
-            if not game and "gta" in t.lower():
+        for tg in tmpl:  # отдельная переменная: раньше цикл затирал заголовок (на YouTube выходил только «#тег»)
+            tg = str(tg).replace("{streamer}", bare)
+            if not game and "gta" in tg.lower():
                 continue  # игру ставим, только если это правда она
-            tags.append(t if t.startswith("#") else "#" + t)
+            tags.append(tg if tg.startswith("#") else "#" + tg)
         if tag_nick not in tags:
             tags.insert(0, tag_nick)
     else:
@@ -647,7 +662,11 @@ def free_post(platform: str, streamer: str, hook: str, title: str, transcript: s
     # проверка подписи (как /ig-caption): без пустых тегов, не больше 5 (лимит Instagram с декабря 2025),
     # первая строка помещается до «… ещё» (~125 знаков); и без машинного следа (как /ig-human)
     from .humanize import clean
-    tags = [x for x in dict.fromkeys(tags) if x.lower() not in FILLER_TAGS][:HASHTAG_LIMIT]
+    keep = {"#shorts"} if platform == "youtube" else set()  # на YouTube #shorts нужен (text_rules.youtube_title)
+    tags = [x for x in dict.fromkeys(tags) if x.lower() not in FILLER_TAGS or x.lower() in keep][:HASHTAG_LIMIT]
+    if platform == "youtube":  # заголовок = хук текстом ≤60 знаков + тег стримера + #shorts (не один хэштег)
+        tail = " ".join(x for x in (tag_nick, "#shorts") if x)
+        t = (t[:60].rstrip() + " " + tail)[:100]
     desc = clean(desc)
     first, _, rest = desc.partition("\n")
     if len(first) > 125:

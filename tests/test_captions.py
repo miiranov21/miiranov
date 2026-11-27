@@ -59,3 +59,11 @@ post = cap.free_post("tiktok", "kaicenat", "KAI DID IT", "GTA 6 stream", "", ["l
 assert "—" not in post["description"] and "​" not in post["description"], post["description"]
 assert len(post["hashtags"]) <= 5 and not {"#fyp", "#viral", "#shorts"} & set(post["hashtags"]), post["hashtags"]
 print("OK caption lint")
+
+# заголовок YouTube — хук текстом + тег + #shorts, а не один хэштег (баг 13 Shorts)
+cap.strategy_rules = lambda: {"hashtag_templates": {"youtube": ["#{streamer}", "#gta6", "#shorts"]}}
+yt = cap.free_post("youtube", "kaicenat", "KAI HAD TO WALK AWAY", "GTA 6", "", ["lol"], "en", [], None, "KaiCenat")
+assert yt["title"].lower().startswith("kai had to walk away") and "#shorts" in yt["title"], yt["title"]
+assert "#shorts" in yt["hashtags"], yt["hashtags"]
+assert cap.good_title("#ishowspeedclips", "Speed had to walk away 😂\nmore", "youtube") == "Speed had to walk away 😂 #ishowspeedclips #shorts"
+print("OK youtube title")

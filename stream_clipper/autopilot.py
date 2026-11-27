@@ -1119,6 +1119,8 @@ def _publish_due(st: dict, by_path: dict, strat: dict, say, event, only: set | N
                                f"(Настройки → Автопубликация)", None, "warn")
                 continue
             say(f"📤 {c.get('channel', '')}: публикую в {pl}...")
+            from .caption import good_title
+            q["title"] = good_title(q.get("title", ""), q.get("description", ""), pl)
             try:
                 res = publisher.publish(pl, q["file"], q.get("title", ""), q.get("description", "") +
                                         ("\n\n" + " ".join(q.get("hashtags") or []) if q.get("hashtags") else ""),

@@ -398,8 +398,9 @@ function lookFor(id){
     style:pick(["short","long","bun","spiky","curly"]),shirt:pick(["#ef4444","#0ea5e9","#a3e635","#f59e0b","#d946ef","#14b8a6"]),acc:h%3?[]:["glasses"]};
 }
 function stale(a){return a.status==="working"&&a.updated&&Date.now()-a.updated>3*3600e3;}
+const sidOf=a=>SESSIONS[a.id]||a.session; // у помощников сессия записана в базе
 function statusOf(a){
-  const s=sess[SESSIONS[a.id]], b=s?String(s.status_bucket||"").toLowerCase():"";
+  const s=sess[sidOf(a)], b=s?String(s.status_bucket||"").toLowerCase():"";
   if(b.includes("working"))return "work";
   if(a.status==="error"||b.includes("failed"))return "err";
   if(a.status==="offline")return "pause";
@@ -677,7 +678,7 @@ function vacBox(title,why,v,note){const box=H("div","vac"),d=H("div");d.append(H
 function openAgent(id,tab){const a=actorById(id);if(!a)return;drawerMode="agent";selId=id;curTab=tab||"overview";pressNav(null);$("drawer").hidden=false;fillAgent();focusOn(a);}
 const TABS=[["overview","Обзор"],["task","Текущая задача"],["results","Результаты"],["history","История"],["reports","Отчёты"]];
 function fillAgent(){
-  const a=actorById(selId);if(!a){closeDrawer();return;}const d=a.data,st=ST[a.st],live=sess[SESSIONS[a.id]];
+  const a=actorById(selId);if(!a){closeDrawer();return;}const d=a.data,st=ST[a.st],live=sess[sidOf(d)];
   const head=$("dHead"),tabs=$("dTabs"),body=$("dBody");head.textContent="";tabs.textContent="";tabs.hidden=false;body.textContent="";
   const av=document.createElement("canvas");av.width=24;av.height=26;drawChar(av.getContext("2d"),12,25,a.look,"down","stand",0,0,false);head.append(av);
   const hd=H("div");hd.style.minWidth="0";hd.append(H("h2",null,d.name||a.id));hd.append(H("div","role",d.role||""));
@@ -697,6 +698,9 @@ function fillAgent(){
     if(pts_.needs_action){sec("Ждёт от тебя");body.append(H("div","now",pts_.needs_action));}
     if(Array.isArray(d.duties)&&d.duties.length){sec("Обязанности");const ul=H("ul","duties");d.duties.forEach(x=>ul.append(H("li",null,x)));body.append(ul);}
     if(d.works_with)body.append(H("div","meta","Работает с: "+d.works_with));
+    if(d.helper_of)body.append(H("div","meta","Помощник сотрудника: "+agentName(d.helper_of)));
+    const helpers=agents.filter(x=>x.helper_of===a.id);
+    if(helpers.length)body.append(H("div","meta","Помощники: "+helpers.map(x=>x.name||x.id).join(", ")));
   }else if(curTab==="task"){
     sec("Текущая задача");body.append(H("div","now",d.task||"Задачи нет."));
     if(typeof d.progress==="number"&&d.progress>0){const bar=H("div","bar"),i=H("i");i.style.width=Math.min(100,d.progress)+"%";bar.append(i);body.append(bar,H("div","meta","выполнено "+Math.round(d.progress)+"%"));}
@@ -731,7 +735,7 @@ async function submitTask(agent,text,b,note,ta){
   b.disabled=true;let ref=null;
   try{ref=await db.collection("tasks").add({agent,text,status:"new",t:Date.now()});ta.value="";note.textContent="Поручено. Бужу сотрудника…";}
   catch(err){note.textContent="Не получилось сохранить: нужно право редактировать офис.";b.disabled=false;return;}
-  const a=agents.find(x=>x.id===agent)||{};const sid=SESSIONS[agent]||(a.kind==="program"?SESSIONS.dev:null);
+  const a=agents.find(x=>x.id===agent)||{};const sid=sidOf(a.id?a:{id:agent})||(a.kind==="program"?SESSIONS.dev:null);
   try{const mcp=sid?await claude.use("mcp"):null;if(!mcp)throw {code:"unavailable"};
     await mcp.callTool("Claude Code Remote","send_message",{session_id:sid,message:"Поручение из офиса от владельца (tasks/"+(ref&&ref.id)+", сотрудник: "+(a.name||agent)+"): "+text+
       "\nВозьми в работу (status accepted), по готовности — status done и reply. Ответ для владельца также пришли Разработчику (session_01DD4nnL2HckDZcQFhVGTQDR)."});

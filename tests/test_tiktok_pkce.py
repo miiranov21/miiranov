@@ -17,7 +17,7 @@ sent = {}
 
 def fake_open(url):
     q = dict(urllib.parse.parse_qsl(urllib.parse.urlparse(url).query))
-    sent.update(challenge=q["code_challenge"], state=q["state"])
+    sent.update(challenge=q.get("code_challenge"), state=q["state"])
 
 
 def fake_http(url, data=None, *a, **k):  # «TikTok», принимающий только base64url
@@ -33,6 +33,16 @@ p._http = fake_http
 store["tiktok"] = {"pkce": "hex"}  # раньше запомнили неверный формат
 assert p.tiktok_connect("k", "s", log=lambda *_: None) == "ok"
 assert store["tiktok"]["pkce"] == "b64" and store["tiktok"]["access_token"] == "A", store
+# приложение без PKCE (Web): после двух отказов — вход без code_challenge
+def http_nopkce(url, data=None, *a, **k):
+    if "code_verifier" in data:
+        return 400, {}, {"error": "invalid_request", "error_description": "Code verifier or code challenge is invalid."}
+    return 200, {}, {"access_token": "B", "expires_in": 3600}
+
+
+p._http = http_nopkce
+store.clear()
+assert p.tiktok_connect("k", "s", log=lambda *_: None) == "ok" and store["tiktok"]["pkce"] == "none", store
 # подмена state — отказ
 p._wait_code = lambda port: {"code": "c", "state": "чужой"}
 try:

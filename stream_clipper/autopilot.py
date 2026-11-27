@@ -600,6 +600,27 @@ def _moment_posted(path: str, pl: str, live: dict, posted: dict) -> str | None:
     return None
 
 
+def priority_streamers(ap: dict) -> set:
+    """Стримеры, чьи клипы ставим первыми (autopilot.streamer_mix): список priority_streamers или ники,
+    названные в тексте priority до слова «первыми» («Kai Cenat держит лучше всех … ставить его клипы первыми»)."""
+    mix = ap.get("streamer_mix") or {}
+    if not isinstance(mix, dict):
+        return set()
+    if isinstance(mix.get("priority_streamers"), list):
+        return {str(x).lower().lstrip("@") for x in mix["priority_streamers"]}
+    text = str(mix.get("priority") or "")
+    head = re.split(r"первыми|first", text, flags=re.I)[0].lower().replace(" ", "")
+    if not head or head == text.lower().replace(" ", "") and "первыми" not in text.lower():
+        return set()
+    known = set()
+    try:
+        for d in library.list_dates()[:14]:
+            known |= {str(c.get("channel") or "").lower() for c in library.list_clips(d)}
+    except Exception:
+        pass
+    return {k for k in known if k and k in head}
+
+
 def rebuild_schedule(now: datetime | None = None, event=None) -> dict:
     """Пересобрать расписание целиком: живые клипы (есть в папке, не в корзине и не в архиве, не выложены на этой
     площадке) — по слотам «Доктора» с ближайшего; свежие (до 24 ч) первыми, потом по оценке; старше 3 дней —
@@ -615,6 +636,7 @@ def rebuild_schedule(now: datetime | None = None, event=None) -> dict:
     posted = {os.path.normpath(k): v for k, v in library.load_posted().items()}
     jobs_by = {(os.path.normpath(j.get("path", "")), j.get("platform")): (jid, j) for jid, j in tst.get("jobs", {}).items()}
     removed = []
+    prio = priority_streamers(ap)
     want: dict = {}  # площадка → [(приоритет, путь, q)]
     fixed: dict = {}  # площадка → занятые времена
     for path, rec in st.get("clips", {}).items():
@@ -639,7 +661,9 @@ def rebuild_schedule(now: datetime | None = None, event=None) -> dict:
                 continue
             age = _clip_age_h(path)
             tier = 0 if q.get("pin") else (1 if age <= 24 else (2 if age <= 72 else 3))
-            want.setdefault(pl, []).append(((tier, -(q.get("pin") or 0), -float(rec.get("score") or 0)), path, q))
+            ch_ = ((live.get(os.path.normpath(path)) or {}).get("channel") or "").lower()
+            want.setdefault(pl, []).append(((tier, -(q.get("pin") or 0), 0 if ch_ in prio else 1,
+                                             -float(rec.get("score") or 0)), path, q))
     moved = 0
     from . import schedule
     for pl, items in want.items():

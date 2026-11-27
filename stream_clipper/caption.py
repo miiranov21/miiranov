@@ -248,10 +248,10 @@ def caption_history() -> list[dict]:
         return []
 
 
-def _remember_history(text: str, tpl: str) -> None:
+def _remember_history(text: str, tpl: str, kind: str = "") -> None:
     import json
     hist = caption_history()
-    hist.append({"text": text, "tpl": tpl})
+    hist.append({"text": text, "tpl": tpl, "type": kind})
     os.makedirs(os.path.dirname(_history_path()), exist_ok=True)
     tmp = _history_path() + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -260,7 +260,22 @@ def _remember_history(text: str, tpl: str) -> None:
 
 
 TEXT_GAP, TPL_GAP = 20, 5  # одна надпись — не чаще раза в 20 клипов, один шаблон — не чаще раза в 5
-LAST_TPL: dict = {"value": ""}  # шаблон, по которому сделана последняя надпись (для истории)
+LAST_TPL: dict = {"value": "", "type": ""}  # шаблон и тип последней надписи (для истории и ротации)
+_PRON_M = re.compile(r"\b(HE|HIS|HIM|HIMSELF|HE'S)\b", re.I)
+_PRON_F = re.compile(r"\b(SHE|HER|HERS|HERSELF|SHE'S)\b", re.I)
+
+
+def _pronoun_ok(tpl: str, streamer: str, bank: dict) -> bool:
+    """HE/HIS — только для стримеров-мужчин, SHE/HER — только для женщин, для остальных — хуки без местоимений
+    (hook_bank.male_streamers / female_streamers)."""
+    low = (streamer or "").lower().lstrip("@")
+    males = {str(x).lower() for x in bank.get("male_streamers") or []}
+    females = {str(x).lower() for x in bank.get("female_streamers") or []}
+    if _PRON_M.search(tpl) and low not in males:
+        return False
+    if _PRON_F.search(tpl) and low not in females:
+        return False
+    return True
 
 
 def _norm(t: str) -> str:
@@ -321,13 +336,22 @@ def template_caption(streamer: str, title: str, top_messages: list[str], lang: s
     cat = _category(top_messages)  # чат подсказывает только тип момента
     hist = [_norm(h.get("text", "")) for h in caption_history()[-TEXT_GAP:]] + \
         [_norm(t) for t in recent_captions(streamer)[-TEXT_GAP:]]
-    if quote and 2 <= len(quote.split()) <= 6:  # цитата самого стримера — самое живое
+    last_type = (caption_history()[-1:] or [{}])[0].get("type", "")
+    # ротация (hook_bank.rotation): тот же тип подряд не ставим — цитата, смех, шок, хайп чередуются по кругу
+    if quote and 2 <= len(quote.split()) <= 6 and last_type != "quote":  # цитата самого стримера — самое живое
         q = quote.strip(" .,!?").upper()
         q = f"{s}: «{q}»" if lang == "ru" else f'{s}: "{q}"'
         if _norm(q) not in hist and _norm(quote) not in " ".join(hist):
-            LAST_TPL["value"] = "quote"
+            LAST_TPL["value"], LAST_TPL["type"] = "quote", "quote"
             return q
-    hooks = [t for t in _bank_category(cat, bank.get(lang) or {}) if _hook_ok(t, cat, peak_frac, cold_open)]
+    bl0 = bank.get(lang) or {}
+    if cat == last_type or (cat not in bl0 and cat != "talk"):
+        cycle = [c for c in ("laugh", "shock", "hype") + (("fail",) if cat == "fail" else ()) if bl0.get(c)]
+        if cycle:
+            i = cycle.index(last_type) if last_type in cycle else -1
+            cat = next((c for c in cycle[i + 1:] + cycle[:i + 1] if c != last_type), cat)
+    ok = lambda t, c: _hook_ok(t, c, peak_frac, cold_open) and _pronoun_ok(t, streamer, bank)
+    hooks = [t for t in _bank_category(cat, bl0) if ok(t, cat)]
     if question and cat in ("hype", "fail"):  # question_overlay: для hype/fail — хук-вопрос, ответ даёт сам клип
         qs = [t for t in hooks if _QUESTION.search(t)]
         hooks = qs or hooks
@@ -342,17 +366,18 @@ def template_caption(streamer: str, title: str, top_messages: list[str], lang: s
             return out
         bl = bank.get(lang) or {}
         near = [t for c in ("shock", "laugh", "hype") if c != cat for t in (bl.get(c) or [])
-                if t not in hooks and _hook_ok(t, c, peak_frac, cold_open)]
+                if t not in hooks and ok(t, c)]
         got = _pick_fresh(fmt(hooks), fmt(near))
         if got:
             LAST_TPL["value"] = got[1]
+            LAST_TPL["type"] = next((c for c, lst in bl.items() if isinstance(lst, list) and got[1][5:] in lst), cat)
             return got[0]
     # запасной вариант — стратегия не скачалась: старые шаблоны, «в GTA 6» не чаще раза в 5 надписей
     gta = "gta" in title.lower() or "гта" in title.lower() or "gta" in " ".join(top_messages).lower()
     gta_recent = any("gta" in h for h in hist[-TPL_GAP + 1:])
     g = (" в GTA 6" if lang == "ru" else " in GTA 6") if gta and not gta_recent else ""
-    got = _pick_fresh([(t.format(s=s, g=g), "tpl:" + t) for t in TEMPLATES[lang][cat]])
-    LAST_TPL["value"] = got[1]
+    got = _pick_fresh([(t.format(s=s, g=g), "tpl:" + t) for t in TEMPLATES[lang].get(cat) or TEMPLATES[lang]["general"]])
+    LAST_TPL["value"], LAST_TPL["type"] = got[1], cat
     return got[0]
 
 
@@ -380,7 +405,7 @@ def make_caption(streamer: str, title: str, top_messages: list[str], transcript:
     text = censor_text(text)
     try:
         remember_caption(streamer, text)
-        _remember_history(text, LAST_TPL["value"] or "claude:" + _norm(text))
+        _remember_history(text, LAST_TPL["value"] or "claude:" + _norm(text), LAST_TPL.get("type", ""))
     except Exception:
         pass
     return text
@@ -526,6 +551,22 @@ def _sentence(hook: str, nick: str) -> str:
     return h
 
 
+_FRAGMENT_END = {"the", "a", "an", "and", "or", "but", "so", "to", "of", "in", "on", "what", "kind", "like", "that",
+                 "is", "was", "i", "you", "we", "my", "your", "nick", "y"}
+
+
+def _whole_phrase(q: str) -> bool:
+    """Цитата в описание — только целая понятная фраза (text_rules.quote_rule): ≥4 слов, без обрывков
+    вроде «kind of what y 'all Nick what the»."""
+    ws = q.replace("’", "'").split()
+    if len(ws) < 4 or any(w.startswith("'") for w in ws):
+        return False
+    if ws[-1][-1:] in ".!?":  # законченная фраза
+        return True
+    last = re.sub(r"[^\w']", "", ws[-1].lower())
+    return last not in _FRAGMENT_END
+
+
 def free_post(platform: str, streamer: str, hook: str, title: str, transcript: str = "",
               top_messages: list | None = None, lang: str = "en", words: list | None = None,
               peak: float | None = None, display: str = "") -> dict:
@@ -545,12 +586,12 @@ def free_post(platform: str, streamer: str, hook: str, title: str, transcript: s
     quote = None
     if words and peak is not None:
         q = streamer_quote(words, peak, window=6.0)
-        if q and not any(word_kind(w) for w in q.split()):
+        if q and not any(word_kind(w) for w in q.split()) and _whole_phrase(q):
             quote = q
     if not quote and transcript:
         for part in re.split(r"(?<=[.!?])\s+", transcript.strip()):
             part = part.strip(" -,")
-            if 3 <= len(part.split()) <= 12 and not any(word_kind(w) for w in part.split()):
+            if 4 <= len(part.split()) <= 12 and not any(word_kind(w) for w in part.split()) and _whole_phrase(part):
                 quote = part
                 break
     tmax = int(((strategy_rules().get("title_max") or {}).get(platform)) or (60 if platform == "youtube" else 100))
@@ -570,6 +611,14 @@ def free_post(platform: str, streamer: str, hook: str, title: str, transcript: s
     else:
         lines.append(f"{full} {'в ' + game if game else 'на стриме'} ({src})")
     lines.append(_CTA["en" if lang == "en" else "ru"][platform if platform in _CTA["en"] else "tiktok"].format(s=nick))
+    try:  # text_rules.description_max_words: коротко; лишнее убираем с конца по важности (цитата, игра, призыв)
+        maxw = int(strategy_rules().get("description_max_words") or 0)
+    except (TypeError, ValueError):
+        maxw = 0
+    if maxw:
+        drop = [l for l in (lines[1] if quote else None, lines[-2], lines[-1]) if l]
+        while sum(len(l.split()) for l in lines) > maxw and drop:
+            lines.remove(drop.pop(0))
     desc = "\n".join(dict.fromkeys(l for l in lines if l))
     tag_nick = "#" + "".join(ch for ch in full.lower() if ch.isalnum())
     tmpl = (strategy_rules().get("hashtag_templates") or {}).get(platform)

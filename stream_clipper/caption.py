@@ -292,8 +292,9 @@ def _bank_category(cat: str, bank_lang: dict) -> list[str]:
     return mix
 
 
-def _pick_fresh(cands: list[tuple[str, str]], spare: list[tuple[str, str]] = ()) -> tuple[str, str] | None:
-    """cands: [(готовая надпись, шаблон)] → случайная, которой не было в последних 20 и шаблона — в последних 5.
+def _pick_fresh(cands: list[tuple[str, str]], spare: list[tuple[str, str]] = (), nick: str = "") -> tuple[str, str] | None:
+    """cands: [(готовая надпись, шаблон)] → свежая (надписи не было в последних 20, шаблона — в последних 5),
+    из свежих — одна из двух сильнейших по оценке хука (hookscore), чтобы не всегда одна и та же.
     Если в своём типе момента свежих не осталось — берём свежую из запасных (соседние типы), и только потом повтор."""
     import random
     hist = caption_history()
@@ -306,9 +307,11 @@ def _pick_fresh(cands: list[tuple[str, str]], spare: list[tuple[str, str]] = ())
              [c for c in cands if _norm(c[0]) not in recent_text],
              [c for c in spare if _norm(c[0]) not in recent_text],
              cands)
+    from .hookscore import score
     for tier in tiers:
         if tier:
-            return random.choice(tier)
+            best = sorted(tier, key=lambda c: -score(c[0], nick))[:2]
+            return random.choice(best)
     return None
 
 
@@ -367,7 +370,7 @@ def template_caption(streamer: str, title: str, top_messages: list[str], lang: s
         bl = bank.get(lang) or {}
         near = [t for c in ("shock", "laugh", "hype") if c != cat for t in (bl.get(c) or [])
                 if t not in hooks and ok(t, c)]
-        got = _pick_fresh(fmt(hooks), fmt(near))
+        got = _pick_fresh(fmt(hooks), fmt(near), s)
         if got:
             LAST_TPL["value"] = got[1]
             LAST_TPL["type"] = next((c for c, lst in bl.items() if isinstance(lst, list) and got[1][5:] in lst), cat)

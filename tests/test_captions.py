@@ -44,3 +44,12 @@ post = cap.free_post("tiktok", "kaicenat", "KAI DID IT", "GTA 6 stream", "kind o
 assert "y 'all" not in post["description"], post["description"]
 assert len(post["description"].split()) <= 20, post["description"]
 print("OK")
+
+# оценка хука: конкретный хук сильнее пустого; из свежих берётся один из двух сильнейших
+from stream_clipper import hookscore  # noqa: E402
+assert hookscore.score("KAI STOLE A TANK AND WRECKED IT IN 3 SECONDS", "KAI") > hookscore.score("KAI DID IT", "KAI")
+hist.clear()
+BANK["en"]["hype"] = ["{s} DID IT", "{s} WON $10K IN 3 MINUTES", "{s} DID IT AGAIN"]
+picked = {cap.template_caption("kaicenat", "GTA", ["pog"], "en") for _ in range(20)}
+assert "KAI WON $10K IN 3 MINUTES" in picked and "KAI DID IT" not in picked, picked
+print("OK hookscore")

@@ -101,7 +101,15 @@
         2,
         3
       ],
-      "rule": "подборка одного стримера с нумерацией 1–2–3 и хуком «{s}'S 3 WORST GTA 6 FAILS» / «{s}'S CRAZIEST MOMENTS TODAY»; входит в дневной лимит площадки"
+      "rule": "подборка одного стримера с нумерацией 1–2–3 и хуком «{s}'S 3 WORST GTA 6 FAILS» / «{s}'S CRAZIEST MOMENTS TODAY»; входит в дневной лимит площадки",
+      "hooks": [
+        "{S}'S CRAZIEST MOMENTS TODAY",
+        "{S}'S 3 WILDEST GTA 6 MOMENTS",
+        "TOP 3 {S} REACTIONS TODAY",
+        "{S}'S 3 BIGGEST FAILS TODAY",
+        "3 TIMES {S} LOST IT TODAY"
+      ],
+      "hooks_rule": "«FAILS» — только если все моменты подборки fail; иначе нейтральные варианты; не повторять один хук два дня подряд"
     }
   },
   "scoring": {

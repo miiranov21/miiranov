@@ -53,3 +53,9 @@ BANK["en"]["hype"] = ["{s} DID IT", "{s} WON $10K IN 3 MINUTES", "{s} DID IT AGA
 picked = {cap.template_caption("kaicenat", "GTA", ["pog"], "en") for _ in range(20)}
 assert "KAI WON $10K IN 3 MINUTES" in picked and "KAI DID IT" not in picked, picked
 print("OK hookscore")
+
+# пост без машинного следа и с правильными хэштегами
+post = cap.free_post("tiktok", "kaicenat", "KAI DID IT", "GTA 6 stream", "", ["lol"], "en", [], None, "KaiCenat")
+assert "—" not in post["description"] and "​" not in post["description"], post["description"]
+assert len(post["hashtags"]) <= 5 and not {"#fyp", "#viral", "#shorts"} & set(post["hashtags"]), post["hashtags"]
+print("OK caption lint")

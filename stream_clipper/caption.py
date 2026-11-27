@@ -554,6 +554,9 @@ def _sentence(hook: str, nick: str) -> str:
     return h
 
 
+FILLER_TAGS = {"#viral", "#fyp", "#foryou", "#foryoupage", "#fypシ", "#explore", "#explorepage", "#trending", "#reels",
+               "#reelsinstagram", "#viralreels", "#shorts", "#instagood", "#follow", "#like4like"}
+HASHTAG_LIMIT = 5
 _FRAGMENT_END = {"the", "a", "an", "and", "or", "but", "so", "to", "of", "in", "on", "what", "kind", "like", "that",
                  "is", "was", "i", "you", "we", "my", "your", "nick", "y"}
 
@@ -641,7 +644,15 @@ def free_post(platform: str, streamer: str, hook: str, title: str, transcript: s
             tags += ["#gta6", "#gta"] if "6" in game else ["#gta"]
     tags += _MOMENT_TAGS.get(cat, ["#streamclips"])
     tags += ["#twitchclips" if lang == "en" else "#стрим", "#streamer"]
-    return {"title": t, "description": desc, "hashtags": list(dict.fromkeys(tags))}
+    # проверка подписи (как /ig-caption): без пустых тегов, не больше 5 (лимит Instagram с декабря 2025),
+    # первая строка помещается до «… ещё» (~125 знаков); и без машинного следа (как /ig-human)
+    from .humanize import clean
+    tags = [x for x in dict.fromkeys(tags) if x.lower() not in FILLER_TAGS][:HASHTAG_LIMIT]
+    desc = clean(desc)
+    first, _, rest = desc.partition("\n")
+    if len(first) > 125:
+        first = first[:124].rsplit(" ", 1)[0] + "…"
+    return {"title": clean(t), "description": first + ("\n" + rest if rest else ""), "hashtags": tags}
 
 
 def strategy_rules() -> dict:

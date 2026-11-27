@@ -18,3 +18,10 @@ hit = [h for h in hl if 400 <= h.peak <= 460]
 assert hit, "клип зрителей должен дать момент"
 assert hit[0].clip_views == 34000
 print("OK")
+
+# рекламная вставка отсеивается по двум признакам, одно слово — нет
+from stream_clipper import quality  # noqa: E402
+assert quality.ad_check("today's stream is sponsored by gfuel, use code KAI for 30% off")
+assert quality.ad_check("bro that sponsor guy is crazy lmao") is None
+assert quality.ad_check("this round is sponsored, chat") is None
+print("OK ads")

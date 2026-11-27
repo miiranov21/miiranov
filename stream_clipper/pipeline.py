@@ -246,6 +246,16 @@ def _make_short(segment: str, out: str, cfg: Settings, log, meta: dict | None = 
                     except OSError:
                         pass
                 raise ClipRejected(why)
+    if transcript and meta.get("check_quality", True) and not meta.get("caption_text"):
+        from . import quality as _qa
+        why = _qa.ad_check(transcript)  # рекламная интеграция — не смешной момент, а чужая реклама
+        if why:
+            for p_ in ass_files:
+                try:
+                    os.remove(p_)
+                except OSError:
+                    pass
+            raise ClipRejected(why)
     text = ""
     if cfg.caption:
         from .caption import _api_key, make_caption, streamer_quote
@@ -715,6 +725,11 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
         if allowed > 0:
             use = media if (media and cfg.audio) else None
             vclips = None if yt else twitch.viewer_clips(channel, twitch.vod_id(url))
+            if not yt:  # где Twitch заглушил звук — клип будет немым, такие куски пропускаем
+                muted = twitch.muted_segments(twitch.vod_id(url))
+                if muted:
+                    log(f"  заглушённых Twitch кусков: {len(muted)} — их пропускаю")
+                skip = skip + [{"start": a, "end": b} for a, b in muted]
             hl = _analyze(msgs, duration, use.audio(duration) if use else None, cfg, skip, log, top=allowed,
                           visual=use.visual(duration) if use else None, title=title, channel=channel, clips=vclips)
             for i, h in enumerate(hl, 1):

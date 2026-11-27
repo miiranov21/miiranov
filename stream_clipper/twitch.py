@@ -306,6 +306,21 @@ def category_at(video_id: str, sec: float) -> str:
     return next((name for a, b, name in ch if a <= sec < b), whole)
 
 
+def muted_segments(video_id: str) -> list[tuple[float, float]]:
+    """Куски записи, где Twitch заглушил звук (чужая музыка): [(от, до)] в секундах. Там клип без звука — не берём."""
+    key = ("mute", str(video_id))
+    if key not in _META_CACHE:
+        try:
+            nodes = ((((_gql('query{video(id:"%s"){muteInfo{mutedSegmentConnection{nodes{duration offset}}}}}'
+                              % str(video_id).replace('"', "")).get("video") or {}).get("muteInfo") or {})
+                      .get("mutedSegmentConnection") or {}).get("nodes")) or []
+            _META_CACHE[key] = [(float(n.get("offset") or 0), float(n.get("offset") or 0) + float(n.get("duration") or 0))
+                                for n in nodes]
+        except Exception:
+            _META_CACHE[key] = []
+    return _META_CACHE[key]
+
+
 def live_category(login: str) -> str:
     """Категория идущего эфира сейчас ('' — эфира нет или не знаем). Кэш на 5 минут."""
     import time as _t

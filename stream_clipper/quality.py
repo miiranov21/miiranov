@@ -509,3 +509,21 @@ def source_size(path: str) -> tuple[int, int]:
         return int(w), int(h)
     except ValueError:
         return 0, 0
+
+
+AD_PHRASES = ("sponsor", "sponsored", "promo code", "use code", "discount code", "link in bio", "link in my bio",
+              "link in the description", "link in description", "brought to you by", "% off", "percent off",
+              "sign up now", "download the app", "check them out", "partnered with", "affiliate", "free trial",
+              "спонсор", "промокод", "по ссылке в описании", "скидк")
+
+
+def ad_check(transcript: str) -> str | None:
+    """Рекламная вставка в речи стримера (спонсор, промокод, «ссылка в описании») — такой момент не берём.
+    Нужно два признака, чтобы случайное слово не выбило хороший момент. Фразы — strategy.quality_filters.ad_phrases."""
+    t = (transcript or "").lower()
+    phrases = rules().get("ad_phrases") or AD_PHRASES
+    hits = [p for p in phrases if p in t]
+    hits = [p for p in hits if not any(p != q and p in q for q in hits)]  # «sponsor» внутри «sponsored» — один признак
+    if len(hits) >= 2:
+        return "рекламная интеграция (" + ", ".join(hits[:3]) + ") — это не момент, а чужая реклама"
+    return None

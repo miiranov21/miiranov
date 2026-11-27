@@ -63,18 +63,28 @@ def _update(**kw) -> dict:
     return cfg
 
 
-def _http(url: str, data=None, headers: dict | None = None, method: str | None = None, timeout: float = 120):
-    """Запрос → (код, заголовки, тело как dict или текст)."""
+def _http(url: str, data=None, headers: dict | None = None, method: str | None = None, timeout: float = 120,
+          retries: int = 0):
+    """Запрос → (код, заголовки, тело как dict или текст). retries — повторы при обрыве связи (без ответа сервера)."""
     body = data
     if isinstance(data, dict):
         body = urllib.parse.urlencode(data).encode()
         headers = dict(headers or {}, **{"Content-Type": "application/x-www-form-urlencoded"})
     req = urllib.request.Request(url, data=body, headers=headers or {}, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            raw, code, hdrs = r.read(), r.status, dict(r.headers)
-    except urllib.error.HTTPError as e:
-        raw, code, hdrs = e.read(), e.code, dict(e.headers or {})
+    for attempt in range(retries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                raw, code, hdrs = r.read(), r.status, dict(r.headers)
+            break
+        except urllib.error.HTTPError as e:
+            raw, code, hdrs = e.read(), e.code, dict(e.headers or {})
+            break
+        except (urllib.error.URLError, OSError) as e:
+            if attempt >= retries:
+                raise RuntimeError(f"нет связи с {urllib.parse.urlparse(url).hostname}: {getattr(e, 'reason', e)}. "
+                                   "Проверь интернет; если включён VPN или антивирус с проверкой HTTPS — "
+                                   "попробуй без них (или наоборот, с VPN)") from e
+            time.sleep(2 * (attempt + 1))
     try:
         return code, hdrs, json.loads(raw.decode("utf-8") or "{}")
     except ValueError:
@@ -302,7 +312,7 @@ def tiktok_connect(client_key: str, client_secret: str, log=print) -> str:
                 "grant_type": "authorization_code", "redirect_uri": TT_REDIRECT}
         if mode != "none":
             form["code_verifier"] = verifier
-        st, _, tok = _http(TT_API + "/v2/oauth/token/", form)
+        st, _, tok = _http(TT_API + "/v2/oauth/token/", form, retries=3)
         if st == 200 and isinstance(tok, dict) and "access_token" in tok:
             break
         if i + 1 < len(order) and "code verifier" in str(tok).lower():
@@ -322,7 +332,8 @@ def _tt_token() -> str:
     if time.time() < float(t.get("expires", 0)) - 120 or not t.get("refresh_token"):
         return t["access_token"]
     st, _, tok = _http(TT_API + "/v2/oauth/token/", {"client_key": t["client_key"], "client_secret": t["client_secret"],
-                                                      "grant_type": "refresh_token", "refresh_token": t["refresh_token"]})
+                                                      "grant_type": "refresh_token", "refresh_token": t["refresh_token"]},
+                       retries=3)
     if st != 200 or "access_token" not in tok:
         raise RuntimeError(f"TikTok: не удалось обновить вход ({tok})")
     _update(tiktok={"access_token": tok["access_token"], "refresh_token": tok.get("refresh_token", t["refresh_token"]),

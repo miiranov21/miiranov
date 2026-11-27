@@ -300,6 +300,8 @@ def tricks_plan(c: dict, strat: dict, platform: str, duration: float, have: set)
     cd = ((strat.get("clip_settings") or {}).get("defaults") or {})
     lr = shape.length_rules()
     add = []
+    if c.get("compilation"):  # подборка уже смонтирована и длиннее обычного клипа (20–30 с) — не режем
+        return add
     peak = float(c.get("peak", 0) or 0) - float(c.get("start", 0) or 0)
     has_peak = 0 < peak < duration
     tgt = shape.target_for(platform)
@@ -466,7 +468,8 @@ def rule_plan(c: dict, strat: dict, info: dict) -> dict:
             edits.append({"type": "cover", "text": " ".join(c["caption"].split()[:4]),
                           "t": max(0.0, (peak or 3.0))})
         # длиннее, чем любит площадка, — не беда: ensure_mandatory сделает версию короче (trim)
-        ok = d >= lo - 3 and not nude
+        comp_day = ((strat.get("autopilot") or {}).get("compilation") or {}).get("per_day") or {}
+        ok = (d >= lo - 3 or c.get("compilation")) and not nude and not (c.get("compilation") and not comp_day.get(pl))
         plats[pl] = {"post": ok, "why": "по правилам (без ключа Claude)" if ok else "не подходит по длине или рискам",
                      "title": post["title"], "description": post["description"],
                      "hashtags": post["hashtags"], "edits": edits}
@@ -878,6 +881,12 @@ def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEW
         c["policy"] = pres.get(os.path.normpath(c["path"])) or {}
         c["_score"] = score(c, strat)
     by_path = {c["path"]: c for c in clips}
+    try:  # подборка дня (autopilot.compilation): 2–3 момента одного стримера с нумерацией — в план как клип
+        from . import compilation
+        if compilation.make_today(st, clips, event):
+            save_state(st)
+    except Exception as e:
+        event("❌", f"Подборка дня не собралась: {e}"[:200], None, "error")
 
     # 0) уже выложенное с серьёзным нарушением — снять: YouTube сами (приватно), TikTok/Instagram — сказать, что удалить вручную
     unpublish_flagged(st, event)

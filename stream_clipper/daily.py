@@ -138,7 +138,7 @@ def write_day_report(folder: str) -> str:
             L.append(f"| {i} | {c.get('created', '')} | {moment} | {cap} | "
                      f"{c['score']} | {c['file'].replace(os.sep, '/')} | {chat} |")
         L.append("")
-    if data["events"]:
+    if data.get("events"):
         L += ["## Журнал", ""] + [f"- {e['time']} — {e['text']}" for e in data["events"]] + [""]
     path = os.path.join(folder, f"отчет_{label}.md")
     with open(path + ".tmp", "w", encoding="utf-8") as f:

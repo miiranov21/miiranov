@@ -360,7 +360,8 @@
       "обещание в хуке обязано сбыться в клипе: «AT THE END», «WAIT FOR», «TILL» — только если пик в последней трети; при cold open (пик первым кадром) — «WASN'T READY», «THIS GOES WRONG»",
       "вопросы «WILL/CAN/DOES {s}…?» — только для hype/fail, где исход виден в клипе; ответ в конце даёт повтор",
       "«HE» — только для стримеров-мужчин",
-      "27.11: все 12 видео вышли с одним шаблоном «X lost it / had to walk away + цитата» — шаблоны чередовать строго, чтобы было что сравнивать"
+      "27.11: все 12 видео вышли с одним шаблоном «X lost it / had to walk away + цитата» — шаблоны чередовать строго, чтобы было что сравнивать",
+      "27.11: оценщик хуков в программе любит ставку (no/lost/almost/never) и числа; число или сумму в хуке писать только если оно реально есть в кадре или в речи стримера — не выдумывать"
     ],
     "nicknames": {
       "IShowSpeed": "SPEED",
@@ -446,7 +447,9 @@
         "WAIT FOR {s}'S LAUGH",
         "WATCH {s} TRY TO HOLD IT",
         "{s} WASN'T READY FOR THIS",
-        "WATCH TILL {s} BREAKS"
+        "WATCH TILL {s} BREAKS",
+        "{s} COULD NOT STOP LAUGHING",
+        "YOU WON'T GUESS WHY {s} LAUGHED"
       ],
       "shock": [
         "{s} FROZE",
@@ -467,7 +470,10 @@
         "{s} HAD NO IDEA WHAT'S COMING",
         "KEEP YOUR EYES ON {s}",
         "WAIT FOR IT, {s}...",
-        "{s}'S REACTION IS EVERYTHING"
+        "{s}'S REACTION IS EVERYTHING",
+        "{s} NEVER SAW THIS COMING",
+        "{s} ALMOST LOST EVERYTHING",
+        "{s} HAD NO IDEA WHAT WAS NEXT"
       ],
       "hype": [
         "{s} ACTUALLY DID IT",
@@ -485,7 +491,10 @@
         "CAN {s} ACTUALLY PULL THIS OFF?",
         "WILL {s} MAKE IT?",
         "DOES {s} PULL IT OFF?",
-        "{s} NEEDED THIS ONE"
+        "{s} NEEDED THIS ONE",
+        "{s} HAD ONE SHOT LEFT",
+        "NOBODY EXPECTED {s} TO DO THIS",
+        "{s} PULLED OFF THE IMPOSSIBLE"
       ],
       "fail": [
         "{s} RUINED EVERYTHING",
@@ -506,7 +515,10 @@
         "THIS GOES WRONG FOR {s}",
         "WATCH {s}'S PLAN FALL APART",
         "IT WAS GOING SO WELL, {s}",
-        "{s} IS ABOUT TO REGRET THIS"
+        "{s} IS ABOUT TO REGRET THIS",
+        "{s} WAS ONE SECOND AWAY",
+        "{s} ALMOST HAD IT",
+        "{s} LOST IT ALL IN SECONDS"
       ],
       "talk": [
         "{s} SAID TOO MUCH",

@@ -432,7 +432,7 @@ def strong_moments(hl: list, have_media: bool, log=print) -> list:
         why = None
         if best > 0 and sc < best * rel:
             why = f"слабее лучшего момента ({sc:.1f} из {best:.1f})"
-        elif two and chat < chat_only and other < sig:
+        elif two and chat < chat_only and other < sig and not getattr(h, "clip_views", 0):  # клип зрителей — уже подтверждение
             why = "реагирует только чат, а стример и картинка — нет"
         if why:
             log(f"  ⤼ пропущен скучный момент {_fmt(h.peak)}: {why}")

@@ -228,6 +228,49 @@ def _twitch_vods_gql(login: str, n: int) -> list[dict]:
     return out
 
 
+_CLIPS_CACHE: dict = {}
+
+
+def viewer_clips(login: str, video_id: str | None = None, since: float | None = None) -> list[tuple[float, float, int]]:
+    """Клипы, которые вырезали зрители: [(секунда от начала эфира, длина, просмотры)], самые смотрибельные первыми.
+    Зрители уже «проголосовали» за момент — это самый точный сигнал. Без входа в аккаунт, кэш на 10 минут.
+    video_id — клипы конкретной записи; since — клипы, созданные после этого времени (идущий эфир)."""
+    import time as _t
+    from datetime import datetime
+    key = login.lower()
+    hit = _CLIPS_CACHE.get(key)
+    if hit and _t.time() - hit[0] < 600:
+        nodes = hit[1]
+    else:
+        import requests
+        from .chat import GQL_CLIENT_ID, GQL_URL
+        q = ('query{user(login:"%s"){clips(first:100,criteria:{period:LAST_WEEK,sort:VIEWS_DESC}){edges{node{'
+             'viewCount durationSeconds videoOffsetSeconds createdAt video{id}}}}}}' % login.replace('"', ""))
+        try:
+            r = requests.post(GQL_URL, json={"query": q}, headers={"Client-Id": GQL_CLIENT_ID}, timeout=20)
+            r.raise_for_status()
+            edges = ((((r.json().get("data") or {}).get("user") or {}).get("clips") or {}).get("edges")) or []
+            nodes = [e.get("node") or {} for e in edges]
+        except Exception:
+            nodes = []  # нет связи или Twitch поменял API — ищем моменты как раньше, без клипов
+        _CLIPS_CACHE[key] = (_t.time(), nodes)
+    out = []
+    for n in nodes:
+        off = n.get("videoOffsetSeconds")
+        if off is None:
+            continue
+        if video_id and str((n.get("video") or {}).get("id") or "") != str(video_id):
+            continue
+        if since:
+            try:
+                if datetime.fromisoformat(str(n.get("createdAt")).replace("Z", "+00:00")).timestamp() < since:
+                    continue
+            except ValueError:
+                continue
+        out.append((float(off), float(n.get("durationSeconds") or 30), int(n.get("viewCount") or 0)))
+    return out
+
+
 def list_streams(kind: str, target: str, n: int = 15) -> list[dict]:
     """Последние стримы канала: [{key, url, title, duration, ts}], новые первыми.
     kind — "twitch" (target = логин) или "youtube" (target = @ник или ссылка на канал)."""

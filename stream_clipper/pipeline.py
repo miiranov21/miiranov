@@ -534,12 +534,13 @@ class ClipRejected(Exception):
 
 
 def _analyze(msgs: list[ChatMessage], duration: float, audio_db, cfg: Settings, done: list[dict], log,
-             top: int | None = None, visual=None, title: str = "", channel: str = ""):
-    log(f"Ищу моменты (длительность {_fmt(duration)}, сообщений {len(msgs)})...")
+             top: int | None = None, visual=None, title: str = "", channel: str = "", clips=None):
+    log(f"Ищу моменты (длительность {_fmt(duration)}, сообщений {len(msgs)}"
+        + (f", клипов зрителей {len(clips)}" if clips else "") + ")...")
     hl = detect.find_highlights(
         msgs, int(duration), audio_db=audio_db, visual=visual, top=cfg.top if top is None else top, clip_pre=cfg.clip_pre, clip_post=cfg.clip_post,
         chat_lag=cfg.chat_lag, audio_weight=cfg.audio_weight, min_score=cfg.min_score,
-        hype_words=cfg.hype_words, exclude=[(d["start"], d["end"]) for d in done], log=log)
+        hype_words=cfg.hype_words, exclude=[(d["start"], d["end"]) for d in done], clips=clips, log=log)
     hl = [h for h in hl if not _overlaps(h, done)]
     from . import quality
     if quality.enabled():  # чат про сон («wake up», «zzz») — такие моменты не берём
@@ -548,7 +549,8 @@ def _analyze(msgs: list[ChatMessage], duration: float, audio_db, cfg: Settings, 
     if cfg.auto_length:
         _auto_length(hl, msgs, audio_db, duration)
     for h in hl:
-        log(f"  * {_fmt(h.start)} – {_fmt(h.end)}  score={h.score}  ({' | '.join(h.top_messages[:3])})")
+        log(f"  * {_fmt(h.start)} – {_fmt(h.end)}  score={h.score}  ({' | '.join(h.top_messages[:3])})"
+            + (f"  🎬 клип зрителей: {h.clip_views} просмотров" if getattr(h, "clip_views", 0) else ""))
     return hl
 
 
@@ -704,8 +706,9 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
         allowed = clip_budget(cfg.top, duration - start_at) - len(counted)
         if allowed > 0:
             use = media if (media and cfg.audio) else None
+            vclips = None if yt else twitch.viewer_clips(channel, twitch.vod_id(url))
             hl = _analyze(msgs, duration, use.audio(duration) if use else None, cfg, skip, log, top=allowed,
-                          visual=use.visual(duration) if use else None, title=title, channel=channel)
+                          visual=use.visual(duration) if use else None, title=title, channel=channel, clips=vclips)
             for i, h in enumerate(hl, 1):
                 if paths.stop_requested():
                     stopped = True

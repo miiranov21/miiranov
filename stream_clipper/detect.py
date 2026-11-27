@@ -36,6 +36,7 @@ class Highlight:
     top_messages: list[str]
     jump_z: float = 0.0     # резкий скачок звука (крик)
     vis_z: float = 0.0      # резкая смена картинки (взрыв, авария)
+    clip_views: int = 0     # сколько просмотров у клипа зрителей на этом месте (0 — клипа нет)
 
     def to_dict(self):
         return asdict(self)
@@ -107,7 +108,7 @@ def find_highlights(msgs: list[ChatMessage], duration: int, *, audio_db: np.ndar
                     top: int = 10, clip_pre: float = 20, clip_post: float = 15, chat_lag: int = 5,
                     audio_weight: float = 0.6, min_score: float = 3.0, min_gap: float | None = None,
                     hype_words: list[str] | None = None, exclude: list[tuple[float, float]] | None = None,
-                    log=print) -> list[Highlight]:
+                    clips: list[tuple[float, float, int]] | None = None, log=print) -> list[Highlight]:
     duration = int(duration)
     hype_words = hype_words or DEFAULT_HYPE
     chat = smooth(chat_activity(msgs, duration, hype_words), 8)
@@ -136,8 +137,18 @@ def find_highlights(msgs: list[ChatMessage], duration: int, *, audio_db: np.ndar
         v[:m] = visual[:m]
         vis_z = robust_z(smooth(v, 3), min_scale=0.04)
 
+    # клипы зрителей: люди сами вырезали этот момент; чем больше просмотров, тем сильнее (лучший клип ≈ +3)
+    clip_sig = np.zeros_like(chat_z)
+    views = np.zeros(chat_z.size, dtype=np.int64)
+    for off, dur, v in clips or []:
+        a, b = max(0, int(off)), min(chat_z.size, int(off + max(dur, 5)) + 1)
+        if b > a:
+            clip_sig[a:b] = np.maximum(clip_sig[a:b], np.log10(v + 10))
+            views[a:b] = np.maximum(views[a:b], v)
+    if clip_sig.max() > 0:
+        clip_sig = 3.0 * clip_sig / clip_sig.max()
     score = (np.clip(chat_z, 0, None) + audio_weight * np.clip(audio_z, 0, None)
-             + 0.4 * np.clip(jump_z, 0, None) + visual_weight * np.clip(vis_z, 0, None))
+             + 0.4 * np.clip(jump_z, 0, None) + visual_weight * np.clip(vis_z, 0, None) + clip_sig)
     score = smooth(score, 5)
 
     gap = min_gap if min_gap is not None else (clip_pre + clip_post)
@@ -163,7 +174,8 @@ def find_highlights(msgs: list[ChatMessage], duration: int, *, audio_db: np.ndar
         result.append(Highlight(start=start, end=end, peak=float(p), score=round(val, 2),
                                 chat_z=round(float(chat_z[p]), 2), audio_z=round(float(audio_z[p]), 2),
                                 top_messages=top_msgs, jump_z=round(float(jump_z[lo:hi].max()), 2),
-                                vis_z=round(float(vis_z[lo:hi].max()), 2)))
+                                vis_z=round(float(vis_z[lo:hi].max()), 2),
+                                clip_views=int(views[int(start):int(end) + 1].max()) if views.size else 0))
     if not result:
         log(f"  ничего не найдено выше порога {min_score} (попробуй --min-score поменьше)")
     return sorted(result, key=lambda h: h.start)

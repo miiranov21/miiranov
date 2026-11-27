@@ -413,8 +413,13 @@ class LiveSession:
             log(f"[{self.channel}] лимит клипов на это время эфира набран — жду дальше")
             self._save_chat()
             return []
+        vclips = None
+        if not self.is_youtube and self.stream_start:  # клипы зрителей этого эфира → время от начала записи
+            from . import twitch as _tw
+            off = self.rec_start - self.stream_start
+            vclips = [(o - off, d, v) for o, d, v in _tw.viewer_clips(self.channel, since=self.stream_start - 60)]
         hl = _analyze(msgs, duration, audio_db, cfg, skip, log, top=allowed, visual=visual, title=self.title,
-                      channel=self.channel)
+                      channel=self.channel, clips=vclips)
         from .caption import detect_language
         lang = cfg.language or detect_language([m.text for m in msgs], self.title)
         from .caption import lang_allowed

@@ -278,23 +278,34 @@ def instagram_upload(file: str, caption: str, log=print, wait: float = 600) -> d
 # ---------- TikTok (черновики) ----------
 def tiktok_connect(client_key: str, client_secret: str, log=print) -> str:
     """Один раз: ключи своего приложения TikTok (Login Kit + Content Posting API, адрес возврата TT_REDIRECT) и вход."""
-    verifier, _ = _pkce()
-    challenge = hashlib.sha256(verifier.encode()).hexdigest()  # TikTok Login Kit for Desktop ждёт hex, не base64url
-    state = secrets.token_urlsafe(16)
-    url = TT_AUTH + "?" + urllib.parse.urlencode({
-        "client_key": client_key, "scope": "user.info.basic,video.upload,video.publish", "response_type": "code",
-        "redirect_uri": TT_REDIRECT, "state": state, "code_challenge": challenge, "code_challenge_method": "S256"})
-    log("Открываю вход в TikTok в браузере...")
-    webbrowser.open(url)
-    got = _wait_code(TT_PORT)
-    st, _, tok = _http(TT_API + "/v2/oauth/token/", {"client_key": client_key, "client_secret": client_secret,
-                                                      "code": got["code"], "grant_type": "authorization_code",
-                                                      "redirect_uri": TT_REDIRECT, "code_verifier": verifier})
-    if st != 200 or not isinstance(tok, dict) or "access_token" not in tok:
+    # TikTok для Desktop ждёт code_challenge в hex, для Web — base64url; какой нужен приложению, видно только по ответу
+    saved = (load().get("tiktok") or {}).get("pkce")
+    order = [saved] + [m for m in ("b64", "hex") if m != saved] if saved in ("b64", "hex") else ["b64", "hex"]
+    for i, mode in enumerate(order):
+        verifier, challenge = _pkce()
+        if mode == "hex":
+            challenge = hashlib.sha256(verifier.encode()).hexdigest()
+        state = secrets.token_urlsafe(16)
+        url = TT_AUTH + "?" + urllib.parse.urlencode({
+            "client_key": client_key, "scope": "user.info.basic,video.upload,video.publish", "response_type": "code",
+            "redirect_uri": TT_REDIRECT, "state": state, "code_challenge": challenge, "code_challenge_method": "S256"})
+        log("Открываю вход в TikTok в браузере..." if not i else
+            "TikTok ждёт другой формат проверочного кода — открываю вход ещё раз, войди повторно.")
+        webbrowser.open(url)
+        got = _wait_code(TT_PORT)
+        if got.get("state") != state:
+            raise RuntimeError("TikTok: ответ входа не совпал с запросом (state) — попробуй подключить ещё раз")
+        st, _, tok = _http(TT_API + "/v2/oauth/token/", {"client_key": client_key, "client_secret": client_secret,
+                                                          "code": got["code"], "grant_type": "authorization_code",
+                                                          "redirect_uri": TT_REDIRECT, "code_verifier": verifier})
+        if st == 200 and isinstance(tok, dict) and "access_token" in tok:
+            break
+        if i + 1 < len(order) and "code verifier" in str(tok).lower():
+            continue
         raise RuntimeError(f"TikTok не выдал доступ: {tok}")
     _update(tiktok={"client_key": client_key, "client_secret": client_secret, "access_token": tok["access_token"],
                     "refresh_token": tok.get("refresh_token", ""), "expires": time.time() + float(tok.get("expires_in", 0)),
-                    "connected": time.strftime("%Y-%m-%d %H:%M")})
+                    "connected": time.strftime("%Y-%m-%d %H:%M"), "pkce": mode})
     return "ok"
 
 

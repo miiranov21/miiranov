@@ -9,7 +9,7 @@
     "auto_delete": true,
     "delete_mode": "archive",
     "posts_per_day": {
-      "tiktok": 5,
+      "tiktok": 3,
       "youtube": 5,
       "instagram": 0
     },
@@ -24,10 +24,8 @@
     "timezone_note": "Время ПК — Москва. Аудитория — США (восточное время = МСК − 8 ч зимой).",
     "target_slots_et": {
       "tiktok": [
-        "08:00",
         "11:00",
-        "14:00",
-        "17:00",
+        "16:00",
         "20:00"
       ],
       "youtube": [
@@ -44,10 +42,8 @@
     },
     "target_slots_msk": {
       "tiktok": [
-        "16:00",
         "19:00",
-        "22:00",
-        "01:00",
+        "00:00",
         "04:00"
       ],
       "youtube": [
@@ -89,7 +85,8 @@
     "instagram_paused": {
       "since": "2026-11-21",
       "reason": "Instagram ytcuznation требует проверку владельца (вход на instagram.com). После проверки вернуть 2 пробных Reels в день (прогрев 7 дней)."
-    }
+    },
+    "tiktok_throttle": "27.11: 6 видео подряд с 0–2 просмотрами — до выяснения причины TikTok 3 в день; вернуть 5, когда новые видео снова получают ≥100 просмотров"
   },
   "scoring": {
     "weights": {

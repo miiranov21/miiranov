@@ -83,12 +83,15 @@ def _job_id(path: str, platform: str) -> str:
 
 # ---------- откуда берутся задания: очередь автопилота и план «Доктора» ----------
 def sync_jobs(st: dict) -> None:
-    from . import autopilot
+    from . import autopilot, publisher
     jobs = st["jobs"]
     ap = autopilot.load_state()
+    direct = publisher.direct_platforms()  # эти площадки «Выпускающий» публикует сам — в Telegram их не шлём
+    for jid in [k for k, j in jobs.items() if j.get("platform") in direct and j.get("status") == "pending"]:
+        jobs.pop(jid)
     for path, rec in ap.get("clips", {}).items():
         for pl, q in (rec.get("queue") or {}).items():
-            if q.get("status") != "waiting":
+            if q.get("status") != "waiting" or pl in direct:
                 continue
             jid = _job_id(path, pl)
             if jid not in jobs:
@@ -98,6 +101,8 @@ def sync_jobs(st: dict) -> None:
                              "status": "pending", "source": "autopilot"}
     clips = [c for d in library.list_dates() for c in library.list_clips(d)]
     for c, pl, p in exchange.plan(clips):
+        if pl in direct:
+            continue
         jid = _job_id(c["path"], pl)
         if jid in jobs or not p.get("when"):
             continue

@@ -339,6 +339,16 @@ def connected() -> dict:
             "tiktok": bool((cfg.get("tiktok") or {}).get("access_token"))}
 
 
+def direct_platforms() -> set:
+    """Площадки, куда «Выпускающий» публикует сам (подключены в Настройках). TikTok — только когда приложение
+    прошло проверку TikTok (tiktok.direct); до этого TikTok идёт через Telegram, чтобы не плодить черновики."""
+    c = connected()
+    out = {p for p in ("youtube", "instagram") if c.get(p)}
+    if c.get("tiktok") and (load().get("tiktok") or {}).get("direct"):
+        out.add("tiktok")
+    return out
+
+
 def publish(platform: str, file: str, title: str, description: str, tags: list, log=print) -> dict:
     """Опубликовать на площадке. Возвращает {"id", "url", ...}; ошибки — исключением с понятным текстом."""
     if platform == "youtube":

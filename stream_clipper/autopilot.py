@@ -873,8 +873,12 @@ def run_step(key: str | None, paused: bool, say, event, budget: int = MAX_REVIEW
 
     # 1) публикация того, чему пора (в режиме «через Telegram» выкладку ведёт tg_assist — бот присылает пост в слот)
     from . import tg_assist
-    if not paused and ap.get("auto_publish", True) and tg_assist.mode() != "telegram_assist":
-        stats["published"] += _publish_due(st, by_path, strat, say, event)
+    from . import publisher
+    direct = publisher.direct_platforms()
+    if not paused and ap.get("auto_publish", True) and (tg_assist.mode() != "telegram_assist" or direct):
+        # «Выпускающий»: подключённые площадки — сам; остальные в режиме Telegram — через бота
+        stats["published"] += _publish_due(st, by_path, strat, say, event,
+                                           only=None if tg_assist.mode() != "telegram_assist" else direct)
 
     # 1б) фильтры качества для уже нарезанных клипов: спит / отошёл / молчит при неподвижной картинке → в архив
     try:
@@ -1085,13 +1089,15 @@ def _process_clip(c: dict, st: dict, strat: dict, key: str | None, say, event, s
                                           for pl, q in rec["queue"].items()}, source="autopilot")
 
 
-def _publish_due(st: dict, by_path: dict, strat: dict, say, event) -> int:
+def _publish_due(st: dict, by_path: dict, strat: dict, say, event, only: set | None = None) -> int:
     from . import publisher
     now = datetime.now()
     conn = publisher.connected()
     n = 0
     for path, rec in st["clips"].items():
         for pl, q in (rec.get("queue") or {}).items():
+            if only is not None and pl not in only:
+                continue
             when = _parse(q.get("when"))
             if q.get("status") != "waiting" or not when or when > now:
                 continue
@@ -1133,6 +1139,14 @@ def _publish_due(st: dict, by_path: dict, strat: dict, say, event) -> int:
             n += 1
             what = "черновик TikTok — открой его в телефоне и нажми «Опубликовать»" if res.get("draft") else (res.get("url") or "")
             event("✅", f"{c.get('channel', '')}: опубликовано в {pl} — {what} {res.get('note', '')}".strip(), path, "clip")
+            try:  # отчёт в Telegram — только посмотреть, без кнопок и без действий
+                from . import telegram
+                if telegram.enabled():
+                    names = {"youtube": "YouTube", "instagram": "Instagram", "tiktok": "TikTok"}
+                    telegram.send_text(f"✅ Вышло · {names.get(pl, pl)} · {c.get('channel', '')}\n{q.get('title', '')}\n"
+                                       f"{res.get('url') or what}" + (f"\n⚠ {res['note']}" if res.get("note") else ""))
+            except Exception:
+                pass
             journal({"clip": exchange.clip_id(path), "action": "publish", "platform": pl, "url": res.get("url", ""),
                      "draft": bool(res.get("draft")), "note": res.get("note", "")})
     save_state(st)

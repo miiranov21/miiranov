@@ -1146,10 +1146,17 @@ def _publish_due(st: dict, by_path: dict, strat: dict, say, event, only: set | N
                                         ("\n\n" + " ".join(q.get("hashtags") or []) if q.get("hashtags") else ""),
                                         q.get("hashtags") or [], log=lambda m: None)
             except Exception as e:
-                q["errors"] = q.get("errors", 0) + 1
+                q["errors"] = 3 if isinstance(e, publisher.PublishRefused) else q.get("errors", 0) + 1
                 q["when"] = (now + timedelta(minutes=30)).isoformat(timespec="minutes")
                 if q["errors"] >= 3:
                     q["status"] = "error"
+                    try:  # владельцу — просто сообщение, без запасных путей
+                        from . import telegram
+                        if telegram.enabled():
+                            telegram.send_text(f"❌ Не получилось выложить · {pl} · {c.get('channel', '')}\n"
+                                               f"{q.get('title', '')}\n{e}"[:900])
+                    except Exception:
+                        pass
                 event("❌", f"{c.get('channel', '')}: не опубликовалось в {pl} — {e}"[:240], None, "error")
                 journal({"clip": exchange.clip_id(path), "action": "publish_error", "platform": pl, "why": str(e)[:300]})
                 continue

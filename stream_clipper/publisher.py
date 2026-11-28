@@ -396,13 +396,14 @@ def direct_platforms() -> set:
     """Площадки, куда «Выпускающий» публикует сам (подключены в Настройках). TikTok — только когда приложение
     прошло проверку TikTok (tiktok.direct); до этого TikTok идёт через Telegram, чтобы не плодить черновики."""
     c = connected()
-    cfg = load()
     out = {p for p in ("youtube", "instagram") if c.get(p)}
-    if (cfg.get("youtube") or {}).get("private_lock") and not (cfg.get("youtube") or {}).get("audited"):
-        out.discard("youtube")  # Google ещё не проверил приложение — видео выходили бы закрытыми, пока через Telegram
     if c.get("tiktok") and (load().get("tiktok") or {}).get("direct"):
         out.add("tiktok")
     return out
+
+
+class PublishRefused(RuntimeError):
+    """Площадка отказала так, что повтор не поможет."""
 
 
 def publish(platform: str, file: str, title: str, description: str, tags: list, log=print) -> dict:
@@ -411,15 +412,12 @@ def publish(platform: str, file: str, title: str, description: str, tags: list, 
         res = youtube_upload(file, title, description, tags, log)
         y = load().get("youtube") or {}
         if res.get("privacy") == "private" and not y.get("audited"):
-            # приложение Google не проверено: YouTube закрыл видео. Убираем закрытую копию и временно возвращаем
-            # YouTube в Telegram — видео не пропадёт. После проверки Google — галочка в Настройках.
+            # приложение Google не проверено: YouTube закрыл видео — убираем закрытую копию и сообщаем владельцу
             try:
                 youtube_delete(res["id"])
             except Exception:
                 pass
-            _update(youtube={"private_lock": True})
-            raise RuntimeError("YouTube делает видео закрытыми, пока Google не проверил приложение — "
-                               "до проверки YouTube снова идёт через Telegram")
+            raise PublishRefused("YouTube сделал видео закрытым — Google ещё не проверил приложение")
         return res
     if platform == "instagram":
         return instagram_upload(file, description, log)

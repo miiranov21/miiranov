@@ -1545,13 +1545,24 @@ class App:
 
     def start_watch(self, quiet: bool = False):
         names = self._save_streamers()
+        if self.v["auto_streamers"].get():  # «сам выбирает стримеров» — сразу берём, кто сейчас на хайпе
+            from . import auto_streamers
+            try:
+                auto_streamers.update(STREAMERS, log=lambda m: self._append(m + "\n"))
+            except Exception as e:
+                self._append(f"🤖 Не смог выбрать стримеров: {e}\n")
+            self._reload_streamer_lists()
+            names = self._read_streamers()
         if quiet:  # продолжение после обновления программы — без окон, сразу работать
             if names:
                 self._run(["watch", *self._flags()], T("Слежу за: ") + ", ".join(names), job=["watch"])
             return
         self._lang_warning(names)
         if not names:
-            messagebox.showwarning(T("Нет стримеров"), T("Впиши хотя бы одного стримера во вкладку Twitch или YouTube."))
+            messagebox.showwarning(T("Нет стримеров"), T("Сейчас никто подходящий не в эфире (или нет интернета). "
+                                                       "Впиши стримера во вкладку Twitch или YouTube, либо попробуй позже.")
+                                   if self.v["auto_streamers"].get() else
+                                   T("Впиши хотя бы одного стримера во вкладку Twitch или YouTube."))
             return
         from . import facecam
         todo = []

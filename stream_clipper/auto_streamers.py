@@ -93,12 +93,51 @@ def score(c: dict) -> float:
     return s
 
 
-def choose(cands: dict, current: list, state: dict, now: float, max_n: int) -> list:
-    """Новый список логинов. current — кто сейчас в списке, state — {login: {"last_live": ts}}."""
+def choose(cands: dict, current: list, state: dict, now: float, max_n: int, offline: list = ()) -> list:
+    """Новый список логинов. current — кто сейчас в списке, state — {login: {"last_live": ts}}.
+    offline — любимчики не в эфире: ими добираем список, их прошлые стримы режем по кругу."""
     keep = [n for n in current if n in cands or now - float((state.get(n) or {}).get("last_live", 0)) < KEEP_AFTER_LIVE]
     pool = sorted((n for n, c in cands.items() if n not in keep and (c.get("fav") or c["viewers"] >= MIN_VIEWERS)),
                   key=lambda n: -score(cands[n]))
+    pool += [n for n in offline if n not in keep and n not in pool]
     return keep + pool[:max(0, max_n - len(keep))]
+
+
+def queue_past_streams(names: list, log=print) -> None:
+    """Кто не в эфире — берём его последний неразобранный стрим и ставим в очередь «прошлых стримов» слежки."""
+    from . import progress, twitch
+    path = os.path.join(paths.default_work_dir(), "extra_vods.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        data = {}
+    vods = [v for v in (data.get("vods") or []) if v.get("url")]
+    have = {v.get("channel", "").lower() for v in vods}
+    done = progress.load()
+    added = []
+    for n in names:
+        if n in have:
+            continue
+        try:
+            streams = twitch.list_streams("twitch", n, 3)
+        except Exception:
+            continue
+        for v in streams:
+            e = done.get(str(v.get("key")))
+            sm = progress.summary(e) if e else None
+            if sm and sm.get("finished"):
+                continue
+            vods.append({"url": v["url"], "key": str(v.get("key") or ""), "channel": n, "title": v.get("title") or "",
+                         "from": float(sm.get("resume") or 0) if sm else 0.0})
+            added.append(f"{n} — {(v.get('title') or '')[:40]}")
+            break
+    if added:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            json.dump({"vods": vods}, f, ensure_ascii=False, indent=1)
+        os.replace(path + ".tmp", path)
+        log("🤖 Не в эфире — режу их прошлые стримы: " + "; ".join(added))
 
 
 def _read(path: str) -> tuple[list, list]:
@@ -127,8 +166,6 @@ def update(path: str, log=print) -> bool:
     except Exception as e:
         log(f"🤖 Не смог узнать, кто сейчас в эфире ({str(e)[:120]}) — список стримеров не меняю")
         return False
-    if not cands:
-        return False
     st_path = os.path.join(paths.default_work_dir(), "auto_streamers.json")
     try:
         with open(st_path, encoding="utf-8") as f:
@@ -139,7 +176,14 @@ def update(path: str, log=print) -> bool:
     for n in cands:
         state.setdefault(n, {})["last_live"] = now
     tw, other = _read(path)
-    new = choose(cands, tw, state, now, _max())
+    ap = (s.get("autopilot") or {}).get("streamer_mix") or {}
+    order = [n.lower() for n in ap.get("priority_streamers") or [] if isinstance(n, str)]
+    offline = [n for n in order + sorted(favs - set(order)) if n not in cands and n not in blocked()]
+    new = choose(cands, tw, state, now, _max(), offline)
+    try:
+        queue_past_streams([n for n in new if n not in cands], log)
+    except Exception as e:
+        log(f"🤖 Прошлые стримы не поставил в очередь: {str(e)[:120]}")
     os.makedirs(os.path.dirname(st_path), exist_ok=True)
     with open(st_path, "w", encoding="utf-8") as f:
         json.dump({n: v for n, v in state.items() if now - v.get("last_live", 0) < 7 * 86400}, f)

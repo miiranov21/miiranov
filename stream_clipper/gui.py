@@ -1564,6 +1564,9 @@ class App:
                                    if self.v["auto_streamers"].get() else
                                    T("Впиши хотя бы одного стримера во вкладку Twitch или YouTube."))
             return
+        if self.v["auto_streamers"].get():  # всё сам: вебку ищет на каждом клипе, стримы выбирает сам — без окон
+            self._run(["watch", *self._flags()], T("Слежу за: ") + ", ".join(names), job=["watch"])
+            return
         from . import facecam
         todo = []
         for spec in names:  # перед стартом — вебка у КАЖДОГО: от стрима к стриму она может переехать

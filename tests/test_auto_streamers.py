@@ -29,3 +29,20 @@ assert a.update(path, log=lambda *_: None)
 tw, other = a._read(path)
 assert tw == ["kaicenat", "bigchat"] and other == ["@MrBeast"], (tw, other)
 print("OK")
+
+# никто подходящий не в эфире: добираем любимчиками и ставим их прошлые стримы в очередь (разобранный — пропускаем)
+assert a.choose({}, [], {}, now, 3, ["kaicenat", "jynxzi"]) == ["kaicenat", "jynxzi"]
+a.twitch_streams = {"kaicenat": [{"key": "v2", "url": "u2", "title": "GTA 6 day 3"}, {"key": "v1", "url": "u1"}],
+                    "jynxzi": [{"key": "v9", "url": "u9", "title": "done one"}]}
+from stream_clipper import progress, twitch  # noqa: E402
+twitch.list_streams = lambda kind, n, k: a.twitch_streams[n]
+progress.load = lambda: {"v2": {"x": 1}, "v9": {"x": 1}}
+progress.summary = lambda e: {"finished": True}
+msgs = []
+a.queue_past_streams(["kaicenat", "jynxzi"], log=msgs.append)
+import json  # noqa: E402
+q = json.load(open(os.path.join(d, "extra_vods.json"), encoding="utf-8"))["vods"]
+assert [v["url"] for v in q] == ["u1"] and q[0]["channel"] == "kaicenat", q
+a.queue_past_streams(["kaicenat"], log=msgs.append)  # уже в очереди — второй раз не ставим
+assert len(json.load(open(os.path.join(d, "extra_vods.json"), encoding="utf-8"))["vods"]) == 1
+print("OK offline")

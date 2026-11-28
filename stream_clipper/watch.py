@@ -278,8 +278,13 @@ def watch(channels: list[str], cfg: Settings, poll: int = 120, live_interval: in
             daily.log_event(cfg.out_dir, f"{src.name}: не смог начать запись — {reason}")
             return False
 
+    auto_at = time.time()  # список уже обновлён при запуске (cli)
     try:
         while True:
+            if reload_file and time.time() - auto_at >= 20 * 60:  # «сам выбирает стримеров» — раз в 20 минут
+                auto_at = time.time()
+                from . import auto_streamers
+                auto_streamers.update(reload_file, log)
             reload_sources()
             from .pipeline import refresh_live
             refresh_live(cfg, log)

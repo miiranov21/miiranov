@@ -215,10 +215,13 @@ def main(argv=None) -> None:
                         break
         elif a.cmd == "watch":
             from .watch import watch
+            import os
+            if not a.channels:  # «сам выбирает стримеров»: сразу берём, кто сейчас на хайпе
+                from . import auto_streamers
+                auto_streamers.update(os.path.join(paths.program_dir(), "streamers.txt"))
             channels = a.channels or _channels_from_file()
             if not channels:
                 sys.exit("Не указаны стримеры. Впиши их в streamers.txt (по одному в строке)")
-            import os
             reload_file = None if a.channels else os.path.join(paths.program_dir(), "streamers.txt")
             watch(channels, cfg, poll=a.poll, live_interval=a.live_every * 60, record_twitch=a.record,
                   reload_file=reload_file)

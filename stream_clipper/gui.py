@@ -527,6 +527,9 @@ class App:
         # стримеры
         box = ttk.LabelFrame(top, text=T(" За кем следим (Twitch и YouTube — одновременно) "), padding=6)
         box.pack(side="left", fill="both", expand=True, padx=(0, 6))
+        self.v["auto_streamers"] = tk.BooleanVar(value=bool(self.cfg.get("auto_streamers", True)))
+        ttk.Checkbutton(box, text=T("🤖 Сам выбирает стримеров (кто сейчас в эфире и на хайпе)"),
+                        variable=self.v["auto_streamers"], command=self._save_settings).pack(anchor="w")
         self.platforms = ttk.Notebook(box)
         self.platforms.pack(fill="both", expand=True)
         tw_names, yt_names = split_platforms(self._read_streamers())
@@ -1058,6 +1061,14 @@ class App:
                     f.write(text)
             except OSError:
                 pass
+
+    def _reload_streamer_lists(self):
+        """Список поменяла программа сама — показываем новый."""
+        tw, yt = split_platforms(self._read_streamers())
+        for t, names in ((self.tw_text, tw), (self.yt_text, [n.lstrip("@") for n in yt])):
+            t.delete("1.0", "end")
+            t.insert("1.0", "\n".join(names))
+        self._update_platform_titles()
 
     def _save_streamers(self) -> list[str]:
         tw = _unique([norm_twitch(n) for n in self._platform_names(self.tw_text)])
@@ -1684,6 +1695,8 @@ class App:
                     self._append(tr_line(item), important=self._is_important(item), from_worker=True)
                     if "готово ->" in item:
                         self.root.after(500, self.refresh_clips)
+                    if "🤖 Сам выбрал стримеров" in item:
+                        self.root.after(200, self._reload_streamer_lists)
         except queue.Empty:
             pass
         self.root.after(150, self._drain)

@@ -1554,10 +1554,13 @@ class App:
             self._reload_streamer_lists()
             names = self._read_streamers()
         if quiet:  # продолжение после обновления программы — без окон, сразу работать
-            if names:
+            if names or self.v["auto_streamers"].get():
                 self._run(["watch", *self._flags()], T("Слежу за: ") + ", ".join(names), job=["watch"])
             return
         self._lang_warning(names)
+        if not names and self.v["auto_streamers"].get():  # никто не стримит GTA 6 — режем прошлые стримы
+            self._run(["watch", *self._flags()], T("Сейчас никто не стримит GTA 6 — режу прошлые стримы"), job=["watch"])
+            return
         if not names:
             messagebox.showwarning(T("Нет стримеров"), T("Сейчас никто подходящий не в эфире (или нет интернета). "
                                                        "Впиши стримера во вкладку Twitch или YouTube, либо попробуй позже.")

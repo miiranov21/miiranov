@@ -24,25 +24,25 @@ a.enabled = lambda: True
 a._max = lambda: 2
 a._strategy = lambda: {"autopilot": {"streamer_mix": {"priority_streamers": ["kaicenat"]}}}
 a.live_candidates = lambda cats, favs: cands
+a.top_past = lambda cats, favs: []
 a.paths.default_work_dir = lambda: d
 assert a.update(path, log=lambda *_: None)
 tw, other = a._read(path)
 assert tw == ["kaicenat", "bigchat"] and other == ["@MrBeast"], (tw, other)
 print("OK")
 
-# никто подходящий не в эфире: добираем любимчиками и ставим их прошлые стримы в очередь (разобранный — пропускаем)
-assert a.choose({}, [], {}, now, 3, ["kaicenat", "jynxzi"]) == ["kaicenat", "jynxzi"]
-a.twitch_streams = {"kaicenat": [{"key": "v2", "url": "u2", "title": "GTA 6 day 3"}, {"key": "v1", "url": "u1"}],
-                    "jynxzi": [{"key": "v9", "url": "u9", "title": "done one"}]}
-from stream_clipper import progress, twitch  # noqa: E402
-twitch.list_streams = lambda kind, n, k: a.twitch_streams[n]
-progress.load = lambda: {"v2": {"x": 1}, "v9": {"x": 1}}
+# прошлые стримы: самые просматриваемые про GTA 6, разобранные — пропускаем, очередь не раздуваем
+assert a.TOPIC.search("🔴PLAYING GTA 6 EARLY ACCESS") and a.TOPIC.search("Grand Theft Auto VI day 2") and not a.TOPIC.search("RONALDO RETIRED")
+from stream_clipper import progress  # noqa: E402
+progress.load = lambda: {"v2": {"x": 1}}
 progress.summary = lambda e: {"finished": True}
-msgs = []
-a.queue_past_streams(["kaicenat", "jynxzi"], log=msgs.append)
+vids = [{"url": "u2", "key": "v2", "channel": "ishowspeed", "title": "GTA 6 first", "views": 9},
+        {"url": "u3", "key": "v3", "channel": "caseoh_", "title": "LOSING MY MIND", "views": 8},
+        {"url": "u4", "key": "v4", "channel": "lacy", "title": "GTA 6 marathon", "views": 7}]
+a.queue_past_streams(vids, 1, log=lambda *_: None)
 import json  # noqa: E402
 q = json.load(open(os.path.join(d, "extra_vods.json"), encoding="utf-8"))["vods"]
-assert [v["url"] for v in q] == ["u1"] and q[0]["channel"] == "kaicenat", q
-a.queue_past_streams(["kaicenat"], log=msgs.append)  # уже в очереди — второй раз не ставим
-assert len(json.load(open(os.path.join(d, "extra_vods.json"), encoding="utf-8"))["vods"]) == 1
-print("OK offline")
+assert [v["key"] for v in q] == ["v3"], q          # v2 уже разобран, лимит очереди — 1
+a.queue_past_streams(vids, 2, log=lambda *_: None)
+assert [v["key"] for v in json.load(open(os.path.join(d, "extra_vods.json"), encoding="utf-8"))["vods"]] == ["v3", "v4"]
+print("OK past")

@@ -1,16 +1,20 @@
-"""Сам выбирает стримеров для слежки: кто сейчас в эфире и на хайпе (английский Twitch, категории ниши,
-любимчики из стратегии «Доктора»). Переписывает streamers.txt — слежка подхватывает список на ходу.
-Кого слежка уже ведёт, не выкидываем, пока его эфир не закончился и запись не дорезана."""
+"""Сам выбирает, что резать: всё про GTA 6, где есть просмотры и охват.
+• В эфире: английский Twitch в категории GTA 6 (и любимчики «Доктора», если играют в GTA 6) → streamers.txt,
+  слежка подхватывает список на ходу; кого ведёт — не выкидываем, пока эфир не дорезан.
+• Прошлые стримы: самые просматриваемые записи про GTA 6 (любые — хоть первый стрим IShowSpeed) →
+  очередь «прошлых стримов» слежки, режутся по кругу."""
 from __future__ import annotations
 
 import json
 import math
+import re
 import os
 import time
 
 from . import paths
 
-DEFAULT_CATEGORIES = ["Grand Theft Auto VI", "Just Chatting", "IRL"]
+DEFAULT_CATEGORIES = ["Grand Theft Auto VI"]
+TOPIC = re.compile(r"\bgta\s*-?\s*(6|vi)\b|grand theft auto vi\b", re.I)  # стрим про GTA 6 по названию
 KEEP_AFTER_LIVE = 3 * 3600   # после конца эфира держим ещё 3 ч — чтобы дорезать запись
 MIN_VIEWERS = 1000            # меньше — моментов и клипов зрителей почти нет
 BAD_LABELS = {"SexualThemes", "Gambling"}  # такие эфиры режут площадки — не берём
@@ -78,7 +82,8 @@ def live_candidates(cats: list, favs: set) -> dict:
         d = _gql("query{users(logins:[%s]){login stream{viewersCount game{name}}}}" % logins)
         for u in d.get("users") or []:
             st = (u or {}).get("stream")
-            if st:
+            game = ((st or {}).get("game") or {}).get("name") or ""
+            if st and any(c.lower() == game.lower() for c in cats):  # любимчик в эфире, но не в GTA 6 — не берём
                 out[u["login"].lower()] = {"viewers": int(st.get("viewersCount") or 0),
                                            "category": ((st.get("game") or {}).get("name") or ""), "fav": True}
     return out
@@ -93,19 +98,44 @@ def score(c: dict) -> float:
     return s
 
 
-def choose(cands: dict, current: list, state: dict, now: float, max_n: int, offline: list = ()) -> list:
-    """Новый список логинов. current — кто сейчас в списке, state — {login: {"last_live": ts}}.
-    offline — любимчики не в эфире: ими добираем список, их прошлые стримы режем по кругу."""
+def choose(cands: dict, current: list, state: dict, now: float, max_n: int) -> list:
+    """Новый список логинов. current — кто сейчас в списке, state — {login: {"last_live": ts}}."""
     keep = [n for n in current if n in cands or now - float((state.get(n) or {}).get("last_live", 0)) < KEEP_AFTER_LIVE]
     pool = sorted((n for n, c in cands.items() if n not in keep and (c.get("fav") or c["viewers"] >= MIN_VIEWERS)),
                   key=lambda n: -score(cands[n]))
-    pool += [n for n in offline if n not in keep and n not in pool]
     return keep + pool[:max(0, max_n - len(keep))]
 
 
-def queue_past_streams(names: list, log=print) -> None:
-    """Кто не в эфире — берём его последний неразобранный стрим и ставим в очередь «прошлых стримов» слежки."""
-    from . import progress, twitch
+def top_past(cats: list, favs: set) -> list:
+    """Самые просматриваемые записи про GTA 6: [{url, key, channel, title, views}], сильные — первыми."""
+    from .twitch import _gql
+    vids: dict = {}
+
+    def add(node, login):
+        vid = str(node.get("id") or "")
+        title = node.get("title") or ""
+        game = ((node.get("game") or {}).get("name") or "")
+        if vid and login and login not in blocked() and (TOPIC.search(title) or any(c.lower() == game.lower() for c in cats)):
+            views = int(node.get("viewCount") or 0) * (3 if login in favs else 1)  # любимчики «Доктора» — выше
+            vids[vid] = {"url": f"https://www.twitch.tv/videos/{vid}", "key": vid, "channel": login,
+                         "title": title, "views": views}
+    for cat in cats:
+        d = _gql('query{game(name:"%s"){videos(first:30,languages:["en"],sort:VIEWS){edges{node{'
+                 'id title viewCount game{name} owner{login}}}}}}' % cat.replace('"', ""))
+        for e in (((d.get("game") or {}).get("videos") or {}).get("edges") or []):
+            n = e.get("node") or {}
+            add(n, ((n.get("owner") or {}).get("login") or "").lower())
+    for f in sorted(favs):
+        d = _gql('query{user(login:"%s"){videos(first:15,type:ARCHIVE,sort:VIEWS){edges{node{'
+                 'id title viewCount game{name}}}}}}' % f.replace('"', ""))
+        for e in ((((d.get("user") or {}).get("videos") or {}).get("edges")) or []):
+            add(e.get("node") or {}, f)
+    return sorted(vids.values(), key=lambda v: -v["views"])
+
+
+def queue_past_streams(videos: list, want: int, log=print) -> None:
+    """Дополняем очередь «прошлых стримов» слежки до want записей: самые сильные, ещё не разобранные."""
+    from . import progress
     path = os.path.join(paths.default_work_dir(), "extra_vods.json")
     try:
         with open(path, encoding="utf-8") as f:
@@ -113,31 +143,27 @@ def queue_past_streams(names: list, log=print) -> None:
     except (OSError, ValueError):
         data = {}
     vods = [v for v in (data.get("vods") or []) if v.get("url")]
-    have = {v.get("channel", "").lower() for v in vods}
+    have = {str(v.get("key") or v.get("url")) for v in vods}
     done = progress.load()
     added = []
-    for n in names:
-        if n in have:
-            continue
-        try:
-            streams = twitch.list_streams("twitch", n, 3)
-        except Exception:
-            continue
-        for v in streams:
-            e = done.get(str(v.get("key")))
-            sm = progress.summary(e) if e else None
-            if sm and sm.get("finished"):
-                continue
-            vods.append({"url": v["url"], "key": str(v.get("key") or ""), "channel": n, "title": v.get("title") or "",
-                         "from": float(sm.get("resume") or 0) if sm else 0.0})
-            added.append(f"{n} — {(v.get('title') or '')[:40]}")
+    for v in videos:
+        if len(vods) >= want:
             break
+        if v["key"] in have:
+            continue
+        e = done.get(v["key"])
+        sm = progress.summary(e) if e else None
+        if sm and sm.get("finished"):
+            continue
+        vods.append({"url": v["url"], "key": v["key"], "channel": v["channel"], "title": v["title"],
+                     "from": float(sm.get("resume") or 0) if sm else 0.0})
+        added.append(f"{v['channel']} — {v['title'][:40]}")
     if added:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path + ".tmp", "w", encoding="utf-8") as f:
             json.dump({"vods": vods}, f, ensure_ascii=False, indent=1)
         os.replace(path + ".tmp", path)
-        log("🤖 Не в эфире — режу их прошлые стримы: " + "; ".join(added))
+        log("🤖 Режу самые просматриваемые стримы про GTA 6: " + "; ".join(added))
 
 
 def _read(path: str) -> tuple[list, list]:
@@ -176,12 +202,9 @@ def update(path: str, log=print) -> bool:
     for n in cands:
         state.setdefault(n, {})["last_live"] = now
     tw, other = _read(path)
-    ap = (s.get("autopilot") or {}).get("streamer_mix") or {}
-    order = [n.lower() for n in ap.get("priority_streamers") or [] if isinstance(n, str)]
-    offline = [n for n in order + sorted(favs - set(order)) if n not in cands and n not in blocked()]
-    new = choose(cands, tw, state, now, _max(), offline)
-    try:
-        queue_past_streams([n for n in new if n not in cands], log)
+    new = choose(cands, tw, state, now, _max())
+    try:  # прошлые стримы про GTA 6: всегда в работе пара сильных записей, ночью (мало эфиров) — больше
+        queue_past_streams(top_past(categories(s), favs), max(2, _max() - len(new)), log)
     except Exception as e:
         log(f"🤖 Прошлые стримы не поставил в очередь: {str(e)[:120]}")
     os.makedirs(os.path.dirname(st_path), exist_ok=True)

@@ -61,6 +61,14 @@ def _overlaps(h, done: list[dict], thr: float = 0.5) -> bool:
     return False
 
 
+def _off_topic(category: str) -> bool:
+    """«Сам выбирает стримеров» = канал про GTA 6: моменты из другой игры не режем (общение со зрителями — можно)."""
+    from . import auto_streamers, twitch
+    if not category or not auto_streamers.enabled() or category in twitch.CHAT_CATEGORIES:
+        return False
+    return not any(c.lower() in category.lower() for c in auto_streamers.categories(auto_streamers._strategy()))
+
+
 def write_report(folder: str, clips: list[dict], source: str, link_fn=None) -> None:
     lines = [f"# Хайлайты: {source}\n"]
     for i, c in enumerate(sorted(clips, key=lambda c: c["start"]), 1):
@@ -745,6 +753,9 @@ def process_vod(url: str, cfg: Settings, done: list[dict] | None = None, live: b
                 refresh_live(cfg, log)
                 if daily.similar_moment(cfg.out_dir, channel, (h.start + h.end) / 2):
                     log(f"  {_fmt(h.start)}: этот момент у {channel} уже нарезан — пропускаю")
+                    continue
+                if not yt and _off_topic(twitch.category_at(twitch.vod_id(url), h.peak)):
+                    log(f"  {_fmt(h.start)}: в этот момент не GTA 6 — пропускаю")
                     continue
                 d = dict(h.to_dict(), vod_url=url, vod_title=title, link=link(h.start))
                 d["has_media"] = bool(media and np.isfinite(media.v).any())
